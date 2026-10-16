@@ -2,116 +2,266 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Beat Frets</title>
+  <meta name="description" content="A 16-bit keyboard and controller rhythm game that builds note charts from your own MP3s." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
-<body>
-  <canvas id="stage"></canvas>
+<body class="crt">
+  <canvas id="stage" aria-label="Game stage"></canvas>
+  <div id="crt-overlay" aria-hidden="true"></div>
 
   <main id="panel">
-    <!-- Title / import -->
-    <section id="screen-menu" class="screen active">
-      <h1>Beat <span>Frets</span></h1>
-      <p class="tag">Drop in any song. The game listens to it and builds the note chart for you.</p>
-      <label id="drop" class="drop">
-        <input id="file" type="file" accept="audio/*,.mp3" hidden />
-        <strong>Import an MP3</strong>
-        <span>click to browse, or drag a file anywhere onto this window</span>
-      </label>
-      <button id="btn-demo" class="ghost">No MP3 handy? Play the built-in demo beat</button>
-      <details class="settings">
-        <summary>Settings</summary>
-        <div class="row">
-          <label for="speed">Note speed <output id="speed-out"></output></label>
-          <input id="speed" type="range" min="0.6" max="1.8" step="0.1" />
-        </div>
-        <div class="row">
-          <label for="calib">Audio offset <output id="calib-out"></output></label>
-          <input id="calib" type="range" min="-200" max="200" step="1" />
-        </div>
-        <button id="btn-calibrate" class="ghost small">Auto-calibrate (tap along to clicks)</button>
-      </details>
+    <!-- Title -->
+    <section id="screen-title" class="screen" data-back="">
+      <h1 class="logo"><span class="l1">BEAT</span><span class="l2">FRETS</span></h1>
+      <p class="tagline">Any song. Your keyboard or controller. Charts built by ear.</p>
+      <button id="btn-start" class="start blink" data-autofocus>PRESS START</button>
+      <p class="fine"><span id="title-player"></span></p>
     </section>
 
-    <!-- Analysing -->
-    <section id="screen-loading" class="screen">
-      <h2 id="loading-title">Listening to your song…</h2>
-      <div class="bar"><div id="loading-bar"></div></div>
-      <p id="loading-detail" class="muted">Decoding audio</p>
-    </section>
-
-    <!-- Song ready: pick difficulty -->
-    <section id="screen-song" class="screen">
-      <p class="muted small-caps">Now loaded</p>
-      <h2 id="song-name"></h2>
-      <p id="song-meta" class="muted"></p>
-      <div class="diffs">
-        <button class="diff" data-diff="easy">
-          <strong>Easy</strong>
-          <span class="keys"><kbd class="k0">A</kbd><kbd class="k1">S</kbd><kbd class="k2">D</kbd></span>
-          <span class="stats" data-stats="easy"></span>
-          <span class="best" data-best="easy"></span>
-        </button>
-        <button class="diff" data-diff="hard">
-          <strong>Hard</strong>
-          <span class="keys"><kbd class="k0">A</kbd><kbd class="k1">S</kbd><kbd class="k2">D</kbd><kbd class="k3">F</kbd><kbd class="k4">G</kbd></span>
-          <span class="stats" data-stats="hard"></span>
-          <span class="best" data-best="hard"></span>
-        </button>
+    <!-- Initials entry -->
+    <section id="screen-initials" class="screen win" data-back="title">
+      <h2>ENTER YOUR INITIALS</h2>
+      <p class="hint">These go on the leaderboard. <span class="kbd-only">Type letters, or use</span> ▲▼ to change, ◀▶ to move.</p>
+      <div class="initials" id="initials" role="group" aria-label="Initials">
+        <div class="slot" data-i="0"><span class="up">▲</span><b>A</b><span class="dn">▼</span></div>
+        <div class="slot" data-i="1"><span class="up">▲</span><b>A</b><span class="dn">▼</span></div>
+        <div class="slot" data-i="2"><span class="up">▲</span><b>A</b><span class="dn">▼</span></div>
       </div>
-      <p class="muted small">Hit the key as each note crosses the line. <kbd>Esc</kbd> pauses.</p>
-      <button id="btn-new-song" class="ghost">Load a different song</button>
+      <div class="menu row"><button id="btn-initials-ok" data-autofocus>OK</button></div>
+    </section>
+
+    <!-- Main menu -->
+    <section id="screen-main" class="screen win" data-back="title">
+      <h2 class="small">MAIN MENU</h2>
+      <div class="menu">
+        <button data-go="pack" data-autofocus>SONG PACK <small>Same charts for everyone</small></button>
+        <button data-go="import">YOUR MUSIC <small>Import an MP3</small></button>
+        <button data-go="boards">LEADERBOARDS</button>
+        <button data-go="players">PLAYER <small id="main-player"></small></button>
+        <button data-go="options">OPTIONS</button>
+        <button data-go="data">SAVE DATA</button>
+      </div>
+    </section>
+
+    <!-- Song pack -->
+    <section id="screen-pack" class="screen win" data-back="main">
+      <h2 class="small">SONG PACK</h2>
+      <p class="hint">Original chiptune tracks. Everyone gets the same notes, so these are the fairest songs to compete on.</p>
+      <div class="menu" id="pack-list"></div>
+    </section>
+
+    <!-- Import -->
+    <section id="screen-import" class="screen win" data-back="main">
+      <h2 class="small">YOUR MUSIC</h2>
+      <label id="drop" class="drop" tabindex="0" data-autofocus>
+        <input id="file" type="file" accept="audio/*,.mp3" hidden />
+        <strong>IMPORT AN MP3</strong>
+        <span>Click, press <span data-glyph="confirm">ENTER</span>, or drag a file onto this window.</span>
+      </label>
+      <p class="hint">Your song stays on this device. The game listens to it and builds Easy and Hard charts. If a friend imports their own copy of the same song, your scores land on the same leaderboard.</p>
+      <div class="menu" id="recent-list"></div>
+    </section>
+
+    <!-- Loading -->
+    <section id="screen-loading" class="screen win" data-back="">
+      <h2 id="loading-title" class="small">LOADING</h2>
+      <div class="bar"><div id="loading-bar"></div></div>
+      <p id="loading-detail" class="hint">Decoding audio</p>
+    </section>
+
+    <!-- Song: pick difficulty -->
+    <section id="screen-song" class="screen win wide" data-back="">
+      <p class="eyebrow">NOW LOADED</p>
+      <h2 id="song-name"></h2>
+      <p id="song-meta" class="hint"></p>
+      <p id="song-match" class="match" hidden></p>
+      <div class="diffs">
+        <div class="diff-col">
+          <button class="diff" data-diff="easy" data-autofocus>
+            <strong>EASY</strong>
+            <span class="keys" data-keys="3"></span>
+            <span class="stats" data-stats="easy"></span>
+          </button>
+          <ol class="mini-board" data-board="easy"></ol>
+        </div>
+        <div class="diff-col">
+          <button class="diff" data-diff="hard">
+            <strong>HARD</strong>
+            <span class="keys" data-keys="5"></span>
+            <span class="stats" data-stats="hard"></span>
+          </button>
+          <ol class="mini-board" data-board="hard"></ol>
+        </div>
+      </div>
+      <p class="hint">Hit each note as it crosses the line. Fill the OD meter, then press <b data-glyph="overdrive">SPACE</b> for double points. Don't let the rock meter run out.</p>
+      <div class="menu row"><button id="btn-song-back">BACK</button></div>
     </section>
 
     <!-- Results -->
-    <section id="screen-results" class="screen">
-      <p class="muted small-caps" id="res-title"></p>
-      <div id="res-grade" class="grade"></div>
-      <div id="res-score" class="big"></div>
-      <p id="res-best" class="newbest"></p>
+    <section id="screen-results" class="screen win" data-back="song">
+      <p class="eyebrow" id="res-title"></p>
+      <div class="res-head">
+        <div id="res-grade" class="grade"></div>
+        <div>
+          <div id="res-score" class="big">0</div>
+          <p id="res-flag" class="flag"></p>
+        </div>
+      </div>
       <table class="res">
-        <tr><td>Accuracy</td><td id="res-acc"></td></tr>
-        <tr><td class="perfect">Perfect</td><td id="res-perfect"></td></tr>
-        <tr><td class="good">Good</td><td id="res-good"></td></tr>
+        <tr><td>ACCURACY</td><td id="res-acc"></td></tr>
+        <tr><td class="perfect">PERFECT</td><td id="res-perfect"></td></tr>
+        <tr><td class="good">GOOD</td><td id="res-good"></td></tr>
         <tr><td class="ok">OK</td><td id="res-ok"></td></tr>
-        <tr><td class="miss">Miss</td><td id="res-miss"></td></tr>
-        <tr><td>Max combo</td><td id="res-combo"></td></tr>
+        <tr><td class="miss">MISS</td><td id="res-miss"></td></tr>
+        <tr><td>BEST STREAK</td><td id="res-combo"></td></tr>
       </table>
-      <div class="actions">
-        <button id="btn-retry">Play again</button>
-        <button id="btn-back" class="ghost">Choose difficulty</button>
+      <div class="menu row">
+        <button id="btn-retry" data-autofocus>PLAY AGAIN</button>
+        <button id="btn-share">SHARE</button>
+        <button id="btn-res-board">BOARD</button>
+        <button id="btn-res-back">SONG</button>
       </div>
     </section>
 
+    <!-- Share -->
+    <section id="screen-share" class="screen win" data-back="results">
+      <h2 class="small">SHARE YOUR SCORE</h2>
+      <img id="share-img" class="card" alt="Score card" />
+      <p class="hint">Friends who open the link see your score and can add it to their own leaderboard as a rival.</p>
+      <input id="share-link" class="linkbox" readonly aria-label="Share link" />
+      <div class="menu row">
+        <button id="btn-copy" data-autofocus>COPY LINK</button>
+        <button id="btn-save-img">SAVE IMAGE</button>
+        <button id="btn-native-share" hidden>SHARE…</button>
+        <button data-go="results">BACK</button>
+      </div>
+      <p id="share-status" class="hint" aria-live="polite"></p>
+    </section>
+
+    <!-- Incoming challenge -->
+    <section id="screen-challenge" class="screen win" data-back="title">
+      <p class="eyebrow">A CHALLENGER APPEARS</p>
+      <h2 id="ch-head"></h2>
+      <p id="ch-detail" class="hint"></p>
+      <p id="ch-warn" class="match warn" hidden></p>
+      <div class="menu">
+        <button id="btn-ch-accept" data-autofocus>ADD TO MY LEADERBOARD</button>
+        <button id="btn-ch-play"></button>
+        <button data-go="title">NOT NOW</button>
+      </div>
+      <p id="ch-status" class="hint" aria-live="polite"></p>
+    </section>
+
+    <!-- Leaderboards -->
+    <section id="screen-boards" class="screen win" data-back="main">
+      <h2 class="small">LEADERBOARDS</h2>
+      <div class="menu" id="boards-list"></div>
+    </section>
+
+    <section id="screen-board" class="screen win wide" data-back="boards">
+      <p class="eyebrow">LEADERBOARD</p>
+      <h2 id="board-title"></h2>
+      <div class="menu row tabs">
+        <button data-board-diff="easy" data-autofocus>EASY</button>
+        <button data-board-diff="hard">HARD</button>
+      </div>
+      <div class="table-wrap">
+        <table class="board" id="board-table"></table>
+      </div>
+      <div class="menu row">
+        <button id="btn-board-play">PLAY THIS SONG</button>
+        <button data-go="boards">BACK</button>
+      </div>
+    </section>
+
+    <!-- Players -->
+    <section id="screen-players" class="screen win" data-back="main">
+      <h2 class="small">PLAYERS</h2>
+      <p class="hint">Everyone on this device gets their own initials and scores.</p>
+      <div class="menu" id="players-list"></div>
+      <div id="player-stats" class="stats-box"></div>
+      <div class="menu row">
+        <button id="btn-new-player">NEW PLAYER</button>
+        <button id="btn-rename">RENAME</button>
+        <button id="btn-delete-player">DELETE</button>
+      </div>
+      <p id="players-status" class="hint" aria-live="polite"></p>
+    </section>
+
+    <!-- Options -->
+    <section id="screen-options" class="screen win" data-back="main">
+      <h2 class="small">OPTIONS</h2>
+      <div class="opts">
+        <label for="opt-speed">NOTE SPEED <output id="opt-speed-out"></output></label>
+        <input id="opt-speed" type="range" min="0.6" max="1.8" step="0.1" data-autofocus />
+        <label for="opt-calib">AUDIO OFFSET <output id="opt-calib-out"></output></label>
+        <input id="opt-calib" type="range" min="-200" max="200" step="1" />
+        <label for="opt-music">MUSIC VOLUME <output id="opt-music-out"></output></label>
+        <input id="opt-music" type="range" min="0" max="1" step="0.05" />
+        <label for="opt-sfx">EFFECTS VOLUME <output id="opt-sfx-out"></output></label>
+        <input id="opt-sfx" type="range" min="0" max="1" step="0.05" />
+      </div>
+      <div class="menu">
+        <button id="opt-crt" class="toggle">CRT SCANLINES <span></span></button>
+        <button id="opt-shake" class="toggle">SCREEN SHAKE <span></span></button>
+        <button id="opt-nofail" class="toggle">NO-FAIL MODE <span></span></button>
+        <button id="btn-calibrate">AUTO-CALIBRATE TIMING</button>
+      </div>
+      <p class="hint" id="pad-status"></p>
+    </section>
+
+    <!-- Save data -->
+    <section id="screen-data" class="screen win" data-back="main">
+      <h2 class="small">SAVE DATA</h2>
+      <p class="hint">Scores and players are saved in this browser. Back them up to a file to move them to another computer, or in case your browser data gets cleared.</p>
+      <div class="menu">
+        <button id="btn-export" data-autofocus>EXPORT SAVE FILE</button>
+        <button id="btn-import-save">IMPORT SAVE FILE</button>
+        <button id="btn-reset">ERASE ALL SCORES</button>
+      </div>
+      <input id="save-file" type="file" accept=".json,application/json" hidden />
+      <p id="data-status" class="hint" aria-live="polite"></p>
+    </section>
+
     <!-- Calibration -->
-    <section id="screen-calib" class="screen">
-      <h2>Calibrate</h2>
-      <p>Press <kbd>Space</kbd> exactly on each click you hear.</p>
+    <section id="screen-calib" class="screen win" data-back="options">
+      <h2 class="small">CALIBRATE</h2>
+      <p class="hint">Press <b>SPACE</b> or <b data-glyph="confirm">A</b> exactly on each click you hear.</p>
       <div id="calib-dots" class="dots"></div>
-      <p id="calib-status" class="muted"></p>
-      <button id="btn-calib-done" class="ghost">Back</button>
+      <p id="calib-status" class="hint" aria-live="polite"></p>
+      <div class="menu row"><button data-go="options">DONE</button></div>
     </section>
   </main>
 
-  <!-- Pause overlay -->
+  <!-- Pause -->
   <div id="pause" class="overlay" hidden>
-    <div class="card">
-      <h2>Paused</h2>
-      <div class="actions column">
-        <button id="btn-resume">Resume <kbd>Esc</kbd></button>
-        <button id="btn-restart" class="ghost">Restart</button>
-        <button id="btn-quit" class="ghost">Quit to song</button>
+    <div class="win pause-win">
+      <h2 class="small">PAUSED</h2>
+      <div class="menu">
+        <button id="btn-resume">RESUME</button>
+        <button id="btn-restart">RESTART</button>
+        <button id="btn-quit">QUIT</button>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="toast" hidden></div>
+  <div id="hints" class="hints" aria-hidden="true"></div>
+  <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="js/analyzer.js"></script>
   <script src="js/chartgen.js"></script>
-  <script src="js/demo.js"></script>
+  <script src="js/songs.js"></script>
+  <script src="js/save.js"></script>
+  <script src="js/sfx.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/render.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/share.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

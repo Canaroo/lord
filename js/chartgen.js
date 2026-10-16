@@ -124,11 +124,20 @@
     // Lane assignment.
     const notes = [];
     let prevLane = -1, prevT = -Infinity, run = 0, lastChordT = -Infinity;
+    const recent = [];
     for (const c of chosen) {
-      const order = rank(laneScores(c.b, cfg.lanes));
+      // Gently discourage lanes that dominate the last dozen notes, so close
+      // calls spread across the frets instead of piling onto one.
+      const scores = laneScores(c.b, cfg.lanes).map((v, l) => {
+        const share = recent.filter((x) => x === l).length / Math.max(1, recent.length);
+        return v * (1 - 0.6 * Math.max(0, share - 1 / cfg.lanes));
+      });
+      const order = rank(scores);
       let lane = order[0];
       if (lane === prevLane && (run >= cfg.maxRun || c.t - prevT < cfg.jackGap)) lane = order[1];
       run = lane === prevLane ? run + 1 : 1;
+      recent.push(lane);
+      if (recent.length > 12) recent.shift();
       notes.push({ t: +c.t.toFixed(4), lane });
 
       if (c.level === 0 && c.s >= cfg.chordThreshold && c.t - lastChordT > 1.0) {

@@ -1,99 +1,116 @@
 # Beat Frets
 
-A keyboard rhythm game in the spirit of *Frets on Fire*. Import any MP3, and the game
-listens to it and builds the note chart for you. No hand-made charts needed.
+A 16-bit rhythm game in the spirit of *Frets on Fire* and *Guitar Hero*. Play an original
+chiptune song pack, or import any MP3 and the game listens to it and builds the note
+chart for you. Play on a keyboard or a game controller.
 
-- **Easy:** 3 lanes (`A` `S` `D`). Notes on the strong beats.
-- **Hard:** 5 lanes (`A` `S` `D` `F` `G`). Off-beats, 16th notes and two-key chords.
+**Play it:** https://canaroo.github.io/lord/
 
-Notes are placed by **frequency**: kick drums and bass land in the left lanes, snares and
-vocals in the middle, and hi-hats and cymbals on the right, so you feel like you're
-playing the song's instruments.
+- **Easy:** 3 lanes. Notes on the strong beats.
+- **Hard:** 5 lanes. Off-beats, fast runs and two-button chords.
 
-## Play
+## Controls
 
-There is nothing to install or build. Open `index.html` in a modern desktop browser (Chrome, Edge,
-Firefox or Safari), then:
+| | Keyboard | Xbox | PlayStation | Switch Pro |
+| --- | --- | --- | --- | --- |
+| Hard lanes | `A` `S` `D` `F` `G` | LT LB A RB RT | L2 L1 ✕ R1 R2 | ZL L B R ZR |
+| Easy lanes | `A` `S` `D` | LB A RB | L1 ✕ R1 | L B R |
+| Overdrive | `Space` | Y | △ | X |
+| Pause | `Esc` | Menu | Options | + |
+| Menus | Arrows, `Enter`, `Esc` | D-pad / stick, A, B | D-pad / stick, ✕, ○ | D-pad / stick, B, A |
 
-1. Click **Import an MP3**, or drag an audio file onto the window. Any format your browser
-   can decode works (MP3, WAV, OGG, M4A…).
-2. Wait a few seconds while it analyses the song.
-3. Pick **Easy** or **Hard** and hit each key as its note crosses the line.
+Controllers are detected automatically. Browsers only reveal a controller after one of its
+buttons is pressed, so press any button and the on-screen labels switch to that pad's buttons.
+The keyboard keeps working alongside it.
 
-No MP3 handy? Click **Play the built-in demo beat**. It's synthesised in your browser.
+## How to play
 
-| Key | Action |
-| --- | --- |
-| `A` `S` `D` `F` `G` | Frets (green, red, yellow, blue, orange) |
-| `Esc` | Pause / resume |
+Hit each note as it crosses the line.
 
-**Timing feels off?** Open **Settings → Auto-calibrate**, then tap `Space` along with the clicks.
-Bluetooth headphones usually need this. You can also adjust note speed there.
+- **Streak multiplier:** every 10 notes in a row raises it, up to ×4.
+- **Overdrive (OD meter, left):** fills as you hit notes, with a bonus every 50-note streak.
+  Once it's half full, trigger it for double points (up to ×8). A full meter lasts 16 seconds.
+- **Rock meter (right):** rises on hits and drops on misses. If it empties, the song fails.
+  You can turn on **No-fail mode** in Options.
+- **Grades:** S, A, B, C or D by accuracy. "Full combo" means you missed nothing.
 
-To serve it over HTTP instead of opening the file directly: `npm start`, then open http://localhost:8080.
+**Timing feels off?** Go to **Options → Auto-calibrate timing** and tap along with the clicks.
+Bluetooth headphones usually need this.
+
+## Leaderboards and sharing
+
+Everything is saved in your browser on this device. Nothing is uploaded.
+
+- **Players:** each person enters arcade-style initials and gets their own scores. Switch
+  players from the main menu.
+- **Leaderboards:** each song and difficulty has a board with every player's best score.
+  Failed runs don't count.
+- **Sharing:** after a song, **Share** makes a pixel-art score card (copy the link, save the
+  image, or use your device's share menu). A friend who opens the link sees your score and can
+  add it to their leaderboard as a **rival**.
+- **Fair comparisons:** the **song pack** charts are built from the composition itself, so
+  everyone plays identical notes. For **imported MP3s**, two people's copies of a song are
+  usually different files, so the game matches them by how they *sound* (length, tempo and
+  the shape of the song's loudness over time). Your friend's score then lands on the same board.
+- **Backups:** **Save data → Export** downloads your save as a file. Import it on another
+  computer or browser to bring your players and scores along. Importing merges and never
+  overwrites.
+
+Share links have a checksum, so a hand-edited link shows as **unverified**. Like any browser
+game, a determined player could still fake a score, so treat rival scores as friendly bragging.
 
 ## How the auto-charting works
 
-All analysis runs locally in the browser. Nothing is uploaded.
+Imported songs are analysed in the browser (`js/analyzer.js`):
 
-1. **Spectral flux, per band** (`js/analyzer.js`): the song is split into short frames
-   (about 12 ms apart) and run through an FFT. For 5 frequency bands, the game measures how
-   suddenly the energy rises. A sudden rise is an *onset*, such as a drum hit or a plucked note.
-2. **Onset picking:** peaks that stand out from the local average become candidate notes,
-   each with a strength and a 5-band "fingerprint".
-3. **Tempo:** autocorrelating the onset curve finds the repeating period, giving the BPM.
-4. **Beat tracking:** dynamic programming (Ellis, 2007) finds the sequence of beats that best
-   matches the onsets while keeping a steady tempo. These are the lines that scroll down
-   the highway.
-5. **Chart generation** (`js/chartgen.js`):
-   - Build a grid of beats, 8th notes and 16th notes, and snap each onset to its slot.
-   - Keep onsets above a strength threshold, filling **beats first, then off-beats**,
-     with a minimum gap between notes (300 ms on Easy, 100 ms on Hard).
-   - Choose the lane from the strongest frequency band, then apply playability rules:
-     no long runs on one key, no fast repeats of the same key on Hard, and occasional
-     chords on big accents on Hard.
+1. **Per-band spectral flux:** the song is split into ~12 ms frames and run through an FFT.
+   For 5 frequency bands, the game measures sudden rises in energy (drum hits, plucked notes).
+2. **Onsets:** peaks that stand out from the local average become candidate notes, each with
+   a strength and a 5-band "fingerprint".
+3. **Tempo:** autocorrelation of the onset curve gives the BPM.
+4. **Beat tracking:** dynamic programming (Ellis, 2007) finds a steady sequence of beats.
 
-Each song's analysis is cached in `localStorage`, keyed by a hash of the file, so
-re-importing the same song is instant. Best scores are saved per song and difficulty.
+Then `js/chartgen.js` builds the chart. It snaps onsets to a beat/8th/16th-note grid, keeps
+the strong ones (beats first), enforces a minimum gap between notes (300 ms on Easy, 100 ms on
+Hard), and picks lanes by frequency: kick and bass on the left, hi-hats and cymbals on the
+right. It then spreads notes so no single fret hogs the chart.
 
-### Scoring
-
-| Judgement | Window | Points |
-| --- | --- | --- |
-| Perfect | ±50 ms | 100 |
-| Good | ±95 ms | 70 |
-| OK | ±140 ms | 40 |
-
-Every 10-note combo raises the multiplier, up to ×4. Stray key presses aren't penalised.
-
-## Limits
-
-- Charts follow the song's rhythm and frequencies but don't understand phrasing, so they're
-  fun and on-beat rather than hand-designed.
-- Songs with a strong, steady beat (pop, rock, electronic, hip-hop) chart best. Tracks with a
-  drifting tempo, ambient music and very quiet drums give sparser or looser charts.
+Song pack tracks (`js/songs.js`) are written as patterns and synthesised with a 16-bit-style
+sound palette: pulse-wave leads with SNES-style echo, triangle bass and noise drums. Their
+charts come from the notes themselves, with the melody walking across the frets.
 
 ## Development
 
+There is no build step. The page is plain HTML, CSS and JavaScript.
+
 ```
-js/analyzer.js   onset detection, tempo, beat tracking (works in the browser and Node)
+js/analyzer.js   onset detection, tempo, beat tracking
 js/chartgen.js   analysis → Easy/Hard note charts
-js/game.js       highway rendering, input, judging, scoring
-js/demo.js       synthesised demo track
+js/songs.js      chiptune song pack (composition, synthesis, charts)
+js/render.js     the 16-bit stage: highway, crowd, lights, HUD
+js/game.js       timing, judging, scoring, rock meter, overdrive
+js/input.js      keyboard and Gamepad API input
+js/sfx.js        chiptune sound effects and volume buses
+js/save.js       players, scores, leaderboards, share links, song matching
+js/share.js      score card image and challenge links
 js/main.js       menus and app flow
 ```
 
 ```bash
-npm test                          # unit tests: tempo/beat accuracy, chart rules (plain Node)
-npm i -D playwright && npm run e2e -- path/to/song.mp3   # headless browser smoke test
+npm start                         # serve locally on http://localhost:8080
+npm test                          # unit tests (plain Node, no dependencies)
+npm i -D playwright && npm run e2e -- [song.mp3]   # full browser test
 ```
 
-The end-to-end test loads the page, imports a song (or the demo), lets a bot play Hard mode
-for a few seconds, and checks that its on-time presses are judged *Perfect*.
+The end-to-end test drives the game with a simulated Xbox controller. It enters initials,
+navigates menus with the D-pad, plays a full song (overdrive included), checks the
+leaderboard, shares the score, opens the link as a friend in a separate browser, accepts the
+challenge, fails a song on purpose, pauses with Start, and imports an MP3.
 
 ### Ideas for next steps
 
-- Hold notes for sustained sounds (long onsets with steady energy).
-- A "Medium" difficulty (4 lanes): add an entry to `ChartGen.DIFFICULTIES` and a button in `index.html`.
-- Remappable keys and a fail meter.
-- Pattern memory, so repeated choruses get identical note patterns.
+- Hold notes for sustained sounds.
+- More song pack tracks. Each one is a small block of pattern data in `js/songs.js`.
+- An online leaderboard. Scores are already structured for it; it needs a small hosted
+  database such as Supabase.
+- Button remapping, and support for USB guitar controllers.
