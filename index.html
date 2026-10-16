@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Beat Frets</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <main id="panel">
+    <!-- Title / import -->
+    <section id="screen-menu" class="screen active">
+      <h1>Beat <span>Frets</span></h1>
+      <p class="tag">Drop in any song. The game listens to it and builds the note chart for you.</p>
+      <label id="drop" class="drop">
+        <input id="file" type="file" accept="audio/*,.mp3" hidden />
+        <strong>Import an MP3</strong>
+        <span>click to browse, or drag a file anywhere onto this window</span>
+      </label>
+      <button id="btn-demo" class="ghost">No MP3 handy? Play the built-in demo beat</button>
+      <details class="settings">
+        <summary>Settings</summary>
+        <div class="row">
+          <label for="speed">Note speed <output id="speed-out"></output></label>
+          <input id="speed" type="range" min="0.6" max="1.8" step="0.1" />
+        </div>
+        <div class="row">
+          <label for="calib">Audio offset <output id="calib-out"></output></label>
+          <input id="calib" type="range" min="-200" max="200" step="1" />
+        </div>
+        <button id="btn-calibrate" class="ghost small">Auto-calibrate (tap along to clicks)</button>
+      </details>
+    </section>
+
+    <!-- Analysing -->
+    <section id="screen-loading" class="screen">
+      <h2 id="loading-title">Listening to your song…</h2>
+      <div class="bar"><div id="loading-bar"></div></div>
+      <p id="loading-detail" class="muted">Decoding audio</p>
+    </section>
+
+    <!-- Song ready: pick difficulty -->
+    <section id="screen-song" class="screen">
+      <p class="muted small-caps">Now loaded</p>
+      <h2 id="song-name"></h2>
+      <p id="song-meta" class="muted"></p>
+      <div class="diffs">
+        <button class="diff" data-diff="easy">
+          <strong>Easy</strong>
+          <span class="keys"><kbd class="k0">A</kbd><kbd class="k1">S</kbd><kbd class="k2">D</kbd></span>
+          <span class="stats" data-stats="easy"></span>
+          <span class="best" data-best="easy"></span>
+        </button>
+        <button class="diff" data-diff="hard">
+          <strong>Hard</strong>
+          <span class="keys"><kbd class="k0">A</kbd><kbd class="k1">S</kbd><kbd class="k2">D</kbd><kbd class="k3">F</kbd><kbd class="k4">G</kbd></span>
+          <span class="stats" data-stats="hard"></span>
+          <span class="best" data-best="hard"></span>
+        </button>
+      </div>
+      <p class="muted small">Hit the key as each note crosses the line. <kbd>Esc</kbd> pauses.</p>
+      <button id="btn-new-song" class="ghost">Load a different song</button>
+    </section>
+
+    <!-- Results -->
+    <section id="screen-results" class="screen">
+      <p class="muted small-caps" id="res-title"></p>
+      <div id="res-grade" class="grade"></div>
+      <div id="res-score" class="big"></div>
+      <p id="res-best" class="newbest"></p>
+      <table class="res">
+        <tr><td>Accuracy</td><td id="res-acc"></td></tr>
+        <tr><td class="perfect">Perfect</td><td id="res-perfect"></td></tr>
+        <tr><td class="good">Good</td><td id="res-good"></td></tr>
+        <tr><td class="ok">OK</td><td id="res-ok"></td></tr>
+        <tr><td class="miss">Miss</td><td id="res-miss"></td></tr>
+        <tr><td>Max combo</td><td id="res-combo"></td></tr>
+      </table>
+      <div class="actions">
+        <button id="btn-retry">Play again</button>
+        <button id="btn-back" class="ghost">Choose difficulty</button>
+      </div>
+    </section>
+
+    <!-- Calibration -->
+    <section id="screen-calib" class="screen">
+      <h2>Calibrate</h2>
+      <p>Press <kbd>Space</kbd> exactly on each click you hear.</p>
+      <div id="calib-dots" class="dots"></div>
+      <p id="calib-status" class="muted"></p>
+      <button id="btn-calib-done" class="ghost">Back</button>
+    </section>
+  </main>
+
+  <!-- Pause overlay -->
+  <div id="pause" class="overlay" hidden>
+    <div class="card">
+      <h2>Paused</h2>
+      <div class="actions column">
+        <button id="btn-resume">Resume <kbd>Esc</kbd></button>
+        <button id="btn-restart" class="ghost">Restart</button>
+        <button id="btn-quit" class="ghost">Quit to song</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="js/analyzer.js"></script>
+  <script src="js/chartgen.js"></script>
+  <script src="js/demo.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
