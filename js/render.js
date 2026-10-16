@@ -154,7 +154,7 @@
     // ---- geometry ----------------------------------------------------------------------------
 
     geometry(lanes) {
-      const halfW = lanes === 3 ? 60 : 82;
+      const halfW = lanes === 3 ? 60 : lanes === 4 ? 72 : 82;
       return {
         cx: W / 2,
         halfW,

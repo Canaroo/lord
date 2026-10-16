@@ -152,7 +152,7 @@
       if (!Array.isArray(arr) || arr[0] !== 1) return null;
       const keys = SHARE_FIELDS.slice(0, arr.length);
       const d = Object.fromEntries(keys.map((k, i) => [k, arr[i]]));
-      if (typeof d.sc !== 'number' || !d.k || !['easy', 'hard'].includes(d.d)) return null;
+      if (typeof d.sc !== 'number' || !d.k || !['easy', 'medium', 'hard'].includes(d.d)) return null;
       return {
         verified: hash(SALT + body) === check,
         initials: cleanInitials(d.n),

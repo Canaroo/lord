@@ -9,17 +9,21 @@ for (const song of SongPack.SONGS) {
   test(`${song.title}: deterministic, playable charts`, () => {
     const a1 = SongPack.toAnalysis(SongPack.build(song));
     const a2 = SongPack.toAnalysis(SongPack.build(song));
-    for (const d of ['easy', 'hard']) {
+    const RANGE = { easy: [1, 3.5], medium: [1.8, 5.5], hard: [3, 8] };
+    const total = {};
+    for (const d of ['easy', 'medium', 'hard']) {
       const c1 = ChartGen.generate(a1, d);
       const c2 = ChartGen.generate(a2, d);
       assert.deepStrictEqual(c1, c2, 'charts must be identical across builds');
+      total[d] = c1.notes.length;
       const nps = c1.notes.length / a1.duration;
-      assert.ok(nps > (d === 'easy' ? 1 : 3) && nps < (d === 'easy' ? 3.5 : 8), `${d} density ${nps.toFixed(2)}/s`);
+      assert.ok(nps > RANGE[d][0] && nps < RANGE[d][1], `${d} density ${nps.toFixed(2)}/s`);
       // Every lane gets used for a meaningful share of notes.
       const counts = new Array(c1.lanes).fill(0);
       c1.notes.forEach((n) => counts[n.lane]++);
       for (const c of counts) assert.ok(c / c1.notes.length > 0.04, `lane share too low: ${counts}`);
     }
+    assert.ok(total.easy < total.medium && total.medium < total.hard, `difficulty should step up: ${JSON.stringify(total)}`);
     // Beats are evenly spaced at the song's tempo.
     const gap = 60 / song.bpm;
     for (let i = 1; i < a1.beats.length; i++) assert.ok(Math.abs(a1.beats[i] - a1.beats[i - 1] - gap) < 0.001);

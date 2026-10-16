@@ -15,6 +15,7 @@
   // Lane layouts: left hand on the shoulders, right thumb on the face button.
   const PAD_LANES = {
     3: [[B.LB, B.LT], [B.A, B.X, B.B], [B.RB, B.RT]],
+    4: [[B.LB, B.LT], [B.A, B.X, B.B], [B.RB], [B.RT]],
     5: [[B.LT], [B.LB], [B.A, B.X, B.B], [B.RB], [B.RT]],
   };
   const GLYPHS = {
@@ -22,7 +23,7 @@
     playstation: { LT: 'L2', LB: 'L1', A: '✕', RB: 'R1', RT: 'R2', Y: '△', B: '○', START: 'OPTIONS' },
     nintendo: { LT: 'ZL', LB: 'L', A: 'B', RB: 'R', RT: 'ZR', Y: 'X', B: 'A', START: '+' },
   };
-  const LANE_BUTTON_NAMES = { 3: ['LB', 'A', 'RB'], 5: ['LT', 'LB', 'A', 'RB', 'RT'] };
+  const LANE_BUTTON_NAMES = { 3: ['LB', 'A', 'RB'], 4: ['LB', 'A', 'RB', 'RT'], 5: ['LT', 'LB', 'A', 'RB', 'RT'] };
 
   const listeners = { lane: [], action: [], device: [] };
   const emit = (type, ...args) => listeners[type].forEach((fn) => fn(...args));
@@ -97,7 +98,7 @@
   }
 
   function pollPads() {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const pads = navigator.getGamepads ? Array.from(navigator.getGamepads()) : [];
     const now = performance.now();
     for (const pad of pads) {
       if (!pad || !pad.connected) continue;
@@ -140,9 +141,10 @@
       }
       st.buttons = down;
     }
-    requestAnimationFrame(pollPads);
   }
-  requestAnimationFrame(pollPads);
+  // Poll every 4 ms rather than once per frame, so a quick press never falls
+  // between two slow frames and input delay stays low.
+  setInterval(pollPads, 4);
 
   window.addEventListener('gamepaddisconnected', (e) => {
     padState.delete(e.gamepad.index);
@@ -164,6 +166,11 @@
 
   root.Input = {
     on: (type, fn) => listeners[type].push(fn),
+    /** Is any controller connected right now? */
+    padConnected() {
+      const pads = navigator.getGamepads ? Array.from(navigator.getGamepads()) : [];
+      return pads.some((p) => p && p.connected);
+    },
     setGameplay(on, lanes) {
       gameplay = on;
       if (lanes) laneCount = lanes;

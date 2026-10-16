@@ -5,7 +5,8 @@
   "description": "Keyboard rhythm game that auto-generates note charts from your own MP3s.",
   "scripts": {
     "start": "npx --yes http-server -c-1 -p 8080 .",
-    "test": "node --test tests/analyzer.test.js tests/save.test.js tests/songs.test.js",
+    "test": "node --test tests/analyzer.test.js tests/save.test.js tests/songs.test.js tests/bonus.test.js",
+    "build-charts": "node tools/build-charts.js",
     "e2e": "node tests/e2e.js"
   },
   "license": "MIT"

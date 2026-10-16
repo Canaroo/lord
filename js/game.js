@@ -173,6 +173,11 @@
         if (d <= WINDOWS.ok && d < bestD) { best = n; bestD = d; }
       }
       if (!best) return; // stray presses aren't punished
+      this._hit(best, bestD, t);
+    }
+
+    _hit(best, bestD, t) {
+      const lane = best.lane;
       const kind = bestD <= WINDOWS.perfect ? 'perfect' : bestD <= WINDOWS.good ? 'good' : 'ok';
       best.judged = kind;
       this.counts[kind]++;

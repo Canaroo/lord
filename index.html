@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Beat Frets</title>
   <meta name="description" content="A 16-bit keyboard and controller rhythm game that builds note charts from your own MP3s." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect width='16' height='16' fill='%2308081a'/%3E%3Crect x='2' y='9' width='3' height='3' fill='%2338d838'/%3E%3Crect x='6' y='9' width='3' height='3' fill='%23f83838'/%3E%3Crect x='10' y='9' width='3' height='3' fill='%23f8d830'/%3E%3Crect x='3' y='3' width='2' height='5' fill='%23f4f4ff'/%3E%3Crect x='7' y='4' width='2' height='4' fill='%23f4f4ff'/%3E%3Crect x='11' y='2' width='2' height='6' fill='%23f4f4ff'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" />
@@ -51,8 +52,13 @@
     <!-- Song pack -->
     <section id="screen-pack" class="screen win" data-back="main">
       <h2 class="small">SONG PACK</h2>
-      <p class="hint">Original chiptune tracks. Everyone gets the same notes, so these are the fairest songs to compete on.</p>
+      <p class="hint">Everyone gets the same notes on these songs, so they're the fairest ones to compete on.</p>
+      <p class="eyebrow">CHIPTUNE PACK</p>
       <div class="menu" id="pack-list"></div>
+      <div id="bonus-section" hidden>
+        <p class="eyebrow">BONUS TRACKS</p>
+        <div class="menu" id="bonus-list"></div>
+      </div>
     </section>
 
     <!-- Import -->
@@ -80,6 +86,7 @@
       <h2 id="song-name"></h2>
       <p id="song-meta" class="hint"></p>
       <p id="song-match" class="match" hidden></p>
+      <p id="song-credit" class="hint" hidden></p>
       <div class="diffs">
         <div class="diff-col">
           <button class="diff" data-diff="easy" data-autofocus>
@@ -88,6 +95,14 @@
             <span class="stats" data-stats="easy"></span>
           </button>
           <ol class="mini-board" data-board="easy"></ol>
+        </div>
+        <div class="diff-col">
+          <button class="diff" data-diff="medium">
+            <strong>MEDIUM</strong>
+            <span class="keys" data-keys="4"></span>
+            <span class="stats" data-stats="medium"></span>
+          </button>
+          <ol class="mini-board" data-board="medium"></ol>
         </div>
         <div class="diff-col">
           <button class="diff" data-diff="hard">
@@ -168,6 +183,7 @@
       <h2 id="board-title"></h2>
       <div class="menu row tabs">
         <button data-board-diff="easy" data-autofocus>EASY</button>
+        <button data-board-diff="medium">MEDIUM</button>
         <button data-board-diff="hard">HARD</button>
       </div>
       <div class="table-wrap">
@@ -256,6 +272,7 @@
   <script src="js/analyzer.js"></script>
   <script src="js/chartgen.js"></script>
   <script src="js/songs.js"></script>
+  <script src="js/bonus.js"></script>
   <script src="js/save.js"></script>
   <script src="js/sfx.js"></script>
   <script src="js/input.js"></script>

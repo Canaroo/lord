@@ -1,19 +1,41 @@
 // End-to-end test in headless Chromium (needs Playwright):
 //   npm run e2e -- [path/to/song.mp3]
+//   SONGS_DIR=dir/with/index.json npm run e2e     # also test bonus tracks from that folder
 //
 // Drives the whole game with a simulated Xbox controller: initials, menus,
 // a full song played on controller buttons (with overdrive), saving the score,
 // sharing it, a friend opening the challenge link in a separate browser, a
-// deliberately failed song, and (optionally) importing an MP3.
+// deliberately failed song, Medium difficulty, bonus tracks, and (optionally)
+// importing an MP3.
 'use strict';
 const path = require('path');
+const fs = require('fs');
+const http = require('http');
 let chromium;
 try { ({ chromium } = require('playwright')); }
 catch (e) { console.error('Playwright not found. Install it with: npm i -D playwright'); process.exit(1); }
 
 const mp3 = process.argv[2];
 const outDir = process.env.SHOT_DIR || __dirname;
-const url = 'file://' + path.resolve(__dirname, '..', 'index.html');
+const ROOT = path.resolve(__dirname, '..');
+const SONGS_DIR = process.env.SONGS_DIR ? path.resolve(process.env.SONGS_DIR) : path.join(ROOT, 'songs');
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.mp3': 'audio/mpeg', '.png': 'image/png' };
+
+// A tiny static server, so the page can fetch songs/ like it does on GitHub Pages.
+function serve() {
+  const server = http.createServer((req, res) => {
+    const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
+    const file = rel.startsWith('songs/') ? path.join(SONGS_DIR, rel.slice(6)) : path.join(ROOT, rel);
+    if (!file.startsWith(ROOT) && !file.startsWith(SONGS_DIR)) { res.writeHead(403); res.end(); return; }
+    fs.readFile(file, (err, data) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Content-Length': data.length });
+      res.end(data);
+    });
+  });
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
+}
+let url;
 const failures = [];
 const check = (ok, msg) => { if (!ok) failures.push(msg); console.log((ok ? 'ok   ' : 'FAIL ') + msg); };
 
@@ -67,6 +89,8 @@ const BOT = (laneButtons) => {
 };
 
 (async () => {
+  const server = await serve();
+  url = `http://127.0.0.1:${server.address().port}/`;
   const browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || undefined,
     args: ['--autoplay-policy=no-user-gesture-required'],
@@ -94,7 +118,9 @@ const BOT = (laneButtons) => {
   check((await page.textContent('[data-keys="5"]')).replace(/\s/g, '') === 'LTLBARBRT', 'lane labels show controller buttons');
   await page.screenshot({ path: path.join(outDir, 'e2e-song.png') });
 
-  // D-pad right to Hard, A to start.
+  // D-pad right twice (Easy → Medium → Hard), A to start.
+  await tap(page, 15);
+  check(await page.evaluate(() => document.activeElement.dataset.diff) === 'medium', 'D-pad reaches Medium');
   await tap(page, 15);
   check(await page.evaluate(() => document.activeElement.dataset.diff) === 'hard', 'D-pad moves the menu cursor');
   await tap(page, 0);
@@ -155,7 +181,38 @@ const BOT = (laneButtons) => {
   await page.click('#btn-quit');
   await screenIs(page, 'song');
 
+  // Medium: 4 lanes, keyboard bot for a few seconds.
+  check((await page.textContent('[data-keys="4"]')).replace(/\s/g, '') === 'LBARBRT', 'Medium shows four controller lanes');
+  await page.evaluate(() => BeatFrets.play('medium'));
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
+  check(await page.evaluate(() => BeatFrets.game.lanes) === 4, 'Medium plays on four lanes');
+  await page.keyboard.press('Escape');
+  await page.click('#btn-quit');
+  await screenIs(page, 'song');
+
+  // Bonus tracks from songs/ (pre-built charts, aligned to this browser's decode).
+  const index = JSON.parse(fs.readFileSync(path.join(SONGS_DIR, 'index.json'), 'utf8'));
+  if (index.songs.length) {
+    const id = index.songs[0].id;
+    await page.goto(url);
+    await screenIs(page, 'title');
+    await page.click('#btn-start');
+    await screenIs(page, 'main');
+    await page.click('[data-go="pack"]');
+    await page.waitForSelector(`[data-bonus="${id}"]`);
+    check(true, 'bonus tracks listed in the song pack');
+    await page.click(`[data-bonus="${id}"]`);
+    await screenIs(page, 'song');
+    const bi = await page.evaluate(() => ({ key: BeatFrets.current.key, shift: BeatFrets.current.shift, note: BeatFrets.current.matchNote, n: BeatFrets.current.charts.medium.notes.length }));
+    console.log('     bonus', JSON.stringify(bi));
+    check(bi.key === 'bonus:' + id && bi.n > 0 && !bi.note, 'bonus track loads its pre-built chart');
+    check(Math.abs(bi.shift) < 0.06, `chart aligned to this browser's audio (shift ${(bi.shift * 1000).toFixed(0)} ms)`);
+  } else {
+    console.log('     (no bonus tracks in songs/; set SONGS_DIR to test them)');
+  }
+
   if (mp3) {
+    await page.evaluate(() => { document.querySelector('[data-go="import"]').click(); });
     await page.setInputFiles('#file', mp3);
     await screenIs(page, 'song');
     const info = await page.evaluate(() => ({ key: BeatFrets.current.key, notes: BeatFrets.current.charts.hard.notes.length }));
@@ -164,6 +221,7 @@ const BOT = (laneButtons) => {
 
   check(!errors.length, 'no page errors ' + errors.join(' | '));
   await browser.close();
+  server.close();
   if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }
   console.log('\nPASS');
 })().catch((e) => { console.error(e); process.exit(1); });

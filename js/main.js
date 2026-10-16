@@ -10,6 +10,7 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
   const fmtDate = (iso) => (iso ? iso.slice(0, 10) : '');
+  const DIFFS = ['easy', 'medium', 'hard'];
 
   function safeStorage() {
     try {
@@ -179,7 +180,10 @@
     if (a === 'back') { goBack(); return; }
     if (a === 'confirm') {
       ensureAudio();
-      const el = document.activeElement;
+      let el = document.activeElement;
+      const root = activeRoot();
+      // Nothing focused yet (the screen just opened): act on its first item.
+      if (root && (!el || !root.contains(el))) el = focusables(root)[0];
       if (el && el.matches('button, label, [tabindex="0"]')) el.click();
       return;
     }
@@ -296,9 +300,9 @@
   function bestLine(key) {
     const p = save.active;
     if (!p) return '';
-    const parts = ['easy', 'hard'].map((d) => {
+    const parts = DIFFS.map((d) => {
       const b = save.personalBest(p.id, key, d);
-      return b ? `${d.toUpperCase()} ${b.score.toLocaleString('en-US')} ${b.grade}` : null;
+      return b ? `${d[0].toUpperCase()} ${b.score.toLocaleString('en-US')} ${b.grade}` : null;
     }).filter(Boolean);
     return parts.length ? 'BEST ' + parts.join(' · ') : 'Not played yet';
   }
@@ -307,12 +311,120 @@
     $('#pack-list').innerHTML = SongPack.SONGS.map((s, i) =>
       `<button data-pack="${esc(s.id)}" ${i === 0 ? 'data-autofocus' : ''}>${esc(s.title.toUpperCase())} <small>${s.bpm} BPM · ${esc(s.blurb)}<br>${esc(bestLine(SongPack.keyFor(s)))}</small></button>`
     ).join('');
+    fetchBonusIndex().then((list) => {
+      $('#bonus-section').hidden = !list.length;
+      $('#bonus-list').innerHTML = list.map((s) =>
+        `<button data-bonus="${esc(s.id)}">${esc(s.title.toUpperCase().slice(0, 40))} <small>${esc(s.artist || 'Bonus track')}<br>${esc(bestLine(BonusPack.keyFor(s.id)))}</small></button>`
+      ).join('');
+    });
   }
 
   $('#pack-list').addEventListener('click', (e) => {
     const b = e.target.closest('[data-pack]');
     if (b) { songOrigin = 'pack'; loadPack(b.dataset.pack); }
   });
+  $('#bonus-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-bonus]');
+    if (b) { songOrigin = 'pack'; loadBonus(b.dataset.bonus); }
+  });
+
+  // ---- bonus tracks (recorded songs in songs/) -------------------------------------------------
+
+  let bonusIndex = null;
+  const bonusCache = new Map();
+
+  async function fetchBonusIndex() {
+    if (bonusIndex) return bonusIndex;
+    try {
+      const r = await fetch('songs/index.json', { cache: 'no-cache' });
+      if (!r.ok) throw new Error(String(r.status));
+      const j = await r.json();
+      bonusIndex = Array.isArray(j.songs) ? j.songs.filter((x) => x && x.id && x.file) : [];
+    } catch (e) {
+      bonusIndex = []; // opened from disk, or no songs folder
+    }
+    return bonusIndex;
+  }
+
+  async function fetchWithProgress(url, onProgress) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`download failed (${r.status})`);
+    const total = +r.headers.get('content-length') || 0;
+    if (!r.body || !total) return r.arrayBuffer();
+    const reader = r.body.getReader();
+    const chunks = [];
+    let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      got += value.length;
+      onProgress(Math.min(1, got / total));
+    }
+    const out = new Uint8Array(got);
+    let o = 0;
+    for (const c of chunks) { out.set(c, o); o += c.length; }
+    return out.buffer;
+  }
+
+  async function analyseInBrowser(buffer, from, to) {
+    const channels = [];
+    for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
+    return BeatAnalyzer.analyze(channels, buffer.sampleRate, (p) => setProgress(from + p * (to - from), 'Building the charts on this device…'));
+  }
+
+  async function loadBonus(id) {
+    const list = await fetchBonusIndex();
+    const def = list.find((s) => s.id === id);
+    if (!def) { toast('That bonus track is not on this site.'); return; }
+    ensureAudio();
+    show('loading');
+    $('#loading-title').textContent = 'LOADING ' + def.title.toUpperCase().slice(0, 40);
+    setProgress(0.03, 'Downloading…');
+    try {
+      let entry = bonusCache.get(id);
+      if (!entry) {
+        const [bytes, chart] = await Promise.all([
+          fetchWithProgress('songs/' + encodeURIComponent(def.file), (p) => setProgress(0.03 + 0.6 * p, `Downloading… ${Math.round(p * 100)}%`)),
+          def.chart ? fetch('songs/' + encodeURIComponent(def.chart)).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null,
+        ]);
+        setProgress(0.66, 'Decoding audio…');
+        const buffer = await audioCtx.decodeAudioData(bytes);
+        let analysis;
+        let charts;
+        if (chart && chart.charts) {
+          setProgress(0.75, 'Lining the chart up with the audio…');
+          const n = Math.min(buffer.length, Math.floor(BonusPack.ALIGN_SECONDS * buffer.sampleRate));
+          const head = [];
+          for (let c = 0; c < buffer.numberOfChannels; c++) head.push(buffer.getChannelData(c).subarray(0, n));
+          const local = await BeatAnalyzer.analyze(head, buffer.sampleRate);
+          const shift = BonusPack.bestShift(chart.reference || [], BonusPack.referenceOnsets(local));
+          charts = {};
+          for (const [d, c] of Object.entries(chart.charts)) charts[d] = BonusPack.shiftChart(c, shift);
+          analysis = { duration: buffer.duration, bpm: chart.bpm, beats: chart.beats.map((b) => +(b + shift).toFixed(4)), onsets: [] };
+          entry = { buffer, analysis, charts, prebuilt: true, shift };
+        } else {
+          analysis = await analyseInBrowser(buffer, 0.7, 0.98);
+          charts = {};
+          for (const d of DIFFS) charts[d] = ChartGen.generate(analysis, d);
+          entry = { buffer, analysis, charts, prebuilt: false, shift: 0 };
+        }
+        bonusCache.set(id, entry);
+      }
+      setProgress(1, 'Ready');
+      current = {
+        key: BonusPack.keyFor(id), title: def.title, artist: def.artist || '', credit: def.credit || '', kind: 'bonus', bonusId: id,
+        buffer: entry.buffer, analysis: entry.analysis, charts: entry.charts, fp: null, shift: entry.shift,
+        matchNote: entry.prebuilt ? null : "This song's chart hasn't been pre-built yet, so this device made one. Other players' notes may differ slightly.",
+      };
+      showSong();
+    } catch (err) {
+      console.error(err);
+      renderPack();
+      show('pack');
+      toast(`"${def.title}" could not be loaded: ${err.message || err}`);
+    }
+  }
 
   function renderImport(note) {
     const recent = save.data.library.slice(-4).reverse();
@@ -345,7 +457,8 @@
     setProgress(0.2, 'Writing the charts…');
     const built = SongPack.build(def);
     const analysis = SongPack.toAnalysis(built);
-    const charts = { easy: ChartGen.generate(analysis, 'easy'), hard: ChartGen.generate(analysis, 'hard') };
+    const charts = {};
+    for (const d of DIFFS) charts[d] = ChartGen.generate(analysis, d);
     setProgress(0.45, 'Tuning the sound chip…');
     try {
       let buffer = bufferCache.get(id);
@@ -394,7 +507,8 @@
           setProgress(0.05 + p * 0.9, p < 0.8 ? 'Finding hits in each frequency band…' : 'Tracking the beat…'));
         try { if (storage) storage.setItem(cacheKey, JSON.stringify(analysis)); } catch (e) { /* cache is optional */ }
       }
-      const charts = { easy: ChartGen.generate(analysis, 'easy'), hard: ChartGen.generate(analysis, 'hard') };
+      const charts = {};
+      for (const d of DIFFS) charts[d] = ChartGen.generate(analysis, d);
       if (!charts.easy.notes.length) throw new Error('No beat could be found in this audio.');
       const fp = SaveData.fingerprint(analysis);
       const reg = save.registerSong(name, fp);
@@ -426,10 +540,14 @@
 
   function showSong() {
     $('#song-name').textContent = current.title;
-    $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · ~${Math.round(current.analysis.bpm)} BPM · ${current.kind === 'pack' ? 'Song pack: identical charts for everyone' : 'Imported song'}`;
+    const kind = { pack: 'Chiptune pack: identical charts for everyone', bonus: 'Bonus track: identical charts for everyone', mp3: 'Imported song' }[current.kind];
+    $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · ~${Math.round(current.analysis.bpm)} BPM · ${kind}`;
+    const credit = [current.artist, current.credit].filter(Boolean).join(' · ');
+    $('#song-credit').hidden = !credit;
+    $('#song-credit').textContent = credit;
     $('#song-match').hidden = !current.matchNote;
     $('#song-match').textContent = current.matchNote || '';
-    for (const d of ['easy', 'hard']) {
+    for (const d of DIFFS) {
       const n = current.charts[d].notes.length;
       $(`[data-stats="${d}"]`).textContent = `${n} notes · ${(n / Math.max(1, current.analysis.duration)).toFixed(1)}/sec`;
       $(`[data-board="${d}"]`).innerHTML = miniBoard(current.key, d);
@@ -459,7 +577,7 @@
       chart,
       beats: current.analysis.beats,
       stage,
-      lookahead: (difficulty === 'easy' ? 2.0 : 1.5) / settings.speed,
+      lookahead: ({ easy: 2.0, medium: 1.75, hard: 1.5 }[difficulty] || 1.5) / settings.speed,
       calibration: settings.calibrationMs / 1000,
       noFail: settings.noFail,
       intro: { title: current.title.toUpperCase().slice(0, 40), sub: ChartGen.DIFFICULTIES[difficulty].label.toUpperCase() },
@@ -635,8 +753,9 @@
     $('#ch-warn').hidden = shared.verified;
     $('#ch-warn').textContent = 'This link was changed after it was made, so this score will be marked unverified.';
     const pack = shared.songKey.startsWith('pack:') && SongPack.SONGS.find((s) => 'pack:' + s.id === shared.songKey);
+    const bonus = shared.songKey.startsWith('bonus:');
     const playBtn = $('#btn-ch-play');
-    playBtn.textContent = pack ? `PLAY ${pack.title.toUpperCase()}` : 'IMPORT YOUR COPY OF THE SONG';
+    playBtn.textContent = pack ? `PLAY ${pack.title.toUpperCase()}` : bonus ? `PLAY ${shared.title.toUpperCase().slice(0, 30)}` : 'IMPORT YOUR COPY OF THE SONG';
     $('#btn-ch-accept').disabled = false;
     $('#ch-status').textContent = '';
     show('challenge');
@@ -660,6 +779,10 @@
       songOrigin = 'pack';
       renderPack();
       loadPack(challenge.songKey.slice(5));
+    } else if (challenge.songKey.startsWith('bonus:')) {
+      songOrigin = 'pack';
+      renderPack();
+      loadBonus(challenge.songKey.slice(6));
     } else {
       songOrigin = 'import';
       renderImport(`Import your copy of "${challenge.title}". It doesn't have to be the same file: the game matches songs by how they sound.`);
@@ -684,11 +807,14 @@
 
   function renderBoards() {
     const pack = SongPack.SONGS.map((s) => ({ key: SongPack.keyFor(s), title: s.title, pack: true }));
-    const played = save.playedSongs().filter((s) => !s.key.startsWith('pack:'))
+    const bonus = (bonusIndex || []).map((s) => ({ key: BonusPack.keyFor(s.id), title: s.title }));
+    if (!bonusIndex) fetchBonusIndex().then((l) => { if (l.length && screen === 'boards') renderBoards(); });
+    const played = save.playedSongs().filter((s) => s.key.startsWith('mp3:'))
       .map((s) => ({ key: s.key, title: save.songTitle(s.key) || s.title, pack: false }));
     $('#boards-list').innerHTML =
       '<p class="eyebrow">SONG PACK</p>' +
       pack.map((s, i) => `<button data-board-key="${esc(s.key)}" data-title="${esc(s.title)}" ${i === 0 ? 'data-autofocus' : ''}>${esc(s.title.toUpperCase())}</button>`).join('') +
+      (bonus.length ? '<p class="eyebrow">BONUS TRACKS</p>' + bonus.map((s) => `<button data-board-key="${esc(s.key)}" data-title="${esc(s.title)}">${esc(s.title.toUpperCase().slice(0, 40))}</button>`).join('') : '') +
       (played.length ? '<p class="eyebrow">YOUR MUSIC</p>' + played.map((s) => `<button data-board-key="${esc(s.key)}" data-title="${esc(s.title)}">${esc(s.title.toUpperCase().slice(0, 40))}</button>`).join('') : '');
   }
 
@@ -728,6 +854,7 @@
     const { key, title, diff } = boardState;
     lastDifficulty = diff;
     if (key.startsWith('pack:')) { songOrigin = 'boards'; loadPack(key.slice(5)); }
+    else if (key.startsWith('bonus:')) { songOrigin = 'boards'; loadBonus(key.slice(6)); }
     else if (current && current.key === key) { songOrigin = 'boards'; showSong(); }
     else { songOrigin = 'import'; renderImport(`Import your copy of "${title}" to play it.`); show('import'); }
   });
@@ -813,7 +940,6 @@
   for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail']]) {
     $(id).addEventListener('click', () => { save.setSetting(key, !settings[key]); renderOptions(); });
   }
-
   // ---- calibration ---------------------------------------------------------------------------------------
 
   const calibrate = (() => {
@@ -964,6 +1090,7 @@
     get screen() { return screen; },
     play,
     loadPack,
+    loadBonus,
     importFile,
   };
 })();

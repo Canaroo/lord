@@ -25,6 +25,15 @@
       jackGap: 0,
       chordThreshold: Infinity,
     },
+    medium: {
+      label: 'Medium',
+      lanes: 4,
+      thresholds: [0.14, 0.5, 0.9],
+      minGap: 0.165,
+      maxRun: 4,
+      jackGap: 0.25,
+      chordThreshold: Infinity,
+    },
     hard: {
       label: 'Hard',
       lanes: 5,
@@ -73,6 +82,7 @@
   function laneScores(bands, lanes) {
     if (lanes === 5) return bands.slice(0, 5);
     if (lanes === 3) return [(bands[0] + bands[1]) / 2, bands[2], (bands[3] + bands[4]) / 2];
+    if (lanes === 4) return [bands[0], Math.max(bands[1], bands[2]), bands[3], bands[4]];
     // Generic fallback: spread 5 bands over N lanes.
     const out = new Array(lanes).fill(0);
     bands.forEach((v, b) => { out[Math.min(lanes - 1, Math.floor((b * lanes) / bands.length))] += v; });
