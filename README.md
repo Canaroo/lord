@@ -28,6 +28,7 @@ streak isn't broken.
 | Duo lanes | `F` `J` | LB RB | L1 R1 | L R |
 | Easy lanes | `A` `S` `D` | LB A RB | L1 ✕ R1 | L B R |
 | Overdrive | `Space` | Y | △ | X |
+| Restart (hold 1 s) | `R` | View | Share | − |
 | Pause | `Esc` | Menu | Options | + |
 | Menus | Arrows, `Enter`, `Esc` | D-pad / stick, A, B | D-pad / stick, ✕, ○ | D-pad / stick, B, A |
 
@@ -48,6 +49,31 @@ Hit each note as it crosses the line.
 
 **Timing feels off?** Go to **Options → Auto-calibrate timing** and tap along with the clicks.
 Bluetooth headphones usually need this.
+
+## Feel and feedback
+
+- **The stage follows your streak.** At ×1 it's calm and dim. At ×2 the lights pulse and the
+  crowd bobs. At ×3 the rails glow and the crowd raises its arms. At ×4 and in overdrive, lasers
+  sweep, stars streak past, the edges glow and the crowd jumps. Break a long streak and the
+  stage powers down for a moment.
+- **The guitarist** next to the highway wears the current player's colour. He head-bobs,
+  head-bangs and jumps as you build a streak, slumps when you lose it, and sits down if the song
+  fails.
+- **The music reacts.** It gets muffled as the rock meter runs low, ducks on a missed note, and
+  brightens during overdrive.
+- **On screen:** ten pips around the multiplier fill toward the next level, and points pop up
+  from each fret. A gold frame stays lit while a full combo is alive. A timing meter under the
+  frets shows whether each hit was early or late.
+- **Stars:** every song and tier is rated 1–5 stars by score. Five stars with a full combo turns
+  them gold. Your stars show while you play, on the song screen and on your player profile.
+- **Pace:** replay a song and the HUD shows how far ahead of or behind your personal best you are.
+- **Results:** a graph of how each part of the song went, your average timing (with a one-press
+  fix if you're consistently early or late), and a suggestion for what to try next.
+- **Stray presses** on Medium and up break your streak, so mashing doesn't pay. Easy stays
+  forgiving.
+- **Pausing** stops the song. Resuming rewinds a second and counts you back in.
+- **Saved music:** imported songs are kept in your browser and listed under *Your music*, one
+  click to play or delete. Song lists play a short preview of whatever's highlighted.
 
 ## Leaderboards and sharing
 
@@ -120,7 +146,8 @@ tools/build-charts.js   builds bonus-track charts (needs ffmpeg)
 js/render.js     the 16-bit stage: highway, crowd, lights, HUD
 js/game.js       timing, judging, scoring, rock meter, overdrive
 js/input.js      keyboard and Gamepad API input
-js/sfx.js        chiptune sound effects and volume buses
+js/sfx.js        chiptune sound effects, volume buses, reactive music filters
+js/library.js    imported songs saved in the browser (IndexedDB)
 js/save.js       players, scores, leaderboards, share links, song matching
 js/share.js      score card image and challenge links
 js/main.js       menus and app flow

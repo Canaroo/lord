@@ -7,6 +7,13 @@
   let ctx = null;
   let musicBus = null;
   let sfxBus = null;
+  // Song path: musicIn → lowpass (muffles in danger) → shelf (brightens in
+  // overdrive) → dip (ducks on a miss) → musicBus (volume).
+  let musicIn = null;
+  let lowpass = null;
+  let shelf = null;
+  let dip = null;
+  let previewBus = null;
   let noise = null;
   const waves = {};
   const volumes = { music: 0.9, sfx: 0.7 };
@@ -18,6 +25,20 @@
     sfxBus = ctx.createGain();
     musicBus.connect(ctx.destination);
     sfxBus.connect(ctx.destination);
+    musicIn = ctx.createGain();
+    lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 20000;
+    lowpass.Q.value = 0.7;
+    shelf = ctx.createBiquadFilter();
+    shelf.type = 'highshelf';
+    shelf.frequency.value = 3200;
+    shelf.gain.value = 0;
+    dip = ctx.createGain();
+    musicIn.connect(lowpass).connect(shelf).connect(dip).connect(musicBus);
+    previewBus = ctx.createGain();
+    previewBus.gain.value = 0.55;
+    previewBus.connect(musicBus);
     setVolumes(volumes.music, volumes.sfx);
     noise = ctx.createBuffer(1, ctx.sampleRate / 2, ctx.sampleRate);
     const d = noise.getChannelData(0);
@@ -83,10 +104,46 @@
     n.stop(t + decay + 0.02);
   }
 
+  const live = () => ctx && musicIn;
+
   const Sfx = {
     init,
     setVolumes,
     get musicBus() { return musicBus; },
+    get musicIn() { return musicIn; },
+    get previewBus() { return previewBus; },
+    /** 0 = fine, 1 = about to fail: the song gets muffled and a little quieter. */
+    setDanger(level) {
+      if (!live()) return;
+      const t = ctx.currentTime;
+      lowpass.frequency.setTargetAtTime(20000 * Math.pow(900 / 20000, level), t, 0.12);
+      musicIn.gain.setTargetAtTime(1 - 0.25 * level, t, 0.12);
+    },
+    /** A quick duck on a missed note. */
+    missDip() {
+      if (!live()) return;
+      const t = ctx.currentTime;
+      dip.gain.cancelScheduledValues(t);
+      dip.gain.setValueAtTime(dip.gain.value, t);
+      dip.gain.linearRampToValueAtTime(0.6, t + 0.03);
+      dip.gain.setTargetAtTime(1, t + 0.08, 0.09);
+    },
+    /** Overdrive: a brighter, more present mix. */
+    setOverdrive(on) {
+      if (!live()) return;
+      shelf.gain.setTargetAtTime(on ? 6 : 0, ctx.currentTime, 0.15);
+    },
+    resetMusicFx() {
+      if (!live()) return;
+      const t = ctx.currentTime;
+      for (const p of [lowpass.frequency, shelf.gain, dip.gain, musicIn.gain]) p.cancelScheduledValues(t);
+      lowpass.frequency.setValueAtTime(20000, t);
+      shelf.gain.setValueAtTime(0, t);
+      dip.gain.setValueAtTime(1, t);
+      musicIn.gain.setValueAtTime(1, t);
+    },
+    hitTick: () => seq([[96, 0.012]], { duty: 0.125, vol: 0.07 }),
+    levelUp: (level) => seq([[72 + level * 4, 0.04], [79 + level * 4, 0.06]], { duty: 0.125, vol: 0.12 }),
     move: () => seq([[84, 0.03]], { duty: 0.5, vol: 0.15 }),
     select: () => seq([[79, 0.04], [91, 0.07]], { duty: 0.25, vol: 0.2 }),
     back: () => seq([[79, 0.04], [72, 0.07]], { duty: 0.25, vol: 0.18 }),

@@ -358,3 +358,21 @@ input[type="range"]:focus-visible { outline: 2px dashed var(--gold); outline-off
 
 .diff { flex: 1; }
 .diff .stats { line-height: 1.1; }
+
+/* Stars */
+.res-stars-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 2px 0 4px; }
+.res-stars { font-size: 26px; letter-spacing: 2px; color: #3a3a6a; text-shadow: 2px 2px 0 var(--ink); }
+.res-stars b { color: var(--gold); font-weight: 400; }
+.res-stars.gold b { color: var(--cyan); }
+.card-stars { font-size: 18px; color: #4a4a80; letter-spacing: 1px; text-shadow: none; }
+.card-stars b { color: var(--gold); font-weight: 400; }
+.card-stars.gold b { color: var(--cyan); }
+
+/* Results graph */
+.res-graph { display: block; width: 100%; height: auto; image-rendering: pixelated; background: var(--ink); border: 2px solid var(--edge-mid); margin: 4px 0 6px; }
+
+/* Saved songs */
+.lib-row { display: flex; gap: 6px; align-items: stretch; }
+.lib-row > button:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lib-row .del { color: var(--muted); font-size: 9px; }
+.lib-row .del.armed { color: var(--red); }

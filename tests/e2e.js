@@ -138,6 +138,11 @@ const BOT = (laneButtons) => {
 
   // Let the song finish.
   await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 90000 });
+  // Enter during the score count-up skips it (and doesn't press PLAY AGAIN).
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(100);
+  const skipped = await page.evaluate(() => ({ screen: BeatFrets.screen, shown: document.querySelector('#res-score').textContent, grade: document.querySelector('#res-grade').textContent }));
+  check(skipped.screen === 'results' && skipped.grade !== '', 'Enter skips the results count-up');
   await page.waitForTimeout(2500);
   await page.screenshot({ path: path.join(outDir, 'e2e-results.png') });
   const res = await page.evaluate(() => ({
@@ -148,6 +153,17 @@ const BOT = (laneButtons) => {
   check(['S', 'A'].includes(res.grade), `grade for a perfect bot is high (got ${res.grade})`);
   const held = await page.evaluate(() => !document.querySelector('#res-hold-row').hidden && parseFloat(document.querySelector('#res-hold').textContent));
   check(held >= 95, `long notes held to the end are counted (${held}%)`);
+  const extras = await page.evaluate(() => {
+    const c = document.querySelector('#res-graph');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let lit = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 200) lit++;
+    return { stars: document.querySelectorAll('#res-stars b').length && document.querySelector('#res-stars b').textContent.length, next: document.querySelector('#res-next').textContent, lit, timing: document.querySelector('#res-timing').textContent };
+  });
+  console.log('     results', JSON.stringify(extras));
+  check(extras.stars === 5, 'a perfect run earns 5 stars');
+  check(extras.lit > 200, 'results graph is drawn');
+  check(/right on|ms/.test(extras.timing), 'results show average timing');
 
   // Share.
   await page.click('#btn-share');
@@ -259,6 +275,71 @@ const BOT = (laneButtons) => {
   await page.click('#btn-quit');
   await screenIs(page, 'song');
 
+  // Pace against your best: replay Pixel Overture on Hard; the HUD compares.
+  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  await screenIs(page, 'song');
+  await page.evaluate(() => BeatFrets.play('hard'));
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
+  await page.evaluate(BOT, [6, 4, 0, 5, 7]);
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.now() > 4.5, null, { timeout: 20000 });
+  const pace = await page.evaluate(() => BeatFrets.game._view(BeatFrets.game.now()).hud.pace);
+  check(typeof pace === 'number', `pace against your best shows while playing (${pace})`);
+
+  // Anti-mash: on Hard, a press with no note nearby breaks the streak.
+  const stray = await page.evaluate(async () => {
+    const g = BeatFrets.game;
+    for (let k = 0; k < 400; k++) {
+      const t = g.now();
+      if (!g.notes.some((n) => n.lane === 2 && Math.abs(n.t - t) < 0.35)) break;
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    window.__pad.set(0, true); // lane 2 (A), the quietest lane in this chart
+    await new Promise((r) => setTimeout(r, 40));
+    window.__pad.set(0, false);
+    await new Promise((r) => setTimeout(r, 30));
+    return { overhits: g.overhits, kind: g.judgement && g.judgement.kind };
+  });
+  check(stray.overhits === 1 && stray.kind === 'over', 'a stray press on Hard breaks the streak');
+
+  // Pause, then resume: the song rewinds a second and counts back in.
+  const resume = await page.evaluate(async () => {
+    const g = BeatFrets.game;
+    g.pause();
+    const pausedT = g.now();
+    await new Promise((r) => setTimeout(r, 300));
+    const frozen = Math.abs(g.now() - pausedT) < 1e-6;
+    g.resume();
+    await new Promise((r) => setTimeout(r, 120));
+    const view = g._view(g.now());
+    return { frozen, rewound: pausedT - g.now(), countdown: view.countdown };
+  });
+  check(resume.frozen, 'the song stops while paused');
+  check(resume.rewound > 1 && resume.rewound < 4 && resume.countdown === null, `resuming rewinds and counts back in (${resume.rewound.toFixed(2)}s back)`);
+  await page.waitForTimeout(1200);
+  check(await page.evaluate(() => BeatFrets.game._view(BeatFrets.game.now()).countdown) !== null, 'the resume count-in shows 3-2-1');
+
+  // Hold R for a second to restart instantly.
+  const before = await page.evaluate(() => { window.__g = BeatFrets.game; return BeatFrets.game.now(); });
+  await page.keyboard.down('r');
+  await page.waitForTimeout(500);
+  check(await page.evaluate(() => BeatFrets.game === window.__g && BeatFrets.game.restartProgress > 0.3), 'holding R shows the restart ring');
+  await page.waitForTimeout(800);
+  await page.keyboard.up('r');
+  const restarted = await page.evaluate(() => BeatFrets.game !== window.__g && BeatFrets.game.now() < 0);
+  check(restarted && before > 0, 'holding R for a second restarts the song');
+  await page.keyboard.press('Escape');
+  await page.click('#btn-quit');
+  await screenIs(page, 'song');
+
+  // Easy stays forgiving: stray presses don't count.
+  await page.evaluate(() => BeatFrets.play('easy'));
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game.now() > 0.2, null, { timeout: 20000 });
+  await page.evaluate(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' })); await new Promise((r) => setTimeout(r, 40)); window.dispatchEvent(new KeyboardEvent('keyup', { key: 'a' })); });
+  check(await page.evaluate(() => BeatFrets.game.overhits === 0), 'stray presses are ignored on Easy');
+  await page.keyboard.press('Escape');
+  await page.click('#btn-quit');
+  await screenIs(page, 'song');
+
   // Bonus tracks from songs/ (pre-built charts, aligned to this browser's decode).
   const index = JSON.parse(fs.readFileSync(path.join(SONGS_DIR, 'index.json'), 'utf8'));
   if (index.songs.length) {
@@ -286,6 +367,14 @@ const BOT = (laneButtons) => {
     await screenIs(page, 'song');
     const info = await page.evaluate(() => ({ key: BeatFrets.current.key, notes: BeatFrets.current.charts.hard.notes.length }));
     check(info.key.startsWith('mp3:') && info.notes > 10, `MP3 imported and charted (${info.notes} hard notes)`);
+    // It's saved in the browser: the Your Music screen lists it, one click to play.
+    await page.click('#btn-song-back');
+    await screenIs(page, 'import');
+    await page.waitForSelector('[data-saved]', { timeout: 5000 });
+    check((await page.textContent('#recent-list')).includes('TEST LOOP'), 'imported song is saved for next time');
+    await page.click('[data-saved]');
+    await screenIs(page, 'song');
+    check(await page.evaluate((k) => BeatFrets.current.key === k, info.key), 'a saved song opens with one click');
   }
 
   check(!errors.length, 'no page errors ' + errors.join(' | '));

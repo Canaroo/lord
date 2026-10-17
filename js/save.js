@@ -25,15 +25,18 @@
     crt: true,
     shake: true,
     noFail: false,
+    hitSounds: false,
   };
 
   function emptySave() {
-    return { version: VERSION, profiles: [], activeProfile: null, settings: { ...DEFAULT_SETTINGS }, runs: [], rivals: [], library: [] };
+    return { version: VERSION, profiles: [], activeProfile: null, settings: { ...DEFAULT_SETTINGS }, runs: [], rivals: [], library: [], paces: {} };
   }
 
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
+
+  const paceKey = (profileId, songKey, difficulty) => `${profileId}|${songKey}|${difficulty}`;
 
   function cleanInitials(s) {
     return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3).padEnd(3, '-');
@@ -199,6 +202,7 @@
         } catch (e) { /* ignore */ }
       }
       data.settings = { ...DEFAULT_SETTINGS, ...data.settings };
+      data.paces = data.paces || {};
       return data;
     }
 
@@ -246,6 +250,7 @@
     deleteProfile(id) {
       this.data.profiles = this.data.profiles.filter((p) => p.id !== id);
       this.data.runs = this.data.runs.filter((r) => r.profileId !== id);
+      for (const k of Object.keys(this.data.paces)) if (k.startsWith(id + '|')) delete this.data.paces[k];
       if (this.data.activeProfile === id) this.data.activeProfile = this.data.profiles[0] ? this.data.profiles[0].id : null;
       this.save();
     }
@@ -283,14 +288,49 @@
 
     // runs & leaderboards
     addRun(run) {
-      const entry = { ...run, id: uid(), date: run.date || new Date().toISOString() };
+      // The score-over-time timeline is only kept for each personal best (for pace).
+      const { timeline, ...rest } = run;
+      const entry = { ...rest, id: uid(), date: run.date || new Date().toISOString() };
       const before = this.personalBest(entry.profileId, entry.songKey, entry.difficulty);
+      const isBest = !entry.failed && (!before || entry.score > before.score);
+      if (isBest && timeline && timeline.length) {
+        this.data.paces[paceKey(entry.profileId, entry.songKey, entry.difficulty)] = { score: entry.score, timeline };
+      }
       this.data.runs.push(entry);
       if (this.data.runs.length > MAX_RUNS) this.data.runs.splice(0, this.data.runs.length - MAX_RUNS);
       this.save();
       const board = this.leaderboard(entry.songKey, entry.difficulty, 100);
       const rank = board.findIndex((e) => e.id === entry.id) + 1;
-      return { entry, rank, personalBest: !before || entry.score > before.score, previousBest: before };
+      return { entry, rank, personalBest: isBest, previousBest: before };
+    }
+
+    /** The personal best's score timeline, for the in-game pace counter. */
+    pace(profileId, songKey, difficulty) {
+      return this.data.paces[paceKey(profileId, songKey, difficulty)] || null;
+    }
+
+    /** Best stars (0–5) and whether they were gold (5 stars + full combo). */
+    bestStars(profileId, songKey, difficulty) {
+      let stars = 0, gold = false;
+      for (const r of this.data.runs) {
+        if (r.profileId !== profileId || r.songKey !== songKey || r.difficulty !== difficulty || r.failed) continue;
+        stars = Math.max(stars, r.stars || 0);
+        gold = gold || !!r.goldStars;
+      }
+      return { stars, gold };
+    }
+
+    /** Sum of best stars over every song and tier this player has played. */
+    totalStars(profileId) {
+      const best = new Map();
+      for (const r of this.data.runs) {
+        if (r.profileId !== profileId || r.failed) continue;
+        const k = r.songKey + '|' + r.difficulty;
+        best.set(k, Math.max(best.get(k) || 0, r.stars || 0));
+      }
+      let total = 0;
+      best.forEach((v) => { total += v; });
+      return total;
     }
 
     personalBest(profileId, songKey, difficulty) {
@@ -375,6 +415,7 @@
         notesHit: runs.reduce((s, r) => s + (r.hits || 0), 0),
         fullCombos: runs.filter((r) => r.fullCombo).length,
         bestCombo: runs.reduce((m, r) => Math.max(m, r.maxCombo || 0), 0),
+        stars: this.totalStars(profileId),
       };
     }
 
@@ -398,6 +439,10 @@
       }
       for (const r of incoming.rivals || []) {
         if (!this.data.rivals.some((x) => x.id === r.id)) { this.data.rivals.push(r); added.rivals++; }
+      }
+      for (const [k, v] of Object.entries(incoming.paces || {})) {
+        const mine = this.data.paces[k];
+        if (!mine || v.score > mine.score) this.data.paces[k] = v;
       }
       for (const s of incoming.library || []) {
         if (!this.data.library.some((x) => x.key === s.key)) this.data.library.push(s);

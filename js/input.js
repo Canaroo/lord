@@ -70,6 +70,7 @@
       }
       if (key === ' ' || key === 'Enter') { e.preventDefault(); if (!e.repeat) emit('action', 'overdrive'); return; }
       if (key === 'Escape') { e.preventDefault(); emit('action', 'pause'); return; }
+      if (key === 'r') { e.preventDefault(); if (!e.repeat) emit('action', 'restart-down'); return; }
       return;
     }
     if (isTextField(e.target)) return;
@@ -89,6 +90,7 @@
 
   window.addEventListener('keyup', (e) => {
     if (!gameplay) return;
+    if (e.key === 'r' || e.key === 'R') { emit('action', 'restart-up'); return; }
     const lane = keysFor(laneCount).indexOf(e.key.length === 1 ? e.key.toLowerCase() : e.key);
     if (lane >= 0 && lane < laneCount) emit('lane', lane, false, e.timeStamp);
   });
@@ -127,7 +129,10 @@
             emit('lane', lane, isDown, ts);
           }
         });
-        if (edge(B.Y) || edge(B.BACK)) emit('action', 'overdrive');
+        if (edge(B.Y)) emit('action', 'overdrive');
+        // Hold Back (View / Share / −) to restart.
+        if (edge(B.BACK)) emit('action', 'restart-down');
+        if (!down[B.BACK] && st.buttons[B.BACK]) emit('action', 'restart-up');
         if (edge(B.START)) emit('action', 'pause');
       } else {
         st.lanes.fill(false);

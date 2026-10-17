@@ -66,6 +66,7 @@
   }
 
   function show(name, { focus } = {}) {
+    stopPreview();
     screen = name;
     $('#panel').classList.toggle('hidden', !name);
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
@@ -181,10 +182,13 @@
   Input.on('action', (a) => {
     document.body.classList.add('nav');
     if (game && !game.paused) {
-      if (a === 'pause') game.pause();
+      if (a === 'pause') { restartHold.cancel(); game.pause(); }
       if (a === 'overdrive') game.activateOverdrive();
+      if (a === 'restart-down') restartHold.start();
+      if (a === 'restart-up') restartHold.cancel();
       return;
     }
+    if (screen === 'results' && resultsAnim && (a === 'confirm' || a === 'back')) { resultsAnim(); return; }
     if (screen === 'initials' && initials.handle(a)) return;
     if (screen === 'calib' && a === 'confirm') { calibrate.tap(performance.now()); return; }
     if (a === 'back') { goBack(); return; }
@@ -311,10 +315,10 @@
     const p = save.active;
     if (!p) return '';
     const parts = DIFFS.map((d) => {
-      const b = save.personalBest(p.id, key, d);
-      return b ? `${SHORT[d] || d} ${b.score.toLocaleString('en-US')} ${b.grade}` : null;
+      const b = save.bestStars(p.id, key, d);
+      return b.stars ? `${SHORT[d] || d} ${b.stars}★` : null;
     }).filter(Boolean);
-    return parts.length ? 'BEST ' + parts.join(' · ') : 'Not played yet';
+    return parts.length ? 'STARS ' + parts.join(' · ') : 'Not played yet';
   }
 
   function renderPack() {
@@ -439,13 +443,37 @@
     }
   }
 
+  function fmtSize(bytes) { return bytes > 1e6 ? (bytes / 1e6).toFixed(1) + ' MB' : Math.round(bytes / 1e3) + ' KB'; }
+
   function renderImport(note) {
-    const recent = save.data.library.slice(-4).reverse();
-    $('#recent-list').innerHTML = (note ? `<p class="match">${esc(note)}</p>` : '') + (recent.length
-      ? `<p class="eyebrow">YOUR IMPORTED SONGS</p>` + recent.map((s) =>
-        `<p class="hint">${esc(s.title)} — ${esc(bestLine(s.key))}</p>`).join('') + `<p class="hint">Import a song again to play it. Its scores are kept.</p>`
-      : '');
+    const box = $('#recent-list');
+    box.innerHTML = note ? `<p class="match">${esc(note)}</p>` : '';
+    Library.list().then((songs) => {
+      if (!songs.length) return;
+      box.innerHTML = (note ? `<p class="match">${esc(note)}</p>` : '') + '<p class="eyebrow">YOUR SAVED SONGS</p>' +
+        songs.map((m) => `<div class="lib-row">
+          <button data-saved="${esc(m.key)}">${esc(m.title.toUpperCase().slice(0, 36))} <small>${esc(bestLine(m.key))} · ${fmtSize(m.size)}</small></button>
+          <button class="del" data-del="${esc(m.key)}" aria-label="Delete ${esc(m.title)}">DELETE</button>
+        </div>`).join('');
+    });
   }
+
+  $('#recent-list').addEventListener('click', async (e) => {
+    const play = e.target.closest('[data-saved]');
+    if (play) { songOrigin = 'import'; loadSaved(play.dataset.saved); return; }
+    const del = e.target.closest('[data-del]');
+    if (!del) return;
+    if (!del.classList.contains('armed')) {
+      $$('#recent-list .del.armed').forEach((b) => { b.classList.remove('armed'); b.textContent = 'DELETE'; });
+      del.classList.add('armed');
+      del.textContent = 'SURE?';
+      return;
+    }
+    await Library.remove(del.dataset.del).catch(() => {});
+    toast('Song removed from this browser. Its scores are kept.');
+    renderImport();
+    requestAnimationFrame(() => { const first = $('#drop'); if (first) first.focus(); });
+  });
 
   $('#drop').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#file').click(); }
@@ -474,11 +502,7 @@
     for (const d of DIFFS) charts[d] = ChartGen.generate(analysis, d);
     setProgress(0.45, 'Tuning the sound chip…');
     try {
-      let buffer = bufferCache.get(id);
-      if (!buffer) {
-        buffer = await SongPack.render(built);
-        bufferCache.set(id, buffer);
-      }
+      const buffer = await packBuffer(id);
       setProgress(1, 'Ready');
       current = { key: SongPack.keyFor(def), title: def.title, kind: 'pack', packId: id, buffer, analysis, charts, fp: null, matchNote: null };
       showSong();
@@ -507,38 +531,146 @@
     setProgress(0.02, 'Reading the file…');
     try {
       const bytes = await file.arrayBuffer();
-      const id = hashBytes(bytes);
-      setProgress(0.04, 'Decoding audio…');
-      const buffer = await audioCtx.decodeAudioData(bytes);
-      const cacheKey = `beatfrets.analysis.${BeatAnalyzer.VERSION}.${id}`;
-      let analysis = null;
-      try { analysis = storage && JSON.parse(storage.getItem(cacheKey)); } catch (e) { analysis = null; }
-      if (!analysis) {
-        const channels = [];
-        for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
-        analysis = await BeatAnalyzer.analyze(channels, buffer.sampleRate, (p) =>
-          setProgress(0.05 + p * 0.9, p < 0.8 ? 'Finding hits in each frequency band…' : 'Tracking the beat…'));
-        try { if (storage) storage.setItem(cacheKey, JSON.stringify(analysis)); } catch (e) { /* cache is optional */ }
-      }
-      const charts = {};
-      for (const d of DIFFS) charts[d] = ChartGen.generate(analysis, d);
-      if (!charts.easy.notes.length) throw new Error('No beat could be found in this audio.');
-      const fp = SaveData.fingerprint(analysis);
-      const reg = save.registerSong(name, fp);
-      current = {
-        key: reg.key, title: name, kind: 'mp3', buffer, analysis, charts, fp,
-        matchNote: reg.matched && reg.title !== name
-          ? `Matched to "${reg.title}" by sound (${Math.round(reg.similarity * 100)}% alike), so you share its leaderboard.`
-          : null,
-      };
-      showSong();
+      await loadBytes(name, bytes, { store: true });
     } catch (err) {
-      console.error(err);
-      renderImport();
-      show('import');
-      toast("That file couldn't be used: " + (err && err.message ? err.message : err));
+      loadFailed(err);
     }
   }
+
+  async function loadSaved(key) {
+    ensureAudio();
+    show('loading');
+    setProgress(0.02, 'Opening your saved song…');
+    try {
+      const [bytes, list] = await Promise.all([Library.get(key), Library.list()]);
+      const meta = list.find((m) => m.key === key);
+      if (!bytes || !meta) throw new Error('that song is no longer saved in this browser.');
+      $('#loading-title').textContent = 'LOADING ' + meta.title.toUpperCase().slice(0, 40);
+      Library.touch(key);
+      await loadBytes(meta.title, bytes, { store: false });
+    } catch (err) {
+      loadFailed(err);
+    }
+  }
+
+  function loadFailed(err) {
+    console.error(err);
+    renderImport();
+    show('import');
+    toast("That song couldn't be used: " + (err && err.message ? err.message : err));
+  }
+
+  /** Decode, analyse (or reuse the cached analysis), chart, and open the song screen. */
+  async function loadBytes(name, bytes, { store }) {
+    const id = hashBytes(bytes);
+    // decodeAudioData takes ownership of the buffer, so keep a copy to save.
+    const keep = store ? bytes.slice(0) : null;
+    setProgress(0.04, 'Decoding audio…');
+    const buffer = await audioCtx.decodeAudioData(bytes);
+    const cacheKey = `beatfrets.analysis.${BeatAnalyzer.VERSION}.${id}`;
+    let analysis = null;
+    try { analysis = storage && JSON.parse(storage.getItem(cacheKey)); } catch (e) { analysis = null; }
+    if (!analysis) {
+      const channels = [];
+      for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
+      analysis = await BeatAnalyzer.analyze(channels, buffer.sampleRate, (p) =>
+        setProgress(0.05 + p * 0.9, p < 0.8 ? 'Finding hits in each frequency band…' : 'Tracking the beat…'));
+      try { if (storage) storage.setItem(cacheKey, JSON.stringify(analysis)); } catch (e) { /* cache is optional */ }
+    }
+    const charts = {};
+    for (const d of DIFFS) charts[d] = ChartGen.generate(analysis, d);
+    if (!charts.easy.notes.length) throw new Error('No beat could be found in this audio.');
+    const fp = SaveData.fingerprint(analysis);
+    const reg = save.registerSong(name, fp);
+    if (keep) {
+      Library.put(reg.key, name, keep).catch(() => toast("Your browser's storage is full, so this song wasn't saved for next time."));
+    }
+    current = {
+      key: reg.key, title: name, kind: 'mp3', buffer, analysis, charts, fp,
+      matchNote: reg.matched && reg.title !== name
+        ? `Matched to "${reg.title}" by sound (${Math.round(reg.similarity * 100)}% alike), so you share its leaderboard.`
+        : null,
+    };
+    previewBuffers.set('mp3:' + reg.key, buffer);
+    showSong();
+  }
+
+  // ---- song previews ------------------------------------------------------------------------------
+
+  const previewBuffers = new Map();
+  const preview = { key: null, timer: 0, src: null, gain: null };
+
+  function stopPreview() {
+    clearTimeout(preview.timer);
+    preview.key = null;
+    if (preview.src) {
+      const { src, gain } = preview;
+      const t = audioCtx.currentTime;
+      gain.gain.cancelScheduledValues(t);
+      gain.gain.setValueAtTime(gain.gain.value, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.15);
+      setTimeout(() => { try { src.stop(); } catch (e) { /* already stopped */ } }, 200);
+      preview.src = null;
+    }
+  }
+
+  /** Play a short faded loop from about a third of the way into a song. */
+  function schedulePreview(key, getBuffer) {
+    if (!audioCtx || game || key === preview.key) return;
+    stopPreview();
+    preview.key = key;
+    preview.timer = setTimeout(async () => {
+      let buf = null;
+      try { buf = await getBuffer(); } catch (e) { buf = null; }
+      if (preview.key !== key || !buf || game) return;
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      const gain = audioCtx.createGain();
+      const t = audioCtx.currentTime;
+      const len = Math.min(12, buf.duration * 0.5);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(1, t + 0.5);
+      gain.gain.setValueAtTime(1, t + len - 1);
+      gain.gain.linearRampToValueAtTime(0, t + len);
+      src.connect(gain).connect(Sfx.previewBus || audioCtx.destination);
+      src.start(t, buf.duration * 0.3, len);
+      preview.src = src;
+      preview.gain = gain;
+    }, 450);
+  }
+
+  async function packBuffer(id) {
+    let buffer = bufferCache.get(id);
+    if (!buffer) {
+      buffer = await SongPack.render(SongPack.build(SongPack.SONGS.find((s) => s.id === id)));
+      bufferCache.set(id, buffer);
+    }
+    return buffer;
+  }
+
+  async function savedBuffer(key) {
+    const k = 'mp3:' + key;
+    if (previewBuffers.has(k)) return previewBuffers.get(k);
+    const bytes = await Library.get(key);
+    if (!bytes) return null;
+    const buf = await audioCtx.decodeAudioData(bytes);
+    previewBuffers.set(k, buf);
+    return buf;
+  }
+
+  function previewFor(el) {
+    if (!el) return;
+    if (el.dataset.pack) schedulePreview('pack:' + el.dataset.pack, () => packBuffer(el.dataset.pack));
+    else if (el.dataset.bonus) {
+      const cached = bonusCache.get(el.dataset.bonus);
+      if (cached) schedulePreview('bonus:' + el.dataset.bonus, async () => cached.buffer);
+    } else if (el.dataset.saved) schedulePreview('saved:' + el.dataset.saved, () => savedBuffer(el.dataset.saved));
+  }
+  document.addEventListener('focusin', (e) => previewFor(e.target.closest && e.target.closest('[data-pack], [data-bonus], [data-saved]')));
+  document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest && e.target.closest('[data-pack], [data-bonus], [data-saved]');
+    if (el) previewFor(el);
+  });
 
   // ---- song screen ------------------------------------------------------------------------------
 
@@ -549,6 +681,13 @@
     return rows.map((r, i) =>
       `<li class="${!r.rival && me && r.profileId === me.id ? 'me' : ''}"><span>#${i + 1}</span><span>${esc(r.initials)}</span><span class="sc">${r.score.toLocaleString('en-US')}</span><span>${esc(r.grade)}${r.rival ? ' <span class="tag">RIVAL</span>' : ''}</span></li>`
     ).join('');
+  }
+
+  function cardStars(d) {
+    const p = save.active;
+    if (!p) return '';
+    const b = save.bestStars(p.id, current.key, d);
+    return `<span class="card-stars${b.gold ? ' gold' : ''}">${starsHtml(b.stars)}</span>`;
   }
 
   function showSong() {
@@ -569,6 +708,7 @@
           <span class="what">${esc(WHAT[d] || '')}</span>
           <span class="keys" data-keys="${c.lanes}"></span>
           <span class="stats">${n} notes · ${(n / Math.max(1, current.analysis.duration)).toFixed(1)}/sec${holds ? ` · ${holds} long` : ''}</span>
+          ${cardStars(d)}
         </button>
         <ol class="mini-board">${miniBoard(current.key, d)}</ol>
       </div>`;
@@ -588,6 +728,9 @@
   async function play(difficulty) {
     if (!current) return;
     lastDifficulty = difficulty;
+    stopPreview();
+    restartHold.cancel();
+    resultsAnim = null;
     if (game) game.stop();
     ensureAudio();
     await document.fonts.load('8px "Press Start 2P"').catch(() => {});
@@ -604,6 +747,10 @@
       lookahead: (LOOKAHEAD[difficulty] || 1.5) / settings.speed,
       calibration: settings.calibrationMs / 1000,
       noFail: settings.noFail,
+      antiMash: difficulty !== 'easy',
+      hitSounds: settings.hitSounds,
+      playerColor: save.active ? save.active.color : '#58f8f8',
+      best: save.active ? save.pace(save.active.id, current.key, difficulty) : null,
       intro: { title: current.title.toUpperCase().slice(0, 40), sub: ChartGen.DIFFICULTIES[difficulty].label.toUpperCase() },
       onEnd: (res) => {
         game = null;
@@ -630,7 +777,51 @@
     showSong();
   });
 
+  // ---- hold to restart ------------------------------------------------------------------------------
+
+  const restartHold = (() => {
+    let started = 0;
+    let raf = 0;
+    const tick = () => {
+      if (!started || !game) return;
+      const k = (performance.now() - started) / 1000;
+      game.restartProgress = k;
+      if (k >= 1) { started = 0; play(lastDifficulty); return; }
+      raf = requestAnimationFrame(tick);
+    };
+    return {
+      start() { if (started) return; started = performance.now(); raf = requestAnimationFrame(tick); },
+      cancel() { started = 0; cancelAnimationFrame(raf); if (game) game.restartProgress = 0; },
+    };
+  })();
+
   // ---- results -------------------------------------------------------------------------------------
+
+  let resultsAnim = null; // finishes the count-up early when set
+
+  const NEXT_TIER = { easy: 'medium', medium: 'mediumplus', mediumplus: 'hard' };
+  const PREV_TIER = { medium: 'easy', mediumplus: 'medium', hard: 'mediumplus', duo: 'mediumplus' };
+
+  function starsHtml(n, gold) {
+    return `<b>${'★'.repeat(n)}</b>${'★'.repeat(5 - n)}${gold ? '' : ''}`;
+  }
+
+  function drawGraph(canvas, graph) {
+    const g = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    g.fillStyle = '#08081a';
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#1a1d48';
+    for (const y of [H * 0.25, H * 0.5, H * 0.75]) g.fillRect(0, Math.round(y), W, 1);
+    const bw = W / graph.length;
+    graph.forEach((b, i) => {
+      if (b.acc == null) return;
+      const h = Math.max(1, Math.round((H - 6) * b.acc));
+      g.fillStyle = b.acc >= 0.95 ? '#58f8f8' : b.acc >= 0.8 ? '#38d838' : b.acc >= 0.6 ? '#f8d830' : '#f84848';
+      g.fillRect(Math.round(i * bw) + 1, H - h, Math.max(1, Math.round(bw) - 2), h);
+      if (b.miss) { g.fillStyle = '#f84848'; g.fillRect(Math.round(i * bw) + 1, 1, Math.max(1, Math.round(bw) - 2), 2); }
+    });
+  }
 
   function showResults(difficulty, res) {
     const p = save.active;
@@ -647,6 +838,9 @@
       fullCombo: res.fullCombo,
       hits: res.hits,
       failed: res.failed,
+      stars: res.stars,
+      goldStars: res.goldStars,
+      timeline: res.timeline,
       fp: current.kind === 'mp3' ? current.fp : undefined,
     };
     const outcome = p ? save.addRun(run) : null;
@@ -664,7 +858,49 @@
     $('#res-ok').textContent = res.counts.ok;
     $('#res-miss').textContent = res.counts.miss;
     $('#res-combo').textContent = `${res.maxCombo} / ${res.total}`;
+    $('#res-over-row').hidden = !res.overhits;
+    $('#res-over').textContent = res.overhits;
     $('#btn-share').disabled = res.failed;
+
+    // Stars and the next target.
+    const starsEl = $('#res-stars');
+    starsEl.innerHTML = starsHtml(0);
+    starsEl.classList.toggle('gold', res.goldStars);
+    const st = Game.stars(res.score, res.maxScore);
+    $('#res-next').textContent = res.failed ? '' : res.goldStars ? 'GOLD STARS: perfect run!'
+      : st.next ? `Next star at ${st.next.toLocaleString('en-US')}` : 'Full combo for gold stars';
+
+    drawGraph($('#res-graph'), res.graph);
+
+    // Timing advice: suggest a calibration change when hits lean one way.
+    const avg = res.avgOffset;
+    const applyBtn = $('#btn-apply-offset');
+    applyBtn.hidden = true;
+    if (res.timingSamples >= 20 && Math.abs(avg) >= 15) {
+      $('#res-timing').textContent = `Your hits landed ${Math.abs(avg)} ms ${avg > 0 ? 'late' : 'early'} on average. If that felt on time, adjust the timing.`;
+      const next = Math.max(-200, Math.min(200, settings.calibrationMs + avg));
+      applyBtn.textContent = `ADJUST TIMING (${avg > 0 ? '+' : ''}${avg} MS)`;
+      applyBtn.hidden = false;
+      applyBtn.onclick = () => {
+        save.setSetting('calibrationMs', next);
+        renderOptions();
+        applyBtn.hidden = true;
+        $('#res-timing').textContent = `Timing adjusted to ${next} ms. Change it any time in Options.`;
+      };
+    } else {
+      $('#res-timing').textContent = res.timingSamples ? `Timing: right on (${Math.abs(avg)} ms ${avg >= 0 ? 'late' : 'early'} on average).` : '';
+    }
+
+    // What to try next.
+    let suggest = '';
+    if (res.failed) {
+      suggest = PREV_TIER[difficulty] ? `Tough one. Try ${LABEL(PREV_TIER[difficulty])}, or turn on No-fail in Options.` : 'Tough one. Turn on No-fail in Options to play it through.';
+    } else if ((res.grade === 'S' || res.stars >= 4) && NEXT_TIER[difficulty]) {
+      suggest = `Ready for ${LABEL(NEXT_TIER[difficulty])}?`;
+    } else if (res.grade === 'S' && difficulty === 'hard') {
+      suggest = 'Try Duo: Hard speed on two keys.';
+    }
+    $('#res-suggest').textContent = suggest;
 
     let flag = '';
     let celebrate = false;
@@ -681,18 +917,22 @@
     flagEl.className = 'flag';
     show('results');
 
-    // Count the score up, then stamp the grade.
+    // Count the score up, then stamp the grade. Any key or button skips ahead.
     const scoreEl = $('#res-score');
     const t0 = performance.now();
     const dur = Math.min(1400, 400 + res.score / 50);
     let lastTick = 0;
+    let skip = false;
+    resultsAnim = () => { skip = true; };
     const step = (now) => {
-      const k = Math.min(1, (now - t0) / dur);
+      const k = skip ? 1 : Math.min(1, (now - t0) / dur);
       scoreEl.textContent = Math.round(res.score * k).toLocaleString('en-US');
       if (now - lastTick > 60 && k < 1) { Sfx.tick(); lastTick = now; }
       if (k < 1) { requestAnimationFrame(step); return; }
+      resultsAnim = null;
       gradeEl.textContent = res.grade;
       gradeEl.className = `grade stamp ${res.grade}`;
+      starsEl.innerHTML = starsHtml(res.stars);
       Sfx.stamp();
       setTimeout(() => {
         flagEl.textContent = flag;
@@ -702,6 +942,16 @@
     };
     requestAnimationFrame(step);
   }
+
+  // Keyboard and mouse can skip the count-up too (without also pressing a button).
+  window.addEventListener('keydown', (e) => {
+    if (screen === 'results' && resultsAnim && ['Enter', ' ', 'Escape'].includes(e.key)) {
+      e.preventDefault();
+      e.stopPropagation();
+      resultsAnim();
+    }
+  }, true);
+  window.addEventListener('pointerdown', () => { if (screen === 'results' && resultsAnim) resultsAnim(); }, true);
 
   $('#btn-retry').addEventListener('click', () => play(lastDifficulty));
   $('#btn-res-back').addEventListener('click', showSong);
@@ -888,7 +1138,14 @@
     if (key.startsWith('pack:')) { songOrigin = 'boards'; loadPack(key.slice(5)); }
     else if (key.startsWith('bonus:')) { songOrigin = 'boards'; loadBonus(key.slice(6)); }
     else if (current && current.key === key) { songOrigin = 'boards'; showSong(); }
-    else { songOrigin = 'import'; renderImport(`Import your copy of "${title}" to play it.`); show('import'); }
+    else {
+      Library.has(key).then((saved) => {
+        if (saved) { songOrigin = 'boards'; loadSaved(key); return; }
+        songOrigin = 'import';
+        renderImport(`Import your copy of "${title}" to play it.`);
+        show('import');
+      });
+    }
   });
 
   // ---- players ------------------------------------------------------------------------------------------
@@ -904,7 +1161,7 @@
     ).join('') || '<p class="hint">No players yet.</p>';
     if (active) {
       const s = save.stats(active.id);
-      $('#player-stats').innerHTML = `<div><b>PLAYS</b>${s.plays}</div><div><b>NOTES HIT</b>${s.notesHit.toLocaleString('en-US')}</div><div><b>FULL COMBOS</b>${s.fullCombos}</div><div><b>BEST STREAK</b>${s.bestCombo}</div>`;
+      $('#player-stats').innerHTML = `<div><b>PLAYS</b>${s.plays}</div><div><b>NOTES HIT</b>${s.notesHit.toLocaleString('en-US')}</div><div><b>FULL COMBOS</b>${s.fullCombos}</div><div><b>BEST STREAK</b>${s.bestCombo}</div><div><b>STARS</b>${s.stars}★</div>`;
     } else $('#player-stats').innerHTML = '';
     $('#btn-rename').disabled = !active;
     $('#btn-delete-player').disabled = !active;
@@ -956,6 +1213,7 @@
     $('#opt-crt span').textContent = settings.crt ? 'ON' : 'OFF';
     $('#opt-shake span').textContent = settings.shake ? 'ON' : 'OFF';
     $('#opt-nofail span').textContent = settings.noFail ? 'ON' : 'OFF';
+    $('#opt-hits span').textContent = settings.hitSounds ? 'ON' : 'OFF';
     document.body.classList.toggle('crt', settings.crt);
     updateDeviceUI();
   }
@@ -969,7 +1227,7 @@
   bindRange('#opt-calib', 'calibrationMs', (v) => parseInt(v, 10));
   bindRange('#opt-music', 'music', parseFloat);
   bindRange('#opt-sfx', 'sfx', parseFloat);
-  for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail']]) {
+  for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds']]) {
     $(id).addEventListener('click', () => { save.setSetting(key, !settings[key]); renderOptions(); });
   }
   // ---- calibration ---------------------------------------------------------------------------------------
@@ -1123,6 +1381,8 @@
     play,
     loadPack,
     loadBonus,
+    loadSaved,
     importFile,
+    Library,
   };
 })();

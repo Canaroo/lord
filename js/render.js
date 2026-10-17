@@ -64,6 +64,13 @@
     return people.sort((a, b) => a.y - b.y);
   })();
 
+  /** Darken (<1) or lighten (>1) a #rrggbb colour. */
+  function shade(hex, k) {
+    const n = parseInt(hex.slice(1), 16);
+    const ch = (v) => Math.max(0, Math.min(255, Math.round(v * k)));
+    return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => ch(v).toString(16).padStart(2, '0')).join('');
+  }
+
   function beatIndexAt(beats, t) {
     let lo = 0, hi = beats.length - 1;
     if (!beats.length || t < beats[0]) return -1;
@@ -151,6 +158,13 @@
       this.flames.push({ lane, at: performance.now() });
     }
 
+    /** The multiplier just stepped up: a small flash and a badge pop. */
+    levelUp(level) {
+      this.levelUpAt = performance.now();
+      this.levelUpTo = level;
+      this.flashScreen(0.08 + level * 0.03);
+    }
+
     // ---- geometry ----------------------------------------------------------------------------
 
     geometry(lanes) {
@@ -182,19 +196,30 @@
       const phase = bi >= 0 ? Math.min(1, (v.t - b0) / (b1 - b0 || 0.5)) : 0;
       const pulse = Math.max(0, 1 - phase * 3); // 1 on the beat, fading quickly
       const hype = v.rock == null ? 0.7 : v.rock;
+      // Stage energy follows the streak: 0 at ×1 up to 3 at ×4 (or overdrive).
+      // Losing a long streak "powers down" the stage for a moment.
+      const powerDown = v.powerDownAt ? Math.max(0, 1 - (nowMs - v.powerDownAt) / 900) : 0;
+      const level = v.attract ? 3 : v.level || 1;
+      const energy = (v.odActive ? 3 : level - 1) * (1 - powerDown);
 
-      this.drawBackdrop(v, bi, phase, pulse, hype);
-      this.drawCrowd(bi, phase, hype, v.attract);
-      this.drawHighway(v, geo, pulse);
+      this.drawBackdrop(v, bi, phase, pulse, energy, powerDown);
+      this.drawGuitarist(v, bi, phase, energy, powerDown);
+      this.drawCrowd(bi, phase, hype, energy, v.attract);
+      this.drawHighway(v, geo, pulse, level, energy);
       this.drawFrets(v, geo);
       this.drawNotes(v, geo);
-      this.drawFlames(v, geo, nowMs);
+      this.drawFlames(v, geo, nowMs, energy);
       this.drawParticles(dt);
+      if (powerDown > 0) {
+        this.g.fillStyle = `rgba(8,8,26,${0.45 * powerDown})`;
+        this.g.fillRect(0, 0, W, H);
+      }
+      this.drawEdges(v, pulse, level, energy);
       if (v.hud) this.drawHud(v, nowMs);
       this.blit(dt);
     }
 
-    drawBackdrop(v, bi, phase, pulse, hype) {
+    drawBackdrop(v, bi, phase, pulse, energy, powerDown) {
       const g = this.g;
       // Sky in hard bands, like a limited palette.
       const bandH = Math.ceil(HORIZON / PAL.sky.length);
@@ -205,12 +230,19 @@
         g.fillStyle = PAL.sky[i];
         for (let x = (i % 2); x < W; x += 2) g.fillRect(x, y, 1, 1);
       }
-      // Stars.
+      // Stars; at full energy they streak past like a warp.
       const r = seeded(7);
+      const warp = Math.max(0, energy - 2);
       for (let i = 0; i < 40; i++) {
-        const x = Math.floor(r() * W), y = Math.floor(r() * (HORIZON - 20));
+        const x = Math.floor(r() * W);
+        let y = Math.floor(r() * (HORIZON - 20));
         const tw = Math.sin(v.t * 2 + i) > 0.6;
-        this.rect(x, y, 1, 1, tw ? PAL.white : PAL.dim);
+        if (warp > 0) {
+          y = (y + v.t * (30 + (i % 5) * 12)) % (HORIZON - 14);
+          this.g.globalAlpha = 0.5 + 0.5 * warp;
+          this.rect(x, y, 1, 2 + Math.round(3 * warp), tw ? PAL.white : PAL.dim);
+          this.g.globalAlpha = 1;
+        } else this.rect(x, y, 1, 1, tw ? PAL.white : PAL.dim);
       }
       // Lighting truss.
       this.rect(0, 6, W, 5, '#2a2a40');
@@ -223,8 +255,8 @@
       for (let i = 0; i < lamps; i++) {
         const lx = 34 + i * ((W - 68) / (lamps - 1));
         const color = beamColors[(Math.max(0, bi) + i) % beamColors.length];
-        const sway = Math.sin(v.t * 0.9 + i * 1.7) * 40;
-        g.globalAlpha = (v.odActive ? 0.2 : 0.09) + 0.08 * pulse * hype;
+        const sway = Math.sin(v.t * (0.5 + 0.35 * energy) + i * 1.7) * (25 + 10 * energy);
+        g.globalAlpha = ((v.odActive ? 0.2 : 0.035 + 0.03 * energy) + (0.03 + 0.04 * energy) * pulse) * (1 - powerDown);
         g.fillStyle = v.odActive ? PAL.cyan : color;
         for (let y = 12; y < HORIZON + 30; y += 1) {
           const k = (y - 12) / (HORIZON + 18);
@@ -234,7 +266,21 @@
         }
         g.globalAlpha = 1;
         this.rect(lx - 3, 11, 7, 4, '#3a3a58');
-        this.rect(lx - 2, 15, 5, 2, v.odActive ? PAL.cyan : color);
+        this.rect(lx - 2, 15, 5, 2, powerDown > 0.5 ? '#2a2a40' : v.odActive ? PAL.cyan : color);
+      }
+      // ×4 and overdrive: two lasers sweep across the stage.
+      if (energy > 2.2) {
+        g.globalAlpha = 0.35 * (energy - 2.2) / 0.8;
+        for (const side of [0, 1]) {
+          const x0 = side ? W - 4 : 4;
+          const target = W / 2 + Math.sin(v.t * 1.3 + side * Math.PI) * 150;
+          g.fillStyle = side ? PAL.magenta : PAL.cyan;
+          for (let y = 12; y < HORIZON + 40; y += 1) {
+            const k = (y - 12) / (HORIZON + 28);
+            g.fillRect(Math.round(x0 + (target - x0) * k), y, 1, 1);
+          }
+        }
+        g.globalAlpha = 1;
       }
       g.restore();
       // Floor.
@@ -254,15 +300,16 @@
       }
     }
 
-    drawCrowd(bi, phase, hype, attract) {
-      const jump = hype > 0.75 ? 2 : hype > 0.35 ? 1 : 0;
+    drawCrowd(bi, phase, hype, energy, attract) {
+      // The crowd gets into it as the streak builds; it sulks when you're failing.
+      const jump = hype < 0.25 && !attract ? 0 : energy >= 2.5 ? 2 : energy >= 0.8 ? 1 : 0;
       for (const p of CROWD) {
         const offbeat = (bi + (p.ph > 0.5 ? 1 : 0)) % 2 === 0;
         const bob = jump && phase < 0.35 && (offbeat || jump === 2) ? -jump : 0;
         const y = p.y + bob;
         const dim = hype < 0.25 && !attract;
         // Arms up when the crowd is into it.
-        if (hype > 0.6 && (p.ph * 10 + bi) % 3 < 1.2) {
+        if (energy >= 1.8 && hype >= 0.25 && (p.ph * 10 + bi) % 3 < 1.2) {
           this.rect(p.x - 1, y - 6, 1, 6, p.skin);
           this.rect(p.x + 7, y - 6, 1, 6, p.skin);
         }
@@ -272,7 +319,8 @@
       }
     }
 
-    drawHighway(v, geo, pulse) {
+    drawHighway(v, geo, pulse, level, energy) {
+      const railColor = [PAL.rail, PAL.green, PAL.gold, PAL.magenta][level - 1] || PAL.rail;
       const g = this.g;
       const { cx, halfW } = geo;
       const lanes = v.lanes;
@@ -304,14 +352,14 @@
         }
         // Beat and bar lines.
         if (prevBeat !== null && b !== prevBeat && b >= 0) {
-          g.fillStyle = b % 4 === 0 ? PAL.measure : PAL.beat;
+          g.fillStyle = b % 4 === 0 ? (energy >= 1.8 ? PAL.white : PAL.measure) : energy >= 1.8 ? PAL.measure : PAL.beat;
           g.fillRect(x0, y, w, 1);
         }
         prevBeat = b;
         // Lane dividers and rails.
         g.fillStyle = PAL.divider;
         for (let i = 1; i < lanes; i++) g.fillRect(Math.round(x0 + (i * w) / lanes), y, 1, 1);
-        g.fillStyle = od ? PAL.railOd : v.rock != null && v.rock < 0.25 && pulse > 0.5 ? PAL.red : PAL.rail;
+        g.fillStyle = od ? PAL.railOd : v.rock != null && v.rock < 0.25 && pulse > 0.5 ? PAL.red : railColor;
         const railW = s > 0.6 ? 2 : 1;
         g.fillRect(x0 - railW, y, railW, 1);
         g.fillRect(x0 + w, y, railW, 1);
@@ -421,13 +469,13 @@
       }
     }
 
-    drawFlames(v, geo, nowMs) {
+    drawFlames(v, geo, nowMs, energy = 0) {
       this.flames = this.flames.filter((f) => nowMs - f.at < 220);
       const y = geo.yAt(0);
       for (const f of this.flames) {
         const k = (nowMs - f.at) / 220;
         const x = geo.cx + geo.laneX(f.lane);
-        const h = 26 * (1 - k);
+        const h = (22 + 7 * energy) * (1 - k);
         const w = geo.laneW * 0.32 * (1 - k * 0.5);
         this.g.globalAlpha = 1 - k;
         this.ellipse(x, y - h * 0.5, w, h * 0.5, LANES[f.lane]);
@@ -460,10 +508,31 @@
       this.ellipse(124, 21, 12, 12, mc);
       this.ellipse(124, 21, 10, 10, PAL.window);
       this.text('x' + mult, 124, 17, mc, 8, 'center');
+      // Ten pips around the badge fill toward the next multiplier.
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + (i * Math.PI * 2) / 10;
+        this.rect(124 + Math.cos(a) * 17 - 1, 21 + Math.sin(a) * 17 - 1, 2, 2, i < h.pips ? mc : '#2a2f6a');
+      }
+      if (this.levelUpAt && nowMs - this.levelUpAt < 700) {
+        const k = (nowMs - this.levelUpAt) / 700;
+        this.g.globalAlpha = 1 - k;
+        this.text('x' + this.levelUpTo + '!', 124, 40 - k * 8, PAL.gold, 8, 'center');
+        this.g.globalAlpha = 1;
+      }
+      // Stars earned so far; the next one fills up as you approach it.
+      for (let i = 0; i < 5; i++) {
+        const fill = i < h.stars ? 1 : i === h.stars ? h.starProgress : 0;
+        this.star(10 + i * 11, 40, fill);
+      }
       // Streak.
       this.window(W - 110, 6, 104, 30);
       this.text('STREAK', W - 104, 11, PAL.grey);
       this.text(String(h.combo), W - 104, 23, h.combo >= 50 ? PAL.gold : PAL.white);
+      // Pace against your personal best.
+      if (h.pace != null) {
+        const ahead = h.pace >= 0;
+        this.text(`PB ${ahead ? '+' : '-'}${Math.abs(h.pace).toLocaleString('en-US')}`, W - 104, 40, ahead ? PAL.green : PAL.red);
+      }
       // Song progress.
       this.rect(0, 0, W, 2, '#20204a');
       this.rect(0, 0, W * h.progress, 2, PAL.cyan);
@@ -495,8 +564,8 @@
       const j = v.judgement;
       if (j && nowMs - j.at < 450) {
         const k = (nowMs - j.at) / 450;
-        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS' }[j.kind];
-        const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red }[j.kind];
+        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS', over: 'OVERHIT' }[j.kind];
+        const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red }[j.kind];
         const y = HIT_Y - 62 - (k < 0.15 ? (0.15 - k) * 40 : 0);
         this.g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
         this.text(label, W / 2, y, color, 16, 'center');
@@ -515,6 +584,26 @@
         this.text(b.text, x, b.y, b.color, 16, 'center');
       }
 
+      // Points float up from the fret, coloured by the multiplier.
+      for (const p of v.popups || []) {
+        const age = nowMs - p.at;
+        if (age > 650) continue;
+        const pos = this.fretPos(v.lanes, p.lane);
+        const c = p.mult >= 8 ? PAL.cyan : p.mult >= 4 ? PAL.magenta : p.mult >= 3 ? PAL.gold : p.mult >= 2 ? PAL.green : PAL.grey;
+        this.g.globalAlpha = Math.min(1, (650 - age) / 250);
+        this.text(p.text, pos.x, pos.y - 24 - (age / 650) * 16, c, 8, 'center');
+        this.g.globalAlpha = 1;
+      }
+
+      if (v.timing) this.drawTimingMeter(v.timing, nowMs);
+
+      if (v.restart > 0) {
+        this.window(W / 2 - 74, 44, 148, 24);
+        this.text('HOLD TO RESTART', W / 2, 49, PAL.white, 8, 'center');
+        this.rect(W / 2 - 66, 60, 132, 3, PAL.ink);
+        this.rect(W / 2 - 66, 60, 132 * Math.min(1, v.restart), 3, PAL.gold);
+      }
+
       // Countdown.
       if (v.countdown) this.text(v.countdown, W / 2, 104, PAL.white, 24, 'center');
       if (h.intro) {
@@ -525,6 +614,124 @@
         this.rect(0, 92, W, 40, 'rgba(40,0,10,0.85)');
         this.text('SONG FAILED', W / 2, 104, PAL.red, 16, 'center');
       }
+    }
+
+    /** A 7×7 pixel star, filled from the bottom by `fill` (0–1). */
+    star(x, y, fill) {
+      const SHAPE = ['...#...', '...#...', '#######', '.#####.', '..###..', '.##.##.', '##...##'];
+      SHAPE.forEach((row, r) => {
+        for (let c = 0; c < 7; c++) {
+          if (row[c] !== '#') continue;
+          const lit = 6 - r < fill * 7;
+          this.rect(x + c, y + r, 1, 1, lit ? PAL.gold : '#3a3a6a');
+        }
+      });
+    }
+
+    /** Hit-error bar under the frets: where each recent hit landed, early ← → late. */
+    drawTimingMeter(timing, nowMs) {
+      const cx = W / 2;
+      const y = 216;
+      const half = 48;
+      const px = (ms) => cx + (Math.max(-140, Math.min(140, ms)) / 140) * half;
+      this.rect(cx - half - 1, y - 1, half * 2 + 3, 7, PAL.ink);
+      this.rect(cx - half, y, half * 2 + 1, 5, '#3a3010');
+      this.rect(px(-95), y, px(95) - px(-95) + 1, 5, '#123a16');
+      this.rect(px(-50), y, px(50) - px(-50) + 1, 5, '#0e3a40');
+      for (const hit of timing.recent) {
+        const age = nowMs - hit.at;
+        if (age > 2500) continue;
+        this.g.globalAlpha = 1 - age / 2500;
+        this.rect(px(hit.off), y, 1, 5, hit.kind === 'perfect' ? PAL.cyan : hit.kind === 'good' ? PAL.green : PAL.gold);
+      }
+      this.g.globalAlpha = 1;
+      this.rect(cx, y - 1, 1, 7, PAL.white);
+      if (timing.recent.length) {
+        const ax = Math.round(px(timing.avg));
+        this.rect(ax - 1, y - 3, 3, 1, PAL.white);
+        this.rect(ax, y - 2, 1, 1, PAL.white);
+      }
+    }
+
+    /** Glowing edges at full energy, and a gold frame while a full combo is alive. */
+    drawEdges(v, pulse, level, energy) {
+      if (energy > 2.2) {
+        this.g.globalAlpha = (0.2 + 0.3 * pulse) * (energy - 2.2) / 0.8;
+        const c = v.odActive ? PAL.cyan : PAL.magenta;
+        this.rect(0, 2, 3, H - 2, c);
+        this.rect(W - 3, 2, 3, H - 2, c);
+        this.rect(0, H - 3, W, 3, c);
+        this.g.globalAlpha = 1;
+      }
+      if (v.fullCombo) {
+        this.g.globalAlpha = 0.55 + 0.25 * pulse;
+        this.rect(0, 2, 1, H - 2, PAL.gold);
+        this.rect(W - 1, 2, 1, H - 2, PAL.gold);
+        this.rect(0, H - 1, W, 1, PAL.gold);
+        this.rect(0, 2, W, 1, PAL.gold);
+        this.g.globalAlpha = 1;
+      }
+    }
+
+    /**
+     * The guitarist, left of the highway, in the player's colour. Calm at ×1,
+     * head-bobbing at ×2, head-banging at ×3, jumping at ×4 or in overdrive;
+     * slumps when a streak breaks and sits down if the song fails.
+     */
+    drawGuitarist(v, bi, phase, energy, powerDown) {
+      if (!v.guitarist && !v.attract) return;
+      const color = v.guitarist ? v.guitarist.color : PAL.cyan;
+      const dark = shade(color, 0.55);
+      const SKIN = '#f0c8a0', HAIR = '#3a2214', PANTS = '#262648', BOOTS = '#0c0c18';
+      const beat = phase < 0.3;
+      const eighth = (phase * 2) % 1 < 0.5;
+      const failed = v.failed;
+      const sad = failed || powerDown > 0.3;
+      const jump = !sad && energy > 2.2 && beat ? 2 : 0;
+      const lean = !sad && energy > 1.4 && beat ? 1 : 0; // head-bang forward
+      const bob = sad ? 1 : energy > 0.6 && beat ? 1 : 0;
+      const spread = energy > 2.2 ? 1 : 0;
+      const sit = failed ? 3 : 0;
+      // Drawn on a 2× pixel grid so he reads clearly: (x, y) are art pixels
+      // relative to his feet, which stand at (86, 160) on the stage.
+      const S = 2, ox = 80, oy = 160 - jump * S;
+      const R = (x, y, w, h, c) => this.rect(ox + x * S, oy + y * S, w * S, h * S, c);
+      const E = (x, y, rx, ry, c) => this.ellipse(ox + x * S, oy + y * S, rx * S, ry * S, c);
+
+      if (v.odActive) {
+        this.g.globalAlpha = 0.22 + 0.15 * Math.sin(v.t * 12);
+        E(8, -10 + sit, 11, 14, PAL.cyan);
+        this.g.globalAlpha = 1;
+      }
+      // Legs and boots.
+      R(3 - spread, -6 + sit, 2, 6 - sit, PANTS);
+      R(8 + spread, -6 + sit, 2, 6 - sit, PANTS);
+      R(2 - spread, -1, 4, 1, BOOTS);
+      R(8 + spread, -1, 4, 1, BOOTS);
+      // Torso with a highlight and belt.
+      const ty = -13 + bob + sit;
+      R(3, ty, 7, 7, color);
+      R(3, ty, 7, 1, shade(color, 1.3));
+      R(3, ty + 6, 7, 1, PANTS);
+      // Head, hair (longer and flying when head-banging), eye.
+      const hx = 4 + lean;
+      const hy = ty - 6 + lean + (sad ? 1 : 0);
+      R(6, ty - 1, 1, 1, SKIN);
+      R(hx, hy, 5, 5, SKIN);
+      R(hx, hy - 1, 5, 2, HAIR);
+      R(hx - 1, hy, 1, 4 + (energy > 1.4 ? 2 : 0), HAIR);
+      R(hx + 3, hy + (sad ? 3 : 2), 1, 1, '#101018');
+      // Guitar: body on the hip, neck up to the left (drooping when sad).
+      const gy = ty + 4 + (sad ? 2 : 0);
+      E(7, gy, 3.5, 2.5, dark);
+      E(7, gy, 2, 1.5, color);
+      R(7, gy, 1, 1, PAL.white);
+      for (let i = 0; i < 8; i++) R(4 - i, gy - 1 - Math.round(i * (sad ? 0.2 : 0.5)), 1, 1, '#c89058');
+      R(-4, gy - 5 + (sad ? 3 : 0), 2, 1, SKIN); // fretting hand
+      // Strumming arm, bouncing on the 8th notes.
+      const strum = !sad && energy > 0.2 && eighth ? -1 : 0;
+      R(9, ty + 1, 1, Math.max(1, gy + strum - ty - 1), color);
+      R(9, gy + strum, 2, 2, SKIN);
     }
 
     blit(dt) {
