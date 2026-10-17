@@ -69,7 +69,7 @@ Bluetooth headphones usually need this.
 - **Results:** a graph of how each part of the song went, your average timing (with a one-press
   fix if you're consistently early or late), and a suggestion for what to try next.
 - **Stray presses** on Medium and up break your streak, so mashing doesn't pay. Easy stays
-  forgiving.
+  forgiving, and **Options → Overhit penalty** turns it off everywhere.
 - **Pausing** stops the song. Resuming rewinds a second and counts you back in.
 - **Saved music:** imported songs are kept in your browser and listed under *Your music*, one
   click to play or delete. Song lists play a short preview of whatever's highlighted.

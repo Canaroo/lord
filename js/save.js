@@ -26,6 +26,7 @@
     shake: true,
     noFail: false,
     hitSounds: false,
+    overhit: true,
   };
 
   function emptySave() {

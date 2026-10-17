@@ -747,7 +747,7 @@
       lookahead: (LOOKAHEAD[difficulty] || 1.5) / settings.speed,
       calibration: settings.calibrationMs / 1000,
       noFail: settings.noFail,
-      antiMash: difficulty !== 'easy',
+      antiMash: settings.overhit && difficulty !== 'easy',
       hitSounds: settings.hitSounds,
       playerColor: save.active ? save.active.color : '#58f8f8',
       best: save.active ? save.pace(save.active.id, current.key, difficulty) : null,
@@ -1214,6 +1214,7 @@
     $('#opt-shake span').textContent = settings.shake ? 'ON' : 'OFF';
     $('#opt-nofail span').textContent = settings.noFail ? 'ON' : 'OFF';
     $('#opt-hits span').textContent = settings.hitSounds ? 'ON' : 'OFF';
+    $('#opt-overhit span').textContent = settings.overhit ? 'ON' : 'OFF';
     document.body.classList.toggle('crt', settings.crt);
     updateDeviceUI();
   }
@@ -1227,7 +1228,7 @@
   bindRange('#opt-calib', 'calibrationMs', (v) => parseInt(v, 10));
   bindRange('#opt-music', 'music', parseFloat);
   bindRange('#opt-sfx', 'sfx', parseFloat);
-  for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds']]) {
+  for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-overhit', 'overhit']]) {
     $(id).addEventListener('click', () => { save.setSetting(key, !settings[key]); renderOptions(); });
   }
   // ---- calibration ---------------------------------------------------------------------------------------

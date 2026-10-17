@@ -340,6 +340,23 @@ const BOT = (laneButtons) => {
   await page.click('#btn-quit');
   await screenIs(page, 'song');
 
+  // The Overhit penalty option: turned off, stray presses are ignored even on Hard.
+  await page.evaluate(() => { document.querySelector('[data-go="options"]').click(); });
+  await screenIs(page, 'options');
+  check((await page.textContent('#opt-overhit span')) === 'ON', 'Overhit penalty is on by default');
+  await page.click('#opt-overhit');
+  check((await page.textContent('#opt-overhit span')) === 'OFF', 'Overhit penalty can be switched off');
+  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  await screenIs(page, 'song');
+  await page.evaluate(() => BeatFrets.play('hard'));
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game.now() > 0.2, null, { timeout: 20000 });
+  await page.evaluate(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' })); await new Promise((r) => setTimeout(r, 40)); window.dispatchEvent(new KeyboardEvent('keyup', { key: 'd' })); });
+  check(await page.evaluate(() => BeatFrets.game.overhits === 0), 'with the option off, stray presses are ignored on Hard');
+  await page.keyboard.press('Escape');
+  await page.click('#btn-quit');
+  await screenIs(page, 'song');
+  await page.evaluate(() => BeatFrets.save.setSetting('overhit', true));
+
   // Bonus tracks from songs/ (pre-built charts, aligned to this browser's decode).
   const index = JSON.parse(fs.readFileSync(path.join(SONGS_DIR, 'index.json'), 'utf8'));
   if (index.songs.length) {
