@@ -9,6 +9,10 @@
 (function (root) {
   const WINDOWS = { perfect: 0.05, good: 0.095, ok: 0.14 }; // seconds, either side
   const POINTS = { perfect: 100, good: 70, ok: 40 };
+  // Long notes: points per second while held, and rock-meter drain per second
+  // while let go. Re-pressing the key during the tail picks it back up.
+  const HOLD_POINTS_PER_SEC = 60;
+  const HOLD_DRAIN_PER_SEC = 0.12;
   const COUNT_IN = 3.2; // seconds before the song starts
   const OD_DRAIN = 1 / 16; // a full overdrive meter lasts 16 seconds
   const OD_PER_HIT = 0.011;
@@ -34,7 +38,7 @@
       this.buffer = o.buffer;
       this.stage = o.stage;
       this.lanes = o.chart.lanes;
-      this.notes = o.chart.notes.map((n) => ({ t: n.t, lane: n.lane, judged: null }));
+      this.notes = o.chart.notes.map((n) => ({ t: n.t, lane: n.lane, len: n.len || 0, judged: null }));
       this.beats = o.beats;
       this.lookahead = o.lookahead;
       this.calibration = o.calibration || 0;
@@ -43,12 +47,15 @@
       this.onEnd = o.onEnd;
       this.onPauseChange = o.onPauseChange || (() => {});
       this.duration = o.buffer.duration;
-      this.lastNoteT = this.notes.length ? this.notes[this.notes.length - 1].t : 0;
+      this.lastNoteT = this.notes.reduce((m, n) => Math.max(m, n.t + n.len), 0);
 
       this.score = 0;
       this.combo = 0;
       this.maxCombo = 0;
       this.hits = 0;
+      this.holds = []; // long notes whose head was hit and whose tail is still running
+      this.holdTotal = 0;
+      this.holdHeld = 0;
       this.counts = { perfect: 0, good: 0, ok: 0, miss: 0 };
       this.rock = 0.5;
       this.od = 0;
@@ -128,13 +135,14 @@
       const accuracy = earned / total;
       const grade = this.failed ? 'F' : accuracy >= 95 ? 'S' : accuracy >= 88 ? 'A' : accuracy >= 75 ? 'B' : accuracy >= 60 ? 'C' : 'D';
       return {
-        score: this.score,
+        score: Math.round(this.score),
         maxCombo: this.maxCombo,
         hits: this.hits,
         counts: { ...this.counts },
         accuracy: Math.round(accuracy * 10) / 10,
         grade,
         total: this.notes.length,
+        holdPct: this.holdTotal > 0 ? Math.round((1000 * this.holdHeld) / this.holdTotal) / 10 : null,
         failed: this.failed,
         fullCombo: !this.failed && this.counts.miss === 0 && this.hits === this.notes.length && this.notes.length > 0,
       };
@@ -180,6 +188,11 @@
       const lane = best.lane;
       const kind = bestD <= WINDOWS.perfect ? 'perfect' : bestD <= WINDOWS.good ? 'good' : 'ok';
       best.judged = kind;
+      if (best.len > 0) {
+        best.holdEnd = best.t + best.len;
+        this.holds.push(best);
+        this.holdTotal += best.len;
+      }
       this.counts[kind]++;
       this.hits++;
       this.combo++;
@@ -249,6 +262,29 @@
       }, 2200);
     }
 
+    /** Score held tails and drain the rock meter for released ones, over [from, to]. */
+    _updateHolds(from, to) {
+      if (!this.holds.length || to <= from) return;
+      const now = performance.now();
+      for (const h of this.holds) {
+        const seg = Math.max(0, Math.min(to, h.holdEnd) - Math.max(from, h.t));
+        if (!seg) continue;
+        if (this.held[h.lane]) {
+          this.score += HOLD_POINTS_PER_SEC * this.multiplier * seg;
+          this.holdHeld += seg;
+          if (!h.sparkAt || now - h.sparkAt > 70) {
+            h.sparkAt = now;
+            const pos = this.stage.fretPos(this.lanes, h.lane);
+            this.stage.burst(pos.x, pos.y - 4, Stage.LANES[h.lane], 2, 45);
+          }
+        } else {
+          this.rock = Math.max(0, this.rock - HOLD_DRAIN_PER_SEC * seg);
+          if (this.rock <= 0 && !this.noFail) { this._fail(); return; }
+        }
+      }
+      this.holds = this.holds.filter((h) => h.holdEnd > to);
+    }
+
     // ---- loop ------------------------------------------------------------------------
 
     _frame() {
@@ -256,6 +292,7 @@
       const t = this.now();
       if (!this.paused && !this.failed) {
         this._sweepMisses(t);
+        if (this.lastT != null) this._updateHolds(this.lastT, t);
         if (this.lastT != null && this.odActive) {
           this.od = Math.max(0, this.od - OD_DRAIN * Math.max(0, t - this.lastT));
           if (this.od === 0) { this.odActive = false; this.odReadyAnnounced = false; }
@@ -285,6 +322,7 @@
         beats: this.beats,
         lanes: this.lanes,
         notes: this.notes,
+        holds: this.holds,
         nextIdx: this.nextIdx,
         lookahead: this.lookahead,
         held: this.held,
@@ -296,7 +334,7 @@
         countdown,
         failed: this.failed,
         hud: {
-          score: this.score,
+          score: Math.floor(this.score),
           combo: this.combo,
           mult: this.multiplier,
           rock: this.rock,

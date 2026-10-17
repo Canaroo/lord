@@ -10,7 +10,17 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
   const fmtDate = (iso) => (iso ? iso.slice(0, 10) : '');
-  const DIFFS = ['easy', 'medium', 'hard'];
+  const DIFFS = Object.keys(ChartGen.DIFFICULTIES); // easy, medium, mediumplus, hard, duo
+  const LABEL = (d) => (ChartGen.DIFFICULTIES[d] ? ChartGen.DIFFICULTIES[d].label : d).toUpperCase();
+  const SHORT = { easy: 'E', medium: 'M', mediumplus: 'M+', hard: 'H', duo: 'DUO' };
+  const WHAT = {
+    easy: 'Strong beats only',
+    medium: 'Off-beats and long notes',
+    mediumplus: 'Near-Hard speed on 4 keys',
+    hard: 'Everything, with chords',
+    duo: 'Hard speed on 2 keys',
+  };
+  const LOOKAHEAD = { easy: 2.0, medium: 1.75, mediumplus: 1.55, hard: 1.5, duo: 1.5 };
 
   function safeStorage() {
     try {
@@ -302,7 +312,7 @@
     if (!p) return '';
     const parts = DIFFS.map((d) => {
       const b = save.personalBest(p.id, key, d);
-      return b ? `${d[0].toUpperCase()} ${b.score.toLocaleString('en-US')} ${b.grade}` : null;
+      return b ? `${SHORT[d] || d} ${b.score.toLocaleString('en-US')} ${b.grade}` : null;
     }).filter(Boolean);
     return parts.length ? 'BEST ' + parts.join(' · ') : 'Not played yet';
   }
@@ -392,7 +402,10 @@
         const buffer = await audioCtx.decodeAudioData(bytes);
         let analysis;
         let charts;
-        if (chart && chart.charts) {
+        // A chart file from an older version of the game lacks newer tiers or long
+        // notes; rebuild in the browser rather than play an incomplete set.
+        const upToDate = chart && chart.charts && chart.analyzer === BeatAnalyzer.VERSION && DIFFS.every((d) => chart.charts[d]);
+        if (upToDate) {
           setProgress(0.75, 'Lining the chart up with the audio…');
           const n = Math.min(buffer.length, Math.floor(BonusPack.ALIGN_SECONDS * buffer.sampleRate));
           const head = [];
@@ -415,7 +428,7 @@
       current = {
         key: BonusPack.keyFor(id), title: def.title, artist: def.artist || '', credit: def.credit || '', kind: 'bonus', bonusId: id,
         buffer: entry.buffer, analysis: entry.analysis, charts: entry.charts, fp: null, shift: entry.shift,
-        matchNote: entry.prebuilt ? null : "This song's chart hasn't been pre-built yet, so this device made one. Other players' notes may differ slightly.",
+        matchNote: entry.prebuilt ? null : "This song's chart hasn't been pre-built for this version of the game, so this device made one. Other players' notes may differ slightly.",
       };
       showSong();
     } catch (err) {
@@ -530,7 +543,7 @@
   // ---- song screen ------------------------------------------------------------------------------
 
   function miniBoard(key, diff) {
-    const rows = save.leaderboard(key, diff, 5);
+    const rows = save.leaderboard(key, diff, 3);
     const me = save.active;
     if (!rows.length) return '<li class="empty">No scores yet</li>';
     return rows.map((r, i) =>
@@ -547,16 +560,27 @@
     $('#song-credit').textContent = credit;
     $('#song-match').hidden = !current.matchNote;
     $('#song-match').textContent = current.matchNote || '';
-    for (const d of DIFFS) {
-      const n = current.charts[d].notes.length;
-      $(`[data-stats="${d}"]`).textContent = `${n} notes · ${(n / Math.max(1, current.analysis.duration)).toFixed(1)}/sec`;
-      $(`[data-board="${d}"]`).innerHTML = miniBoard(current.key, d);
-    }
+    $('#diffs').innerHTML = DIFFS.map((d) => {
+      const c = current.charts[d];
+      const n = c.notes.length;
+      const holds = c.notes.filter((x) => x.len).length;
+      return `<div class="diff-col">
+        <button class="diff" data-diff="${d}"><strong>${LABEL(d)}</strong>
+          <span class="what">${esc(WHAT[d] || '')}</span>
+          <span class="keys" data-keys="${c.lanes}"></span>
+          <span class="stats">${n} notes · ${(n / Math.max(1, current.analysis.duration)).toFixed(1)}/sec${holds ? ` · ${holds} long` : ''}</span>
+        </button>
+        <ol class="mini-board">${miniBoard(current.key, d)}</ol>
+      </div>`;
+    }).join('');
     updateDeviceUI();
     show('song', { focus: `[data-diff="${lastDifficulty}"]` });
   }
 
-  $$('.diff').forEach((b) => b.addEventListener('click', () => play(b.dataset.diff)));
+  $('#diffs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-diff]');
+    if (b) play(b.dataset.diff);
+  });
   $('#btn-song-back').addEventListener('click', () => { if (songOrigin === 'import') renderImport(); show(songOrigin); });
 
   // ---- playing --------------------------------------------------------------------------------------
@@ -577,7 +601,7 @@
       chart,
       beats: current.analysis.beats,
       stage,
-      lookahead: ({ easy: 2.0, medium: 1.75, hard: 1.5 }[difficulty] || 1.5) / settings.speed,
+      lookahead: (LOOKAHEAD[difficulty] || 1.5) / settings.speed,
       calibration: settings.calibrationMs / 1000,
       noFail: settings.noFail,
       intro: { title: current.title.toUpperCase().slice(0, 40), sub: ChartGen.DIFFICULTIES[difficulty].label.toUpperCase() },
@@ -628,7 +652,9 @@
     const outcome = p ? save.addRun(run) : null;
     lastRun = outcome ? outcome.entry : { ...run, date: new Date().toISOString() };
 
-    $('#res-title').textContent = `${current.title.toUpperCase().slice(0, 40)} · ${difficulty.toUpperCase()}`;
+    $('#res-title').textContent = `${current.title.toUpperCase().slice(0, 40)} · ${LABEL(difficulty)}`;
+    $('#res-hold-row').hidden = res.holdPct == null;
+    $('#res-hold').textContent = res.holdPct == null ? '' : res.holdPct.toFixed(0) + '%';
     const gradeEl = $('#res-grade');
     gradeEl.textContent = '';
     gradeEl.className = 'grade';
@@ -749,7 +775,7 @@
   function openChallenge(shared) {
     challenge = shared;
     $('#ch-head').textContent = `${shared.initials} scored ${shared.score.toLocaleString('en-US')} on ${shared.title}`;
-    $('#ch-detail').textContent = `${shared.difficulty.toUpperCase()} · grade ${shared.grade} · ${shared.accuracy.toFixed(1)}% · ${shared.maxCombo} streak${shared.fullCombo ? ' · FULL COMBO' : ''}${shared.date ? ' · ' + shared.date : ''}`;
+    $('#ch-detail').textContent = `${LABEL(shared.difficulty)} · grade ${shared.grade} · ${shared.accuracy.toFixed(1)}% · ${shared.maxCombo} streak${shared.fullCombo ? ' · FULL COMBO' : ''}${shared.date ? ' · ' + shared.date : ''}`;
     $('#ch-warn').hidden = shared.verified;
     $('#ch-warn').textContent = 'This link was changed after it was made, so this score will be marked unverified.';
     const pack = shared.songKey.startsWith('pack:') && SongPack.SONGS.find((s) => 'pack:' + s.id === shared.songKey);
@@ -833,7 +859,7 @@
   function renderBoard() {
     const { key, title, diff } = boardState;
     $('#board-title').textContent = title;
-    $$('[data-board-diff]').forEach((b) => b.classList.toggle('on', b.dataset.boardDiff === diff));
+    $('#board-tabs').innerHTML = DIFFS.map((d) => `<button data-board-diff="${d}" class="${d === diff ? 'on' : ''}">${LABEL(d)}</button>`).join('');
     const rows = save.leaderboard(key, diff, 25);
     const me = save.active;
     $('#board-table').innerHTML = '<tr><th>#</th><th>PLAYER</th><th class="num">SCORE</th><th>GRADE</th><th class="num">ACC</th><th class="num">STREAK</th><th>DATE</th></tr>' +
@@ -845,10 +871,16 @@
         <td class="num">${Number(r.accuracy).toFixed(1)}%</td>
         <td class="num">${r.maxCombo}</td>
         <td>${esc(fmtDate(r.date))}</td></tr>`).join('')
-        : `<tr><td colspan="7" class="hint">No ${diff} scores yet. Be the first.</td></tr>`);
+        : `<tr><td colspan="7" class="hint">No ${LABEL(diff)} scores yet. Be the first.</td></tr>`);
   }
 
-  $$('[data-board-diff]').forEach((b) => b.addEventListener('click', () => { boardState.diff = b.dataset.boardDiff; renderBoard(); }));
+  $('#board-tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-board-diff]');
+    if (!b) return;
+    boardState.diff = b.dataset.boardDiff;
+    renderBoard();
+    requestAnimationFrame(() => { const el = $(`[data-board-diff="${boardState.diff}"]`); if (el) el.focus(); });
+  });
 
   $('#btn-board-play').addEventListener('click', () => {
     const { key, title, diff } = boardState;

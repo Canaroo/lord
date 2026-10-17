@@ -10,10 +10,14 @@
 'use strict';
 (function (root) {
   const KEYS = ['a', 's', 'd', 'f', 'g'];
+  // Keyboard lanes by lane count. Duo (2 lanes) uses one finger per hand.
+  const KEY_LAYOUTS = { 2: ['f', 'j'], 3: ['a', 's', 'd'], 4: ['a', 's', 'd', 'f'], 5: KEYS };
+  const keysFor = (lanes) => KEY_LAYOUTS[lanes] || KEYS;
   // Standard Gamepad mapping indices.
   const B = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, BACK: 8, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
   // Lane layouts: left hand on the shoulders, right thumb on the face button.
   const PAD_LANES = {
+    2: [[B.LB, B.LT, B.LEFT], [B.RB, B.RT, B.RIGHT]],
     3: [[B.LB, B.LT], [B.A, B.X, B.B], [B.RB, B.RT]],
     4: [[B.LB, B.LT], [B.A, B.X, B.B], [B.RB], [B.RT]],
     5: [[B.LT], [B.LB], [B.A, B.X, B.B], [B.RB], [B.RT]],
@@ -23,7 +27,7 @@
     playstation: { LT: 'L2', LB: 'L1', A: '✕', RB: 'R1', RT: 'R2', Y: '△', B: '○', START: 'OPTIONS' },
     nintendo: { LT: 'ZL', LB: 'L', A: 'B', RB: 'R', RT: 'ZR', Y: 'X', B: 'A', START: '+' },
   };
-  const LANE_BUTTON_NAMES = { 3: ['LB', 'A', 'RB'], 4: ['LB', 'A', 'RB', 'RT'], 5: ['LT', 'LB', 'A', 'RB', 'RT'] };
+  const LANE_BUTTON_NAMES = { 2: ['LB', 'RB'], 3: ['LB', 'A', 'RB'], 4: ['LB', 'A', 'RB', 'RT'], 5: ['LT', 'LB', 'A', 'RB', 'RT'] };
 
   const listeners = { lane: [], action: [], device: [] };
   const emit = (type, ...args) => listeners[type].forEach((fn) => fn(...args));
@@ -58,7 +62,7 @@
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (gameplay) {
-      const lane = KEYS.indexOf(key);
+      const lane = keysFor(laneCount).indexOf(key);
       if (lane >= 0 && lane < laneCount) {
         e.preventDefault();
         if (!e.repeat) { setDevice({ type: 'keyboard', family: null, name: 'Keyboard' }); emit('lane', lane, true, e.timeStamp); }
@@ -85,7 +89,7 @@
 
   window.addEventListener('keyup', (e) => {
     if (!gameplay) return;
-    const lane = KEYS.indexOf(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+    const lane = keysFor(laneCount).indexOf(e.key.length === 1 ? e.key.toLowerCase() : e.key);
     if (lane >= 0 && lane < laneCount) emit('lane', lane, false, e.timeStamp);
   });
 
@@ -153,7 +157,7 @@
 
   /** Labels for each lane on the current device. */
   function laneLabels(lanes) {
-    if (device.type !== 'gamepad') return KEYS.slice(0, lanes).map((k) => k.toUpperCase());
+    if (device.type !== 'gamepad') return keysFor(lanes).map((k) => k.toUpperCase());
     const g = GLYPHS[device.family] || GLYPHS.xbox;
     return LANE_BUTTON_NAMES[lanes].map((n) => g[n]);
   }

@@ -5,8 +5,8 @@
 // Drives the whole game with a simulated Xbox controller: initials, menus,
 // a full song played on controller buttons (with overdrive), saving the score,
 // sharing it, a friend opening the challenge link in a separate browser, a
-// deliberately failed song, Medium difficulty, bonus tracks, and (optionally)
-// importing an MP3.
+// deliberately failed song, Medium, Medium+ and Duo, long notes (hold,
+// let go, re-grab), bonus tracks, and (optionally) importing an MP3.
 'use strict';
 const path = require('path');
 const fs = require('fs');
@@ -79,7 +79,8 @@ const BOT = (laneButtons) => {
     while (i < g.notes.length && g.notes[i].t <= t) {
       const b = laneButtons[g.notes[i].lane];
       window.__pad.set(b, true);
-      setTimeout(() => window.__pad.set(b, false), 45);
+      // Hold long notes to the end of their tail.
+      setTimeout(() => window.__pad.set(b, false), Math.max(45, g.notes[i].len * 1000 + 30));
       i++;
     }
     if (!odDone && g.od >= 0.5) { odDone = true; window.__pad.tap(3); }
@@ -118,11 +119,13 @@ const BOT = (laneButtons) => {
   check((await page.textContent('[data-keys="5"]')).replace(/\s/g, '') === 'LTLBARBRT', 'lane labels show controller buttons');
   await page.screenshot({ path: path.join(outDir, 'e2e-song.png') });
 
-  // D-pad right twice (Easy → Medium → Hard), A to start.
+  // D-pad right twice (Easy → Medium → Medium+), then pick Hard, A to start.
+  check(await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join()) === 'easy,medium,mediumplus,hard,duo', 'all five tiers offered');
   await tap(page, 15);
   check(await page.evaluate(() => document.activeElement.dataset.diff) === 'medium', 'D-pad reaches Medium');
   await tap(page, 15);
-  check(await page.evaluate(() => document.activeElement.dataset.diff) === 'hard', 'D-pad moves the menu cursor');
+  check(await page.evaluate(() => document.activeElement.dataset.diff) === 'mediumplus', 'D-pad moves the menu cursor to Medium+');
+  await page.focus('[data-diff="hard"]');
   await tap(page, 0);
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
   await page.evaluate(BOT, [6, 4, 0, 5, 7]);
@@ -143,6 +146,8 @@ const BOT = (laneButtons) => {
   }));
   check(res.board.length === 1 && res.board[0].initials === 'JDT', 'score saved to the leaderboard');
   check(['S', 'A'].includes(res.grade), `grade for a perfect bot is high (got ${res.grade})`);
+  const held = await page.evaluate(() => !document.querySelector('#res-hold-row').hidden && parseFloat(document.querySelector('#res-hold').textContent));
+  check(held >= 95, `long notes held to the end are counted (${held}%)`);
 
   // Share.
   await page.click('#btn-share');
@@ -186,6 +191,70 @@ const BOT = (laneButtons) => {
   await page.evaluate(() => BeatFrets.play('medium'));
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
   check(await page.evaluate(() => BeatFrets.game.lanes) === 4, 'Medium plays on four lanes');
+  await page.keyboard.press('Escape');
+  await page.click('#btn-quit');
+  await screenIs(page, 'song');
+
+  // Duo: two keys (LB/RB, or F/J), Hard-level density; play it on the keyboard.
+  check((await page.textContent('[data-keys="2"]')).replace(/\s/g, '') === 'LBRB', 'Duo shows two controller lanes');
+  await page.keyboard.press('ArrowDown'); // back to keyboard labels
+  await page.evaluate(() => BeatFrets.play('duo'));
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
+  await page.evaluate(() => {
+    const g = BeatFrets.game;
+    const keys = ['f', 'j'];
+    let i = 0;
+    const loop = () => {
+      if (!g.running) return;
+      const t = g.now();
+      while (i < g.notes.length && g.notes[i].t <= t) {
+        const key = keys[g.notes[i].lane];
+        window.dispatchEvent(new KeyboardEvent('keydown', { key }));
+        setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { key })), Math.max(40, g.notes[i].len * 1000 + 30));
+        i++;
+      }
+      requestAnimationFrame(loop);
+    };
+    loop();
+  });
+  await page.waitForTimeout(12000);
+  await page.screenshot({ path: path.join(outDir, 'e2e-duo.png') });
+  const duo = await page.evaluate(() => ({ lanes: BeatFrets.game.lanes, counts: BeatFrets.game.counts, labels: Input.laneLabels(2).join('') }));
+  console.log('     duo', JSON.stringify(duo));
+  const dj = duo.counts.perfect + duo.counts.good + duo.counts.ok + duo.counts.miss;
+  check(duo.lanes === 2 && duo.labels === 'FJ' && dj > 30 && duo.counts.perfect / dj > 0.9, 'Duo plays on F and J');
+  await page.keyboard.press('Escape');
+  await page.click('#btn-quit');
+  await screenIs(page, 'song');
+
+  // Long notes, exactly: one 2-second note. Hold it, let go (the rock meter drains
+  // and no points), press again (points resume), and the streak survives.
+  await page.evaluate(() => { BeatFrets.current.charts.medium = { difficulty: 'medium', lanes: 4, notes: [{ t: 1, lane: 0, len: 2 }] }; });
+  await page.evaluate(() => BeatFrets.play('medium'));
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
+  const hold = await page.evaluate(() => new Promise((resolve) => {
+    const g = BeatFrets.game;
+    const key = (type) => window.dispatchEvent(new KeyboardEvent(type, { key: 'a' }));
+    const marks = {};
+    const snap = () => ({ score: g.score, rock: g.rock, combo: g.combo });
+    let stage = 0;
+    const loop = () => {
+      const t = g.now();
+      if (stage === 0 && t >= 1.0) { key('keydown'); stage = 1; }
+      if (stage === 1 && t >= 1.5) { marks.beforeRelease = snap(); key('keyup'); stage = 2; }
+      if (stage === 2 && t >= 2.0) { marks.beforeRegrab = snap(); key('keydown'); stage = 3; }
+      if (stage === 3 && t >= 2.8) { marks.afterRegrab = snap(); stage = 4; }
+      if (stage === 4 && t >= 3.2) { key('keyup'); marks.end = snap(); marks.holdHeld = g.holdHeld; resolve(marks); return; }
+      requestAnimationFrame(loop);
+    };
+    loop();
+  }));
+  console.log('     hold', JSON.stringify(hold));
+  check(hold.beforeRelease.combo === 1 && hold.beforeRelease.score > 100, 'hitting a long note counts and holding scores');
+  check(hold.beforeRegrab.rock < hold.beforeRelease.rock - 0.04 && Math.abs(hold.beforeRegrab.score - hold.beforeRelease.score) < 1, 'letting go drains the rock meter and stops points');
+  check(hold.afterRegrab.score > hold.beforeRegrab.score + 30, 'pressing again picks the long note back up');
+  check(hold.end.combo === 1, 'letting go of a long note does not break the streak');
+  check(Math.abs(hold.holdHeld - 1.5) < 0.12, `held time is counted (${hold.holdHeld.toFixed(2)}s of 2s)`);
   await page.keyboard.press('Escape');
   await page.click('#btn-quit');
   await screenIs(page, 'song');

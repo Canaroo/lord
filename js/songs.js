@@ -235,8 +235,10 @@
       if (e.inst === 'lead') { strength = 0.65; bands = leadBands(range, e.midi); }
       else [strength, bands] = CHART[e.inst];
       const key = e.t.toFixed(4);
-      const g = groups.get(key) || { t: +key, s: 0, b: [0, 0, 0, 0, 0] };
+      const g = groups.get(key) || { t: +key, s: 0, b: [0, 0, 0, 0, 0], d: 0 };
       g.s = Math.max(g.s, strength * e.vel);
+      // How long it rings: exact for melody and bass notes, short for drums.
+      if (e.inst === 'lead' || e.inst === 'bass') g.d = Math.max(g.d, e.dur);
       // Weight by strength so quiet hats don't drag every note right; the melody
       // gets extra weight so lanes follow the tune when it lands on a drum hit.
       const w = (e.inst === 'lead' ? 1.4 : e.inst === 'kick' ? 0.8 : e.inst === 'bass' ? 0.3 : strength) * e.vel;
@@ -245,7 +247,7 @@
     }
     const onsets = [...groups.values()].sort((a, b) => a.t - b.t).map((g) => {
       const m = Math.max(...g.b) || 1;
-      return { t: g.t, s: +Math.min(1, g.s).toFixed(3), b: g.b.map((x) => +(x / m).toFixed(2)) };
+      return { t: g.t, s: +Math.min(1, g.s).toFixed(3), b: g.b.map((x) => +(x / m).toFixed(2)), d: +g.d.toFixed(3) };
     });
     return { version: 'pack-1', duration: +built.duration.toFixed(3), bpm: built.song.bpm, beats: built.beats, onsets };
   }

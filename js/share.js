@@ -50,7 +50,8 @@
     g.font = `8px ${FONT}`;
     txt(fit(g, run.title.toUpperCase(), W - 32), 16, 34, '#f4f4ff');
     const kind = run.songKey.startsWith('pack:') ? ' · SONG PACK' : run.songKey.startsWith('bonus:') ? ' · BONUS TRACK' : ' · IMPORTED';
-    txt(run.difficulty.toUpperCase() + kind, 16, 48, '#a8acd8');
+    const diff = root.ChartGen && ChartGen.DIFFICULTIES[run.difficulty] ? ChartGen.DIFFICULTIES[run.difficulty].label : run.difficulty;
+    txt(diff.toUpperCase() + kind, 16, 48, '#a8acd8');
 
     const gradeColor = run.grade === 'S' ? '#58f8f8' : run.grade === 'F' ? '#f84848' : '#f8d830';
     txt(run.grade, 22, 72, gradeColor, 40);

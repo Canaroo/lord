@@ -154,7 +154,7 @@
     // ---- geometry ----------------------------------------------------------------------------
 
     geometry(lanes) {
-      const halfW = lanes === 3 ? 60 : lanes === 4 ? 72 : 82;
+      const halfW = { 2: 44, 3: 60, 4: 72 }[lanes] || 82;
       return {
         cx: W / 2,
         halfW,
@@ -338,8 +338,57 @@
       }
     }
 
+    /** A long note's tail, from zFrom (nearer) to zTo (further), drawn scanline by scanline. */
+    drawTail(geo, lane, zFrom, zTo, body, core, alpha) {
+      const a = Math.max(-0.08, zFrom);
+      const b = Math.min(1.15, zTo);
+      if (b <= a) return;
+      const yNear = Math.round(geo.yAt(a));
+      const yFar = Math.round(geo.yAt(b));
+      const g = this.g;
+      g.globalAlpha = alpha;
+      for (let y = yFar; y <= yNear; y++) {
+        const s = (y - HORIZON) / (HIT_Y - HORIZON);
+        const x = geo.cx + geo.laneX(lane) * s;
+        const w = Math.max(1, geo.laneW * 0.15 * s);
+        g.fillStyle = body;
+        g.fillRect(Math.round(x - w), y, Math.round(w * 2) || 1, 1);
+        if (w > 2) {
+          g.fillStyle = core;
+          g.fillRect(Math.round(x - w * 0.35), y, Math.max(1, Math.round(w * 0.7)), 1);
+        }
+      }
+      g.globalAlpha = 1;
+    }
+
+    drawTails(v, geo) {
+      const zOf = (time) => (time - v.t) / v.lookahead;
+      // Tails being held (or let go) right now run from the strike line.
+      for (const h of v.holds || []) {
+        const down = v.held && v.held[h.lane];
+        this.drawTail(geo, h.lane, 0, zOf(h.holdEnd), down ? LANES_LIGHT[h.lane] : LANES_DARK[h.lane], down ? PAL.white : LANES[h.lane], down ? 1 : 0.55);
+        if (down) {
+          const y = geo.yAt(0);
+          const x = geo.cx + geo.laneX(h.lane);
+          const r = geo.laneW * 0.3;
+          this.ellipse(x, y - 1, r, r * 0.5, LANES_LIGHT[h.lane]);
+          this.ellipse(x, y - 1, r * 0.5, r * 0.25, PAL.white);
+        }
+      }
+      // Tails of notes still coming, and grey tails of missed ones.
+      for (let i = Math.max(0, (v.nextIdx || 0) - 30); i < v.notes.length; i++) {
+        const n = v.notes[i];
+        const z = zOf(n.t);
+        if (z > 1.15) break;
+        if (!n.len) continue;
+        if (n.judged === 'miss') this.drawTail(geo, n.lane, z, zOf(n.t + n.len), '#3a3a50', '#4a4a60', 0.6);
+        else if (!n.judged) this.drawTail(geo, n.lane, z, zOf(n.t + n.len), LANES_DARK[n.lane], LANES[n.lane], 0.95);
+      }
+    }
+
     drawNotes(v, geo) {
       if (!v.notes) return;
+      this.drawTails(v, geo);
       const vis = [];
       for (let i = Math.max(0, (v.nextIdx || 0) - 12); i < v.notes.length; i++) {
         const n = v.notes[i];

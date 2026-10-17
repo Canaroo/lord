@@ -87,33 +87,8 @@
       <p id="song-meta" class="hint"></p>
       <p id="song-match" class="match" hidden></p>
       <p id="song-credit" class="hint" hidden></p>
-      <div class="diffs">
-        <div class="diff-col">
-          <button class="diff" data-diff="easy" data-autofocus>
-            <strong>EASY</strong>
-            <span class="keys" data-keys="3"></span>
-            <span class="stats" data-stats="easy"></span>
-          </button>
-          <ol class="mini-board" data-board="easy"></ol>
-        </div>
-        <div class="diff-col">
-          <button class="diff" data-diff="medium">
-            <strong>MEDIUM</strong>
-            <span class="keys" data-keys="4"></span>
-            <span class="stats" data-stats="medium"></span>
-          </button>
-          <ol class="mini-board" data-board="medium"></ol>
-        </div>
-        <div class="diff-col">
-          <button class="diff" data-diff="hard">
-            <strong>HARD</strong>
-            <span class="keys" data-keys="5"></span>
-            <span class="stats" data-stats="hard"></span>
-          </button>
-          <ol class="mini-board" data-board="hard"></ol>
-        </div>
-      </div>
-      <p class="hint">Hit each note as it crosses the line. Fill the OD meter, then press <b data-glyph="overdrive">SPACE</b> for double points. Don't let the rock meter run out.</p>
+      <div class="diffs" id="diffs"></div>
+      <p class="hint">Hit each note as it crosses the line, and hold long notes until their tail ends. Fill the OD meter, then press <b data-glyph="overdrive">SPACE</b> for double points. Don't let the rock meter run out.</p>
       <div class="menu row"><button id="btn-song-back">BACK</button></div>
     </section>
 
@@ -134,6 +109,7 @@
         <tr><td class="ok">OK</td><td id="res-ok"></td></tr>
         <tr><td class="miss">MISS</td><td id="res-miss"></td></tr>
         <tr><td>BEST STREAK</td><td id="res-combo"></td></tr>
+        <tr id="res-hold-row"><td>LONG NOTES HELD</td><td id="res-hold"></td></tr>
       </table>
       <div class="menu row">
         <button id="btn-retry" data-autofocus>PLAY AGAIN</button>
@@ -181,11 +157,7 @@
     <section id="screen-board" class="screen win wide" data-back="boards">
       <p class="eyebrow">LEADERBOARD</p>
       <h2 id="board-title"></h2>
-      <div class="menu row tabs">
-        <button data-board-diff="easy" data-autofocus>EASY</button>
-        <button data-board-diff="medium">MEDIUM</button>
-        <button data-board-diff="hard">HARD</button>
-      </div>
+      <div class="menu row tabs" id="board-tabs"></div>
       <div class="table-wrap">
         <table class="board" id="board-table"></table>
       </div>

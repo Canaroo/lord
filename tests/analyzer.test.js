@@ -59,3 +59,23 @@ test('charts respect lane counts, gaps and difficulty ordering', async () => {
   const onKick = easy.notes.filter((n) => Math.abs(nearest(loop.kicks, n.t) - n.t) < 0.02);
   assert.ok(onKick.filter((n) => n.lane === 0).length / onKick.length > 0.5);
 });
+
+test('measures how long sounds ring: held tones long, drum hits short', async () => {
+  const loop = synthLoop({ bpm: 120, seconds: 10 });
+  const s = loop.samples;
+  const sr = loop.sr;
+  // Organ-like tones on top of the drums, at 2 s (1.5 s long) and 5 s (2.5 s long).
+  for (const [t0, len, f] of [[2, 1.5, 440], [5, 2.5, 660]]) {
+    for (let i = 0; i < len * sr; i++) {
+      const x = i / sr;
+      const env = Math.min(1, x * 200) * Math.min(1, (len - x) * 50);
+      s[Math.floor(t0 * sr) + i] += env * (0.25 * Math.sin(2 * Math.PI * f * x) + 0.12 * Math.sin(4 * Math.PI * f * x));
+    }
+  }
+  const a = await BeatAnalyzer.analyze([s], sr);
+  const at = (t) => a.onsets.find((o) => Math.abs(o.t - t) < 0.03);
+  assert.ok(Math.abs(at(2).d - 1.5) < 0.15, `tone at 2 s rang ${at(2).d}s`);
+  assert.ok(Math.abs(at(5).d - 2.5) < 0.15, `tone at 5 s rang ${at(5).d}s`);
+  const drums = a.onsets.filter((o) => Math.abs(o.t - 2) > 0.03 && Math.abs(o.t - 5) > 0.03);
+  assert.ok(drums.every((o) => o.d < 0.5), 'drum hits are too short to become long notes');
+});

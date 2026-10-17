@@ -13,6 +13,7 @@
   else root.SaveData = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const KEY = 'beatfrets.save.v2';
+  const DIFFICULTY_IDS = ['easy', 'medium', 'mediumplus', 'hard', 'duo'];
   const VERSION = 2;
   const MAX_RUNS = 2000;
   const PROFILE_COLORS = ['#58f8f8', '#f858c8', '#f8d830', '#38d838', '#f88820', '#a878f8', '#f84848', '#78a8f8'];
@@ -152,7 +153,7 @@
       if (!Array.isArray(arr) || arr[0] !== 1) return null;
       const keys = SHARE_FIELDS.slice(0, arr.length);
       const d = Object.fromEntries(keys.map((k, i) => [k, arr[i]]));
-      if (typeof d.sc !== 'number' || !d.k || !['easy', 'medium', 'hard'].includes(d.d)) return null;
+      if (typeof d.sc !== 'number' || !d.k || !DIFFICULTY_IDS.includes(d.d)) return null;
       return {
         verified: hash(SALT + body) === check,
         initials: cleanInitials(d.n),

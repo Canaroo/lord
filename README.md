@@ -6,16 +6,26 @@ builds the note chart for you. Play on a keyboard or a game controller.
 
 **Play it:** https://canaroo.github.io/lord/
 
-- **Easy:** 3 lanes. Notes on the strong beats.
-- **Medium:** 4 lanes. Beats plus some off-beats, no chords.
-- **Hard:** 5 lanes. Off-beats, fast runs and two-button chords.
+| Tier | Keys | What it's like |
+| --- | --- | --- |
+| **Easy** | 3 | Strong beats only. |
+| **Medium** | 4 | Beats plus some off-beats, and long notes. |
+| **Medium+** | 4 | Nearly Hard's note count and speed, still on four keys and without chords. |
+| **Hard** | 5 | Off-beats, fast runs, two-button chords. |
+| **Duo** | 2 | Hard's speed and density on two keys: quick notes alternate left-right. |
+
+**Long notes** (Medium and up) have a tail: keep the key held until it ends. Hitting the
+start counts like any note, and holding earns points. Let go and the rock meter drains every
+second you're off it, with no points, until you press the key again to pick it back up. Your
+streak isn't broken.
 
 ## Controls
 
 | | Keyboard | Xbox | PlayStation | Switch Pro |
 | --- | --- | --- | --- | --- |
 | Hard lanes | `A` `S` `D` `F` `G` | LT LB A RB RT | L2 L1 ✕ R1 R2 | ZL L B R ZR |
-| Medium lanes | `A` `S` `D` `F` | LB A RB RT | L1 ✕ R1 R2 | L B R ZR |
+| Medium / Medium+ lanes | `A` `S` `D` `F` | LB A RB RT | L1 ✕ R1 R2 | L B R ZR |
+| Duo lanes | `F` `J` | LB RB | L1 R1 | L R |
 | Easy lanes | `A` `S` `D` | LB A RB | L1 ✕ R1 | L B R |
 | Overdrive | `Space` | Y | △ | X |
 | Pause | `Esc` | Menu | Options | + |
@@ -45,7 +55,7 @@ Everything is saved in your browser on this device. Nothing is uploaded.
 
 - **Players:** each person enters arcade-style initials and gets their own scores. Switch
   players from the main menu.
-- **Leaderboards:** each song and difficulty (Easy, Medium, Hard) has a board with every player's best score.
+- **Leaderboards:** each song and tier has its own board with every player's best score.
   Failed runs don't count.
 - **Sharing:** after a song, **Share** makes a pixel-art score card (copy the link, save the
   image, or use your device's share menu). A friend who opens the link sees your score and can
@@ -83,7 +93,15 @@ Imported songs are analysed in the browser (`js/analyzer.js`):
 Then `js/chartgen.js` builds the chart. It snaps onsets to a beat/8th/16th-note grid, keeps
 the strong ones (beats first), enforces a minimum gap between notes (300 ms on Easy, 100 ms on
 Hard), and picks lanes by frequency: kick and bass on the left, hi-hats and cymbals on the
-right. It then spreads notes so no single fret hogs the chart.
+right. It then spreads notes so no single fret hogs the chart. On Duo, notes closer than
+0.3 s alternate keys.
+
+**Long notes** come from how long each sound rings. The analyzer measures, per frequency band,
+how long the level stays up after a hit. Drums die away in a fraction of a second, while held
+synths, vocals and chords ring on. Sounds that ring for half a second or more can become long
+notes. Their lane is kept clear for the length of the tail, so other notes go to other keys
+and you play them while holding. On the chiptune songs, long notes use the composed note
+lengths exactly.
 
 Song pack tracks (`js/songs.js`) are written as patterns and synthesised with a 16-bit-style
 sound palette: pulse-wave leads with SNES-style echo, triangle bass and noise drums. Their

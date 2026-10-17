@@ -13,7 +13,7 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.BeatAnalyzer = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-  const VERSION = 1;
+  const VERSION = 2; // 2: onsets carry a sustain length (d)
   const FFT_SIZE = 1024;
   const HOP = 256;
   // 5 bands, low → high. Lane 0 follows the kick/bass, lane 4 the hats/cymbals.
@@ -137,6 +137,9 @@
     const flux = [];
     for (let b = 0; b < NUM_BANDS; b++) flux.push(new Float32Array(nFrames));
     const rms = new Float32Array(nFrames);
+    // Per-band loudness (mean log magnitude), used to measure how long a sound rings.
+    const level = [];
+    for (let b = 0; b < NUM_BANDS; b++) level.push(new Float32Array(nFrames));
 
     for (let f = 0; f < nFrames; f++) {
       const off = f * HOP;
@@ -151,6 +154,12 @@
       fft(re, im);
       for (let k = 0; k <= FFT_SIZE / 2; k++) {
         cur[k] = Math.log1p(100 * Math.sqrt(re[k] * re[k] + im[k] * im[k]));
+      }
+      for (let b = 0; b < NUM_BANDS; b++) {
+        const [lo, hi] = bandBins[b];
+        let e = 0;
+        for (let k = lo; k < hi; k++) e += cur[k];
+        level[b][f] = e / (hi - lo);
       }
       if (f > 0) {
         for (let b = 0; b < NUM_BANDS; b++) {
@@ -221,12 +230,43 @@
       rawOnsets.push({ f, strength: v - mean, bands });
     }
     const strengthRef = percentile(rawOnsets.map((o) => o.strength), 0.95) || 1;
-    const onsets = rawOnsets.map((o) => {
+
+    // Sustain: how long a sound rings after it's hit. For each band the hit
+    // touched, measure how long that band stays above 30% of the way from its
+    // pre-hit level to its peak (log scale, so the hit's spike doesn't hide a
+    // steady tone underneath), and keep the longest. Drums die away in ~0.1–0.2 s; held synths, vocals and chords
+    // ring on. The top band (cymbals, hats) is left out: crashes ring but aren't
+    // something you'd hold.
+    const maxSustain = Math.round(4 * frameRate);
+    const SUSTAIN_BANDS = NUM_BANDS - 1;
+    const sustain = rawOnsets.map((o) => {
+      const bandMax = Math.max(...o.bands) || 1;
+      let best = 0;
+      for (let b = 0; b < SUSTAIN_BANDS; b++) {
+        if (o.bands[b] < 0.35 * bandMax) continue;
+        const L = level[b];
+        let floor = Infinity;
+        for (let k = Math.max(0, o.f - 8); k < o.f; k++) floor = Math.min(floor, L[k]);
+        if (!Number.isFinite(floor)) floor = 0;
+        let peak = 0;
+        for (let k = o.f; k < Math.min(nFrames, o.f + 4); k++) peak = Math.max(peak, L[k]);
+        if (peak - floor < 0.05) continue;
+        const cut = floor + 0.3 * (peak - floor);
+        const end = Math.min(nFrames, o.f + maxSustain);
+        let k = o.f + 1;
+        while (k < end && L[k] >= cut) k++;
+        best = Math.max(best, (k - o.f) / frameRate);
+      }
+      return best;
+    });
+
+    const onsets = rawOnsets.map((o, i) => {
       const bandMax = Math.max(...o.bands) || 1;
       return {
         t: +frameTime(o.f).toFixed(4),
         s: +Math.min(1, o.strength / strengthRef).toFixed(3),
         b: o.bands.map((x) => +(x / bandMax).toFixed(2)),
+        d: +sustain[i].toFixed(2),
       };
     });
     progress(0.85);
