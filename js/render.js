@@ -595,8 +595,6 @@
         this.g.globalAlpha = 1;
       }
 
-      if (v.timing) this.drawTimingMeter(v.timing, nowMs);
-
       if (v.restart > 0) {
         this.window(W / 2 - 74, 44, 148, 24);
         this.text('HOLD TO RESTART', W / 2, 49, PAL.white, 8, 'center');
@@ -626,31 +624,6 @@
           this.rect(x + c, y + r, 1, 1, lit ? PAL.gold : '#3a3a6a');
         }
       });
-    }
-
-    /** Hit-error bar under the frets: where each recent hit landed, early ← → late. */
-    drawTimingMeter(timing, nowMs) {
-      const cx = W / 2;
-      const y = 216;
-      const half = 48;
-      const px = (ms) => cx + (Math.max(-140, Math.min(140, ms)) / 140) * half;
-      this.rect(cx - half - 1, y - 1, half * 2 + 3, 7, PAL.ink);
-      this.rect(cx - half, y, half * 2 + 1, 5, '#3a3010');
-      this.rect(px(-95), y, px(95) - px(-95) + 1, 5, '#123a16');
-      this.rect(px(-50), y, px(50) - px(-50) + 1, 5, '#0e3a40');
-      for (const hit of timing.recent) {
-        const age = nowMs - hit.at;
-        if (age > 2500) continue;
-        this.g.globalAlpha = 1 - age / 2500;
-        this.rect(px(hit.off), y, 1, 5, hit.kind === 'perfect' ? PAL.cyan : hit.kind === 'good' ? PAL.green : PAL.gold);
-      }
-      this.g.globalAlpha = 1;
-      this.rect(cx, y - 1, 1, 7, PAL.white);
-      if (timing.recent.length) {
-        const ax = Math.round(px(timing.avg));
-        this.rect(ax - 1, y - 3, 3, 1, PAL.white);
-        this.rect(ax, y - 2, 1, 1, PAL.white);
-      }
     }
 
     /** Glowing edges at full energy, and a gold frame while a full combo is alive. */

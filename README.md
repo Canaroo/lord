@@ -62,8 +62,7 @@ Bluetooth headphones usually need this.
 - **The music reacts.** It gets muffled as the rock meter runs low, ducks on a missed note, and
   brightens during overdrive.
 - **On screen:** ten pips around the multiplier fill toward the next level, and points pop up
-  from each fret. A gold frame stays lit while a full combo is alive. A timing meter under the
-  frets shows whether each hit was early or late.
+  from each fret. A gold frame stays lit while a full combo is alive.
 - **Stars:** every song and tier is rated 1–5 stars by score. Five stars with a full combo turns
   them gold. Your stars show while you play, on the song screen and on your player profile.
 - **Pace:** replay a song and the HUD shows how far ahead of or behind your personal best you are.

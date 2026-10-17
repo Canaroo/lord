@@ -93,7 +93,6 @@
       this.holdHeld = 0;
       this.counts = { perfect: 0, good: 0, ok: 0, miss: 0 };
       this.offsets = []; // ms, + = late
-      this.recentHits = []; // for the timing meter
       this.popups = [];
       this.timeline = []; // score every PACE_STEP seconds
       this.graph = Array.from({ length: GRAPH_BUCKETS }, () => ({ earned: 0, max: 0, miss: 0 }));
@@ -299,8 +298,6 @@
       }
       const offsetMs = Math.round((t - best.t) * 1000);
       this.offsets.push(offsetMs);
-      this.recentHits.push({ off: offsetMs, at: performance.now(), kind });
-      if (this.recentHits.length > 24) this.recentHits.shift();
       this._graph(best.t, POINTS[kind]);
 
       this.counts[kind]++;
@@ -465,7 +462,6 @@
       }
       const score = Math.floor(this.score);
       const st = starsFor(score, this.maxScore);
-      const avg = this.offsets.length ? this.offsets.reduce((a, b) => a + b, 0) / this.offsets.length : 0;
       return {
         t,
         beats: this.beats,
@@ -484,7 +480,6 @@
         judgement: this.judgement,
         banners: this.banners,
         popups: this.popups,
-        timing: { recent: this.recentHits, avg },
         guitarist: { color: this.playerColor },
         countdown,
         failed: this.failed,
