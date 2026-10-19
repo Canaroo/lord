@@ -53,7 +53,7 @@ async function build(file, index) {
   process.stdout.write(`analysing ${(samples.length / SR).toFixed(0)}s… `);
   const analysis = await BeatAnalyzer.analyze([samples], SR);
   const charts = {};
-  for (const d of Object.keys(ChartGen.DIFFICULTIES)) charts[d] = ChartGen.generate(analysis, d);
+  for (const d of ChartGen.ALL_IDS) charts[d] = ChartGen.generateId(analysis, d);
   const chartFile = id + '.chart.json';
   fs.writeFileSync(path.join(SONGS_DIR, chartFile), JSON.stringify({
     version: 1,

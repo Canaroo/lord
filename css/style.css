@@ -376,3 +376,23 @@ input[type="range"]:focus-visible { outline: 2px dashed var(--gold); outline-off
 .lib-row > button:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .lib-row .del { color: var(--muted); font-size: 9px; }
 .lib-row .del.armed { color: var(--red); }
+
+/* Touch: no scrolling, zooming or long-press menus while playing; bigger targets. */
+html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+#stage { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+body.touch .hints { display: none; }
+body.touch #panel { padding-block: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-bottom, 0px)); }
+body.touch .screen { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+@media (pointer: coarse) {
+  button { min-height: 44px; }
+  .menu.row { gap: 6px 10px; }
+  .win { padding: 16px 14px 14px; }
+}
+.lanes-tag { font-family: var(--pixel); font-size: 8px; color: var(--cyan); text-shadow: none; }
+.tabs .tab-break { flex-basis: 100%; height: 0; }
+.tabs [data-board-family].on { color: var(--cyan); }
+.tabs [data-board-family].on::after { background: var(--cyan); }
+#pause-msg:empty { display: none; }
+body.touch .mini-board { display: none; }
+body.touch .diffs { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+body.touch .diff { padding: 10px 10px 10px 28px; gap: 6px; }

@@ -128,11 +128,16 @@
   /**
    * @param {{duration:number,beats:number[],onsets:{t:number,s:number,b:number[],d?:number}[]}} analysis
    * @param {'easy'|'medium'|'mediumplus'|'hard'|'duo'} difficulty
+   * @param {{lanes?:number, touch?:boolean}} [opts]  touch: a phone layout (2 or 4 lanes)
+   *   played with two thumbs, so charts follow hand rules: chords only across
+   *   hands, quick notes switch hands, and a long note keeps its hand busy.
    * @returns {{difficulty:string, lanes:number, notes:{t:number,lane:number,len?:number}[]}}
    */
-  function generate(analysis, difficulty) {
-    const cfg = DIFFICULTIES[difficulty];
-    if (!cfg) throw new Error('Unknown difficulty: ' + difficulty);
+  function generate(analysis, difficulty, opts = {}) {
+    const base = DIFFICULTIES[difficulty];
+    if (!base) throw new Error('Unknown difficulty: ' + difficulty);
+    const touch = !!opts.touch;
+    const cfg = touch ? touchConfig(base, opts.lanes || 4) : base;
     const grid = buildGrid(analysis.beats, analysis.duration);
     if (!grid.length) return { difficulty, lanes: cfg.lanes, notes: [] };
 
@@ -182,7 +187,12 @@
       });
       const ranked = rank(scores);
       const free = ranked.filter((l) => reservedUntil[l] <= c.t);
-      const order = free.length ? free : ranked;
+      let order = free.length ? free : ranked;
+      // Touch: a quick note goes to the other thumb.
+      if (touch && prevLane >= 0 && c.t - prevT < cfg.handGap) {
+        const other = order.filter((l) => hand(l, cfg.lanes) !== hand(prevLane, cfg.lanes));
+        if (other.length) order = other;
+      }
       let lane = order[0];
       if (lane === prevLane && order.length > 1 && (run >= cfg.maxRun || c.t - prevT < cfg.jackGap)) lane = order[1];
       run = lane === prevLane ? run + 1 : 1;
@@ -191,12 +201,16 @@
       notes.push({ t: +c.t.toFixed(4), lane, d: c.d });
       const active = reservedUntil.filter((u) => u > c.t).length;
       if (cfg.holds && c.d >= HOLD_MIN_SUSTAIN && reservations < holdBudget && active < cfg.holds.concurrent && cfg.lanes - active > 1) {
-        reservedUntil[lane] = c.t + Math.min(c.d, cfg.holds.maxLen) + HOLD_GAP;
+        const until = c.t + Math.min(c.d, cfg.holds.maxLen) + HOLD_GAP;
+        // On touch the whole thumb is busy holding, not just the lane.
+        for (let l = 0; l < cfg.lanes; l++) {
+          if (l === lane || (touch && hand(l, cfg.lanes) === hand(lane, cfg.lanes))) reservedUntil[l] = until;
+        }
         reservations++;
       }
 
       if (c.level === 0 && c.s >= cfg.chordThreshold && c.t - lastChordT > 1.0) {
-        const second = order.find((l) => l !== lane);
+        const second = order.find((l) => l !== lane && (!touch || hand(l, cfg.lanes) !== hand(lane, cfg.lanes)));
         if (second == null) continue;
         notes.push({ t: +c.t.toFixed(4), lane: second, d: 0 });
         lastChordT = c.t;
@@ -207,6 +221,41 @@
     notes.sort((a, b) => a.t - b.t || a.lane - b.lane);
     if (cfg.holds) addHolds(notes, cfg.holds, beatPeriod(analysis.beats));
     return { difficulty, lanes: cfg.lanes, notes: notes.map(({ t, lane, len }) => (len ? { t, lane, len } : { t, lane })) };
+  }
+
+  /** Which thumb plays a lane: left half of the lanes or right half. */
+  function hand(lane, lanes) { return lane < lanes / 2 ? 0 : 1; }
+
+  /** A tier adapted for touch: same density, 2 or 4 lanes, thumb-friendly rules. */
+  function touchConfig(base, lanes) {
+    // On thumbs Medium+ and Hard would otherwise play alike (no 5th key), so
+    // Medium+ is eased a little to keep a clear step up to Hard.
+    const eased = base === DIFFICULTIES.mediumplus ? { thresholds: [0.1, 0.24, 0.6], minGap: 0.105 } : {};
+    return {
+      ...base,
+      ...eased,
+      lanes,
+      handGap: lanes === 2 ? 0.3 : 0.22,
+      maxRun: lanes === 2 ? 2 : base.maxRun,
+      jackGap: Math.max(base.jackGap, lanes === 2 ? 0.3 : 0.22),
+      holds: base.holds ? { ...base.holds, concurrent: 1, maxLen: Math.min(base.holds.maxLen, 2) } : null,
+    };
+  }
+
+  // Touch tiers (Duo is left out: upright Hard already is two-lane Hard).
+  const TOUCH_TIERS = ['easy', 'medium', 'mediumplus', 'hard'];
+
+  /** Chart ids: 'hard' (keys) or 'touch4:hard' / 'touch2:hard' (phone sideways / upright). */
+  function parseId(id) {
+    const m = /^touch([24]):(\w+)$/.exec(id);
+    return m ? { difficulty: m[2], lanes: +m[1], touch: true } : { difficulty: id, touch: false };
+  }
+
+  function generateId(analysis, id) {
+    const p = parseId(id);
+    const chart = generate(analysis, p.difficulty, p.touch ? { lanes: p.lanes, touch: true } : {});
+    chart.difficulty = id;
+    return chart;
   }
 
   function beatPeriod(beats) {
@@ -243,5 +292,7 @@
     }
   }
 
-  return { generate, DIFFICULTIES };
+  const ALL_IDS = [...Object.keys(DIFFICULTIES), ...TOUCH_TIERS.map((d) => 'touch4:' + d), ...TOUCH_TIERS.map((d) => 'touch2:' + d)];
+
+  return { generate, generateId, parseId, DIFFICULTIES, TOUCH_TIERS, ALL_IDS };
 });

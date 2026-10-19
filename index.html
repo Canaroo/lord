@@ -6,6 +6,13 @@
   <title>Beat Frets</title>
   <meta name="description" content="A 16-bit keyboard and controller rhythm game that builds note charts from your own MP3s." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect width='16' height='16' fill='%2308081a'/%3E%3Crect x='2' y='9' width='3' height='3' fill='%2338d838'/%3E%3Crect x='6' y='9' width='3' height='3' fill='%23f83838'/%3E%3Crect x='10' y='9' width='3' height='3' fill='%23f8d830'/%3E%3Crect x='3' y='3' width='2' height='5' fill='%23f4f4ff'/%3E%3Crect x='7' y='4' width='2' height='4' fill='%23f4f4ff'/%3E%3Crect x='11' y='2' width='2' height='6' fill='%23f4f4ff'/%3E%3C/svg%3E" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#0b0b26" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Beat Frets" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" />
@@ -22,6 +29,7 @@
       <p class="tagline">Any song. Your keyboard or controller. Charts built by ear.</p>
       <button id="btn-start" class="start blink" data-autofocus>PRESS START</button>
       <p class="fine"><span id="title-player"></span></p>
+      <p class="fine" id="ios-hint" hidden>No sound? Check your phone's silent switch.</p>
     </section>
 
     <!-- Initials entry -->
@@ -194,7 +202,7 @@
       <div class="opts">
         <label for="opt-speed">NOTE SPEED <output id="opt-speed-out"></output></label>
         <input id="opt-speed" type="range" min="0.6" max="1.8" step="0.1" data-autofocus />
-        <label for="opt-calib">AUDIO OFFSET <output id="opt-calib-out"></output></label>
+        <label for="opt-calib"><span id="opt-calib-label">AUDIO OFFSET</span> <output id="opt-calib-out"></output></label>
         <input id="opt-calib" type="range" min="-200" max="200" step="1" />
         <label for="opt-music">MUSIC VOLUME <output id="opt-music-out"></output></label>
         <input id="opt-music" type="range" min="0" max="1" step="0.05" />
@@ -206,6 +214,7 @@
         <button id="opt-shake" class="toggle">SCREEN SHAKE <span></span></button>
         <button id="opt-nofail" class="toggle">NO-FAIL MODE <span></span></button>
         <button id="opt-overhit" class="toggle">OVERHIT PENALTY <span></span> <small>Stray presses break your streak (Medium and up)</small></button>
+        <button id="opt-vibrate" class="toggle" hidden>VIBRATION <span></span> <small>Short buzzes on misses and level-ups (touch)</small></button>
         <button id="opt-hits" class="toggle">HIT SOUNDS <span></span> <small>A soft tick on every note you hit</small></button>
         <button id="btn-calibrate">AUTO-CALIBRATE TIMING</button>
       </div>
@@ -228,10 +237,20 @@
     <!-- Calibration -->
     <section id="screen-calib" class="screen win" data-back="options">
       <h2 class="small">CALIBRATE</h2>
-      <p class="hint">Press <b>SPACE</b> or <b data-glyph="confirm">A</b> exactly on each click you hear.</p>
+      <p class="hint">Press <b>SPACE</b> or <b data-glyph="confirm">A</b> (or tap the screen) exactly on each click you hear.</p>
       <div id="calib-dots" class="dots"></div>
       <p id="calib-status" class="hint" aria-live="polite"></p>
-      <div class="menu row"><button data-go="options">DONE</button></div>
+      <div class="menu row"><button id="btn-calib-done">DONE</button></div>
+    </section>
+
+    <!-- First touch game: calibrate? -->
+    <section id="screen-calib-offer" class="screen win" data-back="song">
+      <h2 class="small">SET UP TIMING?</h2>
+      <p class="hint">Phones and wireless earbuds add their own sound delay. A 10-second tap test lines the notes up with what you hear. You can redo it any time in Options.</p>
+      <div class="menu">
+        <button id="btn-offer-calib" data-autofocus>CALIBRATE NOW</button>
+        <button id="btn-offer-play">PLAY NOW</button>
+      </div>
     </section>
   </main>
 
@@ -239,6 +258,7 @@
   <div id="pause" class="overlay" hidden>
     <div class="win pause-win">
       <h2 class="small">PAUSED</h2>
+      <p id="pause-msg" class="hint" aria-live="polite"></p>
       <div class="menu">
         <button id="btn-resume">RESUME</button>
         <button id="btn-restart">RESTART</button>

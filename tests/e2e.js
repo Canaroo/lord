@@ -89,6 +89,145 @@ const BOT = (laneButtons) => {
   loop();
 };
 
+// ---- phones: touch input, 4 lanes sideways / 2 upright, PWA ----------------------------------------------------
+
+const LAND = { width: 844, height: 390 };
+const PORT = { width: 390, height: 844 };
+
+// Finger presses on the canvas, aimed with the stage's own lane and button positions.
+const TOUCH_BOT = () => {
+  const g = window.__touchGame = BeatFrets.game, st = BeatFrets.stage, cv = document.getElementById('stage');
+  let i = 0, pid = 100;
+  const send = (type, lane, id) => {
+    const c = st.laneCenterClient(g.lanes, lane);
+    cv.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', isPrimary: false, clientX: c.x, clientY: c.y, bubbles: true }));
+  };
+  const loop = () => {
+    if (!g.running || g !== BeatFrets.game) return;
+    const t = g.now();
+    while (i < g.notes.length && g.notes[i].t <= t) {
+      const n = g.notes[i++], id = pid++;
+      send('pointerdown', n.lane, id);
+      setTimeout(() => send('pointerup', n.lane, id), Math.max(40, (n.len || 0) * 1000 + 30));
+    }
+    requestAnimationFrame(loop);
+  };
+  loop();
+};
+const touchZone = (page, zone) => page.evaluate((z) => {
+  const c = BeatFrets.stage.zoneCenterClient(z), cv = document.getElementById('stage');
+  for (const type of ['pointerdown', 'pointerup']) cv.dispatchEvent(new PointerEvent(type, { pointerId: 900, pointerType: 'touch', clientX: c.x, clientY: c.y, bubbles: true }));
+}, zone);
+
+async function touchTests(browser) {
+  const context = await browser.newContext({ viewport: LAND, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.(googleapis|gstatic)/.test(m.text())) errors.push(m.text()); });
+  await page.goto(url);
+  await screenIs(page, 'title');
+
+  // Installable app: manifest, icons and an offline service worker.
+  const pwa = await page.evaluate(async () => {
+    const m = await (await fetch('manifest.webmanifest')).json();
+    const icons = await Promise.all(m.icons.map((i) => fetch(i.src).then((r) => r.ok)));
+    const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(() => r(null), 8000))]);
+    return { name: m.name, display: m.display, icons: icons.every(Boolean) && icons.length >= 2, sw: !!(reg && reg.active) };
+  });
+  check(pwa.name && pwa.display === 'fullscreen' && pwa.icons, 'web app manifest and icons load');
+  check(pwa.sw, 'service worker installs for offline play');
+
+  check(await page.evaluate(() => BeatFrets.Input.device.type === 'touch'), 'a phone starts on touch controls');
+  check(await page.evaluate(() => BeatFrets.stage.layout === 'touch4'), 'sideways phone uses the 4-lane layout');
+
+  await page.tap('#btn-start');
+  await screenIs(page, 'initials');
+  await page.keyboard.type('kid');
+  await page.tap('#btn-initials-ok');
+  await screenIs(page, 'main');
+  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  await screenIs(page, 'song');
+  const landIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
+  check(landIds.join() === 'touch4:easy,touch4:medium,touch4:mediumplus,touch4:hard', 'sideways: four touch tiers (' + landIds.join(' ') + ')');
+  const charts = await page.evaluate(() => {
+    const c = BeatFrets.current.charts;
+    const lanesUsed = (id) => Math.max(...c[id].notes.map((n) => n.lane)) + 1;
+    return { t4: lanesUsed('touch4:hard'), t2: lanesUsed('touch2:hard'), keys: lanesUsed('hard') };
+  });
+  check(charts.t4 === 4 && charts.t2 === 2 && charts.keys === 5, `touch charts use 4 and 2 lanes (${JSON.stringify(charts)})`);
+
+  // The first touch game offers a quick timing check first.
+  await page.tap('[data-diff="touch4:medium"]');
+  await screenIs(page, 'calib-offer');
+  check(true, 'first touch game offers timing calibration');
+  await page.tap('#btn-offer-play');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
+  const g1 = await page.evaluate(() => ({ lanes: BeatFrets.game.lanes, anti: BeatFrets.game.antiMash }));
+  check(g1.lanes === 4 && !g1.anti, `touch game plays on 4 lanes (${JSON.stringify(g1)})`);
+
+  await page.evaluate(TOUCH_BOT);
+  await page.waitForTimeout(6000);
+  // Overdrive: tap the OD meter.
+  await page.evaluate(() => { BeatFrets.game.od = Math.max(BeatFrets.game.od, 0.6); });
+  await touchZone(page, 'od');
+  check(await page.evaluate(() => BeatFrets.game.odActive), 'tapping the OD meter triggers overdrive');
+  await page.screenshot({ path: path.join(outDir, 'e2e-touch-land.png') });
+  await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 120000 });
+  const res1 = await page.evaluate(() => window.__touchGame.counts);
+  check(res1.miss === 0 && res1.perfect > 50, `touch fingers hit every note (${JSON.stringify(res1)})`);
+  const boards = await page.evaluate(() => ({
+    touch: BeatFrets.save.leaderboard(BeatFrets.current.key, 'touch4:medium', 5).length,
+    keys: BeatFrets.save.leaderboard(BeatFrets.current.key, 'medium', 5).length,
+  }));
+  check(boards.touch === 1 && boards.keys === 0, `touch scores go on their own leaderboard (${JSON.stringify(boards)})`);
+  await page.tap('#btn-res-board');
+  await screenIs(page, 'board');
+  const tabs = await page.evaluate(() => [...document.querySelectorAll('[data-board-family]')].map((b) => b.textContent).join('|'));
+  check(/TOUCH 4/.test(tabs) && /TOUCH 2/.test(tabs) && /KEYS/.test(tabs), `leaderboard has keys / touch tabs (${tabs})`);
+
+  // Upright: two lanes.
+  await page.setViewportSize(PORT);
+  await page.waitForTimeout(400);
+  check(await page.evaluate(() => BeatFrets.stage.layout === 'touch2'), 'upright phone switches to the 2-lane layout');
+  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  await screenIs(page, 'song');
+  const portIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
+  check(portIds.length === 4 && portIds.every((d) => d.startsWith('touch2:')), 'upright: four 2-lane tiers');
+  await page.tap('[data-diff="touch2:hard"]');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
+  check(await page.evaluate(() => BeatFrets.game.lanes === 2), 'upright game plays on 2 lanes');
+  await page.evaluate(TOUCH_BOT);
+  await page.waitForTimeout(10000);
+  const res2 = await page.evaluate(() => BeatFrets.game.counts);
+  check(res2.miss === 0 && res2.perfect > 10, `two thumbs hit every note (${JSON.stringify(res2)})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-touch-port.png') });
+
+  // Turning the phone mid-song pauses until it's turned back.
+  await page.setViewportSize(LAND);
+  await page.waitForTimeout(500);
+  const rot = await page.evaluate(() => ({ paused: BeatFrets.game.paused, msg: document.getElementById('pause-msg').textContent, resume: document.getElementById('btn-resume').disabled }));
+  check(rot.paused && /upright/.test(rot.msg) && rot.resume, 'turning the phone mid-song pauses and asks to turn it back');
+  await page.setViewportSize(PORT);
+  await page.waitForTimeout(500);
+  check(await page.evaluate(() => !document.getElementById('btn-resume').disabled && BeatFrets.stage.layout === 'touch2'), 'turning it back allows resuming');
+  await page.tap('#btn-resume');
+  await page.waitForFunction(() => !BeatFrets.game.paused, null, { timeout: 5000 });
+
+  // On-screen pause button.
+  await page.waitForTimeout(3000);
+  await touchZone(page, 'pause');
+  await page.waitForTimeout(200);
+  check(await page.evaluate(() => BeatFrets.game.paused) && await page.isVisible('#pause'), 'the on-screen II button pauses');
+
+  // The keyboard takes over as soon as it's used.
+  await page.keyboard.press('ArrowDown');
+  check(await page.evaluate(() => BeatFrets.Input.device.type === 'keyboard'), 'using the keyboard switches to key controls');
+
+  check(!errors.length, 'no page errors on the phone ' + errors.join(' | '));
+  await context.close();
+}
+
 (async () => {
   const server = await serve();
   url = `http://127.0.0.1:${server.address().port}/`;
@@ -96,6 +235,14 @@ const BOT = (laneButtons) => {
     executablePath: process.env.CHROMIUM_PATH || undefined,
     args: ['--autoplay-policy=no-user-gesture-required'],
   });
+  if (process.env.E2E_ONLY === 'touch') {
+    await touchTests(browser);
+    await browser.close();
+    server.close();
+    if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }
+    console.log('\nPASS');
+    return;
+  }
   const { page, errors } = await newPage(browser);
   await page.goto(url);
   await screenIs(page, 'title');
@@ -395,6 +542,9 @@ const BOT = (laneButtons) => {
   }
 
   check(!errors.length, 'no page errors ' + errors.join(' | '));
+
+  await touchTests(browser);
+
   await browser.close();
   server.close();
   if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }

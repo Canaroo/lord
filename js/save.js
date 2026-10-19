@@ -14,6 +14,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const KEY = 'beatfrets.save.v2';
   const DIFFICULTY_IDS = ['easy', 'medium', 'mediumplus', 'hard', 'duo'];
+  // Touch runs are their own boards: 'touch4:hard' (sideways) and 'touch2:hard' (upright).
+  const validDifficulty = (d) => DIFFICULTY_IDS.includes(d) || /^touch[24]:(easy|medium|mediumplus|hard)$/.test(d);
   const VERSION = 2;
   const MAX_RUNS = 2000;
   const PROFILE_COLORS = ['#58f8f8', '#f858c8', '#f8d830', '#38d838', '#f88820', '#a878f8', '#f84848', '#78a8f8'];
@@ -27,6 +29,9 @@
     noFail: false,
     hitSounds: false,
     overhit: true,
+    calibrationTouchMs: 0, // touch screens have their own delay
+    vibrate: false,
+    touchCalibOffered: false,
   };
 
   function emptySave() {
@@ -157,7 +162,7 @@
       if (!Array.isArray(arr) || arr[0] !== 1) return null;
       const keys = SHARE_FIELDS.slice(0, arr.length);
       const d = Object.fromEntries(keys.map((k, i) => [k, arr[i]]));
-      if (typeof d.sc !== 'number' || !d.k || !DIFFICULTY_IDS.includes(d.d)) return null;
+      if (typeof d.sc !== 'number' || !d.k || !validDifficulty(d.d)) return null;
       return {
         verified: hash(SALT + body) === check,
         initials: cleanInitials(d.n),

@@ -8,10 +8,16 @@
  */
 'use strict';
 (function (root) {
-  const W = 400;
-  const H = 225;
-  const HORIZON = 64;
-  const HIT_Y = 192;
+  // The buffer size and highway placement depend on the layout:
+  //   keys   — desktop 400×225 (keyboard / controller)
+  //   touch4 — phone sideways: as wide as the screen's shape, 4 big lanes
+  //   touch2 — phone upright: as tall as the screen's shape, 2 big lanes
+  let W = 400;
+  let H = 225;
+  let HORIZON = 64;
+  let HIT_Y = 192;
+  let LAYOUT = 'keys';
+  const HUD_TOP = 64; // touch: taps above this line are HUD buttons, below are lanes
   const PERSPECTIVE = 3;
   const FONT = '"Press Start 2P", monospace';
 
@@ -49,8 +55,9 @@
     return () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   }
 
-  // A fixed crowd on each side of the highway.
-  const CROWD = (() => {
+  // A fixed crowd on each side of the highway (desktop layout).
+  let CROWD = [];
+  const buildCrowd = () => {
     const r = seeded(42);
     const people = [];
     for (let row = 0; row < 5; row++) {
@@ -62,7 +69,8 @@
       }
     }
     return people.sort((a, b) => a.y - b.y);
-  })();
+  };
+  CROWD = buildCrowd();
 
   /** Darken (<1) or lighten (>1) a #rrggbb colour. */
   function shade(hex, k) {
@@ -167,8 +175,38 @@
 
     // ---- geometry ----------------------------------------------------------------------------
 
+    /**
+     * Switch layout. `aspect` is the screen's width / height, so phone layouts
+     * fill the screen instead of letterboxing. Returns true if anything changed.
+     */
+    setLayout(mode, aspect = 16 / 9) {
+      let w = 400, h = 225, hz = 64, hit = 192;
+      if (mode === 'touch4') {
+        w = Math.max(400, Math.min(488, Math.round(225 * aspect)));
+        hz = 58;
+        hit = h - 40;
+      } else if (mode === 'touch2') {
+        w = 225;
+        h = Math.max(360, Math.min(500, Math.round(225 / Math.min(1, aspect))));
+        hz = Math.round(h * 0.32);
+        hit = h - 62;
+      }
+      if (mode === LAYOUT && w === W && h === H) return false;
+      LAYOUT = mode;
+      W = w; H = h; HORIZON = hz; HIT_Y = hit;
+      this.buf.width = W;
+      this.buf.height = H;
+      CROWD = buildCrowd();
+      this.particles = [];
+      return true;
+    }
+
+    get layout() { return LAYOUT; }
+
     geometry(lanes) {
-      const halfW = { 2: 44, 3: 60, 4: 72 }[lanes] || 82;
+      const halfW = LAYOUT === 'touch4' ? Math.min(W * 0.43, 180)
+        : LAYOUT === 'touch2' ? Math.min(W * 0.42, 96)
+        : { 2: 44, 3: 60, 4: 72 }[lanes] || 82;
       return {
         cx: W / 2,
         halfW,
@@ -204,7 +242,7 @@
 
       this.drawBackdrop(v, bi, phase, pulse, energy, powerDown);
       this.drawGuitarist(v, bi, phase, energy, powerDown);
-      this.drawCrowd(bi, phase, hype, energy, v.attract);
+      if (LAYOUT === 'keys') this.drawCrowd(bi, phase, hype, energy, v.attract);
       this.drawHighway(v, geo, pulse, level, energy);
       this.drawFrets(v, geo);
       this.drawNotes(v, geo);
@@ -286,8 +324,9 @@
       // Floor.
       this.rect(0, HORIZON, W, H - HORIZON, '#0c0c22');
       this.rect(0, HORIZON, W, 1, v.odActive ? PAL.cyan : '#3a3070');
-      // Speaker stacks, cones thump on the beat.
-      for (const sx of [8, W - 50]) {
+      // Speaker stacks, cones thump on the beat (desktop only: on a phone the
+      // highway needs the room).
+      for (const sx of LAYOUT === 'keys' ? [8, W - 50] : []) {
         for (let k = 0; k < 3; k++) {
           const sy = 70 + k * 32;
           this.rect(sx, sy, 42, 30, '#1a1a2a');
@@ -382,7 +421,7 @@
         const lift = down ? 0 : 3;
         this.ellipse(x, y + 2 - lift, rx, rx * 0.5, down ? LANES_LIGHT[l] : LANES[l]);
         this.ellipse(x, y + 2 - lift, rx * 0.55, rx * 0.26, down ? PAL.white : '#0e0e20');
-        if (v.labels) this.text(v.labels[l], x, y + 12, down ? PAL.white : PAL.grey, 8, 'center');
+        if (v.labels && v.labels[l]) this.text(v.labels[l], x, y + 12, down ? PAL.white : PAL.grey, 8, 'center');
       }
     }
 
@@ -497,6 +536,83 @@
 
     drawHud(v, nowMs) {
       const h = v.hud;
+      if (LAYOUT === 'keys') this.drawDesktopHud(v, h, nowMs);
+      else this.drawTouchHud(v, h, nowMs);
+      this.drawHudCommon(v, h, nowMs);
+    }
+
+    multColor(mult) {
+      return mult >= 8 ? PAL.cyan : mult >= 4 ? PAL.magenta : mult >= 3 ? PAL.gold : mult >= 2 ? PAL.green : PAL.grey;
+    }
+
+    badge(x, y, h, nowMs) {
+      const mc = this.multColor(h.mult);
+      this.ellipse(x, y, 13, 13, PAL.ink);
+      this.ellipse(x, y, 12, 12, mc);
+      this.ellipse(x, y, 10, 10, PAL.window);
+      this.text('x' + h.mult, x, y - 4, mc, 8, 'center');
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + (i * Math.PI * 2) / 10;
+        this.rect(x + Math.cos(a) * 17 - 1, y + Math.sin(a) * 17 - 1, 2, 2, i < h.pips ? mc : '#2a2f6a');
+      }
+      if (this.levelUpAt && nowMs - this.levelUpAt < 700) {
+        const k = (nowMs - this.levelUpAt) / 700;
+        this.g.globalAlpha = 1 - k;
+        this.text('x' + this.levelUpTo + '!', x, y + 19 - k * 8, PAL.gold, 8, 'center');
+        this.g.globalAlpha = 1;
+      }
+    }
+
+    /** Phone HUD: one compact row across the top, with tappable OD and pause. */
+    drawTouchHud(v, h, nowMs) {
+      const bw = LAYOUT === 'touch2' ? 86 : 104;
+      this.window(4, 4, bw, 28);
+      this.text('SCORE', 9, 8, PAL.grey);
+      this.text(h.score.toLocaleString('en-US'), 9, 19, PAL.white);
+      this.window(W - 4 - bw, 4, bw, 28);
+      this.text('STREAK', W - bw + 1, 8, PAL.grey);
+      this.text(String(h.combo), W - bw + 1, 19, h.combo >= 50 ? PAL.gold : PAL.white);
+      // Pause button.
+      this.window(W / 2 - 11, 4, 22, 18);
+      this.rect(W / 2 - 4, 8, 3, 10, PAL.white);
+      this.rect(W / 2 + 1, 8, 3, 10, PAL.white);
+      if (LAYOUT === 'touch2') this.badge(W / 2, 46, h, nowMs);
+      else this.badge(4 + bw + 20, 18, h, nowMs);
+      for (let i = 0; i < 5; i++) {
+        const fill = i < h.stars ? 1 : i === h.stars ? h.starProgress : 0;
+        this.star(6 + i * 10, 35, fill);
+      }
+      if (h.pace != null) {
+        const ahead = h.pace >= 0;
+        this.text(`PB ${ahead ? '+' : '-'}${Math.abs(h.pace).toLocaleString('en-US')}`, W - bw - 2, 35, ahead ? PAL.green : PAL.red);
+      }
+      this.rect(0, 0, W, 2, '#20204a');
+      this.rect(0, 0, W * h.progress, 2, PAL.cyan);
+      // Overdrive bar: tap it to fire overdrive once it's half full.
+      const segs = 12, by = 46, bh = 11, segW = (bw - 6) / segs;
+      const odBlink = h.odReady && !v.odActive && Math.floor(nowMs / 250) % 2 === 0;
+      this.window(4, by, bw, bh);
+      for (let i = 0; i < segs; i++) {
+        const filled = h.od * segs > i;
+        this.rect(7 + i * segW, by + 3, segW - 1, bh - 6, filled ? (v.odActive || odBlink ? PAL.white : PAL.cyan) : '#101838');
+      }
+      if (h.odReady && !v.odActive) this.text('TAP OD', 4 + bw / 2, by + 2, odBlink ? PAL.ink : PAL.white, 8, 'center');
+      // Rock meter bar.
+      const danger = h.rock < 0.25;
+      this.window(W - 4 - bw, by, bw, bh);
+      for (let i = 0; i < segs; i++) {
+        const zone = i < 3 ? PAL.red : i < 7 ? PAL.gold : PAL.green;
+        const lit = h.rock * segs > i;
+        const blink = danger && Math.floor(nowMs / 180) % 2 === 0;
+        this.rect(W - 1 - bw + i * segW, by + 3, segW - 1, bh - 6, lit ? (blink ? PAL.white : zone) : '#101838');
+      }
+      this.touchZones = {
+        od: { x: 0, y: 30, w: bw + 14, h: HUD_TOP - 30 },
+        pause: { x: W / 2 - 22, y: 0, w: 44, h: 30 },
+      };
+    }
+
+    drawDesktopHud(v, h, nowMs) {
       // Score.
       this.window(6, 6, 104, 30);
       this.text('SCORE', 12, 11, PAL.grey);
@@ -559,7 +675,10 @@
         const blink = danger && Math.floor(nowMs / 180) % 2 === 0;
         this.rect(rx, y, 8, segH - 1, lit ? (blink ? PAL.white : zone) : '#101838');
       }
+    }
 
+    drawHudCommon(v, h, nowMs) {
+      const touch = LAYOUT !== 'keys';
       // Judgement pop.
       const j = v.judgement;
       if (j && nowMs - j.at < 450) {
@@ -568,20 +687,21 @@
         const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red }[j.kind];
         const y = HIT_Y - 62 - (k < 0.15 ? (0.15 - k) * 40 : 0);
         this.g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
-        this.text(label, W / 2, y, color, 16, 'center');
+        this.text(label, W / 2, y, color, LAYOUT === 'touch2' ? 8 : 16, 'center');
         if (j.kind === 'good' || j.kind === 'ok') this.text(j.early ? 'EARLY' : 'LATE', W / 2, y + 20, PAL.grey, 8, 'center');
         this.g.globalAlpha = 1;
       }
 
       // Banners slide in from the right and out to the left.
       for (const b of v.banners || []) {
+        const by = touch ? Math.round(HORIZON + (HIT_Y - HORIZON) * 0.22) : b.y;
         const age = (nowMs - b.at) / 1000;
         if (age > 1.6) continue;
         const x = age < 0.2 ? W / 2 + (0.2 - age) * 1500 : age > 1.35 ? W / 2 - (age - 1.35) * 1600 : W / 2;
-        this.rect(0, b.y - 4, W, 24, 'rgba(8,8,26,0.75)');
-        this.rect(0, b.y - 4, W, 1, b.color);
-        this.rect(0, b.y + 19, W, 1, b.color);
-        this.text(b.text, x, b.y, b.color, 16, 'center');
+        this.rect(0, by - 4, W, 24, 'rgba(8,8,26,0.75)');
+        this.rect(0, by - 4, W, 1, b.color);
+        this.rect(0, by + 19, W, 1, b.color);
+        this.text(b.text, x, by, b.color, LAYOUT === 'touch2' && b.text.length > 12 ? 8 : 16, 'center');
       }
 
       // Points float up from the fret, coloured by the multiplier.
@@ -596,21 +716,25 @@
       }
 
       if (v.restart > 0) {
-        this.window(W / 2 - 74, 44, 148, 24);
-        this.text('HOLD TO RESTART', W / 2, 49, PAL.white, 8, 'center');
-        this.rect(W / 2 - 66, 60, 132, 3, PAL.ink);
-        this.rect(W / 2 - 66, 60, 132 * Math.min(1, v.restart), 3, PAL.gold);
+        const ry = touch ? HUD_TOP + 4 : 44;
+        this.window(W / 2 - 74, ry, 148, 24);
+        this.text('HOLD TO RESTART', W / 2, ry + 5, PAL.white, 8, 'center');
+        this.rect(W / 2 - 66, ry + 16, 132, 3, PAL.ink);
+        this.rect(W / 2 - 66, ry + 16, 132 * Math.min(1, v.restart), 3, PAL.gold);
       }
 
       // Countdown.
-      if (v.countdown) this.text(v.countdown, W / 2, 104, PAL.white, 24, 'center');
+      const mid = touch ? Math.round((HORIZON + HIT_Y) / 2) - 12 : 104;
+      if (v.countdown) this.text(v.countdown, W / 2, mid, PAL.white, 24, 'center');
       if (h.intro) {
-        this.text(h.intro.title, W / 2, 46, PAL.white, 8, 'center');
-        this.text(h.intro.sub, W / 2, 58, PAL.cyan, 8, 'center');
+        const iy = touch ? HUD_TOP + 2 : 46;
+        const title = LAYOUT === 'touch2' ? h.intro.title.slice(0, 24) : h.intro.title;
+        this.text(title, W / 2, iy, PAL.white, 8, 'center');
+        this.text(h.intro.sub, W / 2, iy + 12, PAL.cyan, 8, 'center');
       }
       if (v.failed) {
-        this.rect(0, 92, W, 40, 'rgba(40,0,10,0.85)');
-        this.text('SONG FAILED', W / 2, 104, PAL.red, 16, 'center');
+        this.rect(0, mid - 12, W, 40, 'rgba(40,0,10,0.85)');
+        this.text('SONG FAILED', W / 2, mid, PAL.red, LAYOUT === 'touch2' ? 8 : 16, 'center');
       }
     }
 
@@ -667,7 +791,9 @@
       const sit = failed ? 3 : 0;
       // Drawn on a 2× pixel grid so he reads clearly: (x, y) are art pixels
       // relative to his feet, which stand at (86, 160) on the stage.
-      const S = 2, ox = 80, oy = 160 - jump * S;
+      const S = 2;
+      const [gx, gy0] = LAYOUT === 'touch4' ? [W / 2 + 44, HORIZON] : LAYOUT === 'touch2' ? [14, HORIZON] : [80, 160];
+      const ox = gx, oy = gy0 - jump * S;
       const R = (x, y, w, h, c) => this.rect(ox + x * S, oy + y * S, w * S, h * S, c);
       const E = (x, y, rx, ry, c) => this.ellipse(ox + x * S, oy + y * S, rx * S, ry * S, c);
 
@@ -730,6 +856,7 @@
         this.shake *= Math.pow(0.0001, dt);
       } else this.shake = 0;
       o.drawImage(this.buf, Math.round(dx), Math.round(dy), Math.round(dw), Math.round(dh));
+      this.xf = { dx: (cw - dw) / 2, dy: (ch - dh) / 2, scale, dpr };
       if (this.flash > 0.02) {
         o.fillStyle = `rgba(255,255,255,${this.flash})`;
         o.fillRect(0, 0, cw, ch);
@@ -744,7 +871,54 @@
       const beats = [];
       const first = Math.floor(timeSec / period) - 8;
       for (let i = 0; i < 40; i++) beats.push((first + i) * period);
-      this.draw({ t: timeSec, beats, lanes: 5, lookahead: 1.8, attract: true, rock: 0.8 });
+      const lanes = LAYOUT === 'touch4' ? 4 : LAYOUT === 'touch2' ? 2 : 5;
+      this.draw({ t: timeSec, beats, lanes, lookahead: 1.8, attract: true, rock: 0.8 });
+    }
+
+    /** Screen (CSS px) → buffer pixels. */
+    toBuffer(clientX, clientY) {
+      const r = this.canvas.getBoundingClientRect();
+      const xf = this.xf || { dx: 0, dy: 0, scale: 1, dpr: 1 };
+      return {
+        x: ((clientX - r.left) * xf.dpr - xf.dx) / xf.scale,
+        y: ((clientY - r.top) * xf.dpr - xf.dy) / xf.scale,
+      };
+    }
+
+    /** Buffer pixels → screen (CSS px). */
+    toClient(x, y) {
+      const r = this.canvas.getBoundingClientRect();
+      const xf = this.xf || { dx: 0, dy: 0, scale: 1, dpr: 1 };
+      return { x: r.left + (x * xf.scale + xf.dx) / xf.dpr, y: r.top + (y * xf.scale + xf.dy) / xf.dpr };
+    }
+
+    /**
+     * What a touch at (clientX, clientY) means in a phone layout: the OD or pause
+     * button, or a lane. Lanes are full-height columns under the HUD, as wide as
+     * the lanes at the strike line; touches beyond the highway go to the edge lane.
+     */
+    hitTest(clientX, clientY, lanes) {
+      if (LAYOUT === 'keys') return null;
+      const p = this.toBuffer(clientX, clientY);
+      const inside = (z) => z && p.x >= z.x && p.x <= z.x + z.w && p.y >= z.y && p.y <= z.y + z.h;
+      const zones = this.touchZones || {};
+      if (inside(zones.pause)) return { type: 'pause' };
+      if (inside(zones.od)) return { type: 'overdrive' };
+      if (p.y < HUD_TOP) return null;
+      const geo = this.geometry(lanes);
+      const lane = Math.floor((p.x - (geo.cx - geo.halfW)) / geo.laneW);
+      return { type: 'lane', lane: Math.max(0, Math.min(lanes - 1, lane)) };
+    }
+
+    /** Centre of a lane's touch column on screen (for tests and hints). */
+    laneCenterClient(lanes, lane) {
+      const geo = this.geometry(lanes);
+      return this.toClient(geo.cx + geo.laneX(lane), HIT_Y + 8);
+    }
+
+    zoneCenterClient(name) {
+      const z = (this.touchZones || {})[name];
+      return z ? this.toClient(z.x + z.w / 2, z.y + z.h / 2) : null;
     }
 
     /** Where on screen (in buffer pixels) a lane's fret sits, for effects. */

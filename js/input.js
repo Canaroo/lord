@@ -34,7 +34,10 @@
 
   let laneCount = 5;
   let gameplay = false;
-  let device = { type: 'keyboard', family: null, name: 'Keyboard' };
+  const TOUCH = { type: 'touch', family: null, name: 'Touch' };
+  // Start in touch mode on phones and tablets (main pointer is a finger).
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0;
+  let device = coarse ? TOUCH : { type: 'keyboard', family: null, name: 'Keyboard' };
   const padState = new Map(); // index → { buttons: bool[], lanes: bool[], axes, repeatAt }
 
   function familyOf(id) {
@@ -160,14 +163,54 @@
     if (device.type === 'gamepad') setDevice({ type: 'keyboard', family: null, name: 'Keyboard' });
   });
 
+  // ---- touch ---------------------------------------------------------------------------
+
+  // Any finger on the screen switches to touch; the last input used wins.
+  window.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') setDevice(TOUCH); }, true);
+
+  /**
+   * Play with fingers on `canvas`. `resolve(clientX, clientY)` says what a
+   * touch means: { type: 'lane', lane } | { type: 'overdrive' } | { type: 'pause' } | null.
+   * Each finger keeps the lane it landed on until it lifts, so holds work and
+   * several fingers can press at once.
+   */
+  function attachTouch(canvas, resolve) {
+    const fingers = new Map(); // pointerId → lane
+    const pressedBy = (lane) => [...fingers.values()].filter((l) => l === lane).length;
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' || !gameplay) return;
+      e.preventDefault();
+      setDevice(TOUCH);
+      const hit = resolve(e.clientX, e.clientY);
+      if (!hit) return;
+      if (hit.type === 'lane') {
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events */ }
+        const first = pressedBy(hit.lane) === 0;
+        fingers.set(e.pointerId, hit.lane);
+        if (first) emit('lane', hit.lane, true, e.timeStamp);
+      } else emit('action', hit.type);
+    });
+    const lift = (e) => {
+      if (!fingers.has(e.pointerId)) return;
+      const lane = fingers.get(e.pointerId);
+      fingers.delete(e.pointerId);
+      if (pressedBy(lane) === 0) emit('lane', lane, false, e.timeStamp);
+    };
+    canvas.addEventListener('pointerup', lift);
+    canvas.addEventListener('pointercancel', lift);
+    return { release() { fingers.forEach((lane, id) => lift({ pointerId: id, timeStamp: performance.now() })); } };
+  }
+
   /** Labels for each lane on the current device. */
   function laneLabels(lanes) {
+    if (device.type === 'touch') return [];
     if (device.type !== 'gamepad') return keysFor(lanes).map((k) => k.toUpperCase());
     const g = GLYPHS[device.family] || GLYPHS.xbox;
     return LANE_BUTTON_NAMES[lanes].map((n) => g[n]);
   }
 
   function glyph(name) {
+    if (device.type === 'touch') return { overdrive: 'TAP OD', pause: 'II', confirm: 'TAP', back: 'BACK' }[name];
     if (device.type !== 'gamepad') return { overdrive: 'SPACE', pause: 'ESC', confirm: 'ENTER', back: 'ESC' }[name];
     const g = GLYPHS[device.family] || GLYPHS.xbox;
     return { overdrive: g.Y, pause: g.START, confirm: g.A, back: g.B }[name];
@@ -186,6 +229,8 @@
       padState.forEach((st) => st.lanes.fill(false));
     },
     get device() { return device; },
+    get touch() { return device.type === 'touch'; },
+    attachTouch,
     laneLabels,
     glyph,
     KEYS,

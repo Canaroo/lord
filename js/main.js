@@ -11,14 +11,42 @@
   const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
   const fmtDate = (iso) => (iso ? iso.slice(0, 10) : '');
   const DIFFS = Object.keys(ChartGen.DIFFICULTIES); // easy, medium, mediumplus, hard, duo
-  const LABEL = (d) => (ChartGen.DIFFICULTIES[d] ? ChartGen.DIFFICULTIES[d].label : d).toUpperCase();
-  const SHORT = { easy: 'E', medium: 'M', mediumplus: 'M+', hard: 'H', duo: 'DUO' };
+  const parseId = ChartGen.parseId;
+  const BASE_LABEL = (d) => (ChartGen.DIFFICULTIES[d] ? ChartGen.DIFFICULTIES[d].label : d).toUpperCase();
+  /** 'hard' → HARD; 'touch4:hard' → HARD · TOUCH 4 */
+  const LABEL = (id) => {
+    const p = parseId(id);
+    return BASE_LABEL(p.difficulty) + (p.touch ? ` · TOUCH ${p.lanes}` : '');
+  };
+  const SHORT_BASE = { easy: 'E', medium: 'M', mediumplus: 'M+', hard: 'H', duo: 'DUO' };
+  const SHORT = new Proxy({}, { get: (_, id) => { const p = parseId(String(id)); return (SHORT_BASE[p.difficulty] || id) + (p.touch ? p.lanes : ''); } });
+  const FAMILIES = { keys: 'KEYS', touch4: 'TOUCH 4', touch2: 'TOUCH 2' };
+  const familyOf = (id) => { const p = parseId(id); return p.touch ? 'touch' + p.lanes : 'keys'; };
+  const idsFor = (family) => (family === 'keys' ? DIFFS : ChartGen.TOUCH_TIERS.map((d) => family + ':' + d));
+
+  /** keys on desktop; on touch, 4 lanes sideways and 2 lanes upright. */
+  function layoutMode() {
+    if (!Input.touch) return 'keys';
+    return window.innerHeight > window.innerWidth ? 'touch2' : 'touch4';
+  }
+  const tierIds = () => idsFor(layoutMode());
+  /** The chart id for a tier in the current layout ('hard' → 'touch4:hard' when sideways). */
+  function idFor(base) {
+    const m = layoutMode();
+    return m === 'keys' ? base : m + ':' + (base === 'duo' ? 'hard' : base);
+  }
   const WHAT = {
     easy: 'Strong beats only',
     medium: 'Off-beats and long notes',
     mediumplus: 'Near-Hard speed on 4 keys',
     hard: 'Everything, with chords',
     duo: 'Hard speed on 2 keys',
+  };
+  const WHAT_TOUCH = {
+    easy: 'Strong beats only',
+    medium: 'Off-beats and long notes',
+    mediumplus: 'Faster runs',
+    hard: 'Everything, with two-thumb chords',
   };
   const LOOKAHEAD = { easy: 2.0, medium: 1.75, mediumplus: 1.55, hard: 1.5, duo: 1.5 };
 
@@ -214,6 +242,7 @@
       : `<span><b>↑↓</b> MOVE &nbsp; <b>ENTER</b> SELECT &nbsp; <b>ESC</b> BACK</span><span>KEYBOARD</span>`;
     $$('[data-glyph]').forEach((el) => { el.textContent = Input.glyph(el.dataset.glyph); });
     $$('[data-keys]').forEach((el) => {
+      if (Input.touch) return; // touch cards show a lane count instead
       const n = +el.dataset.keys;
       el.innerHTML = Input.laneLabels(n).map((k, i) => `<kbd class="k${i}">${esc(k)}</kbd>`).join('');
     });
@@ -234,6 +263,9 @@
 
   $('#btn-start').addEventListener('click', () => {
     ensureAudio();
+    if (Input.touch && document.documentElement.requestFullscreen && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    }
     if (!save.active) initials.open(null, (txt) => { save.createProfile(txt); renderMain(); show('main'); });
     else { renderMain(); show('main'); }
   });
@@ -314,7 +346,7 @@
   function bestLine(key) {
     const p = save.active;
     if (!p) return '';
-    const parts = DIFFS.map((d) => {
+    const parts = tierIds().map((d) => {
       const b = save.bestStars(p.id, key, d);
       return b.stars ? `${SHORT[d] || d} ${b.stars}★` : null;
     }).filter(Boolean);
@@ -408,7 +440,7 @@
         let charts;
         // A chart file from an older version of the game lacks newer tiers or long
         // notes; rebuild in the browser rather than play an incomplete set.
-        const upToDate = chart && chart.charts && chart.analyzer === BeatAnalyzer.VERSION && DIFFS.every((d) => chart.charts[d]);
+        const upToDate = chart && chart.charts && chart.analyzer === BeatAnalyzer.VERSION && ChartGen.ALL_IDS.every((id) => chart.charts[id]);
         if (upToDate) {
           setProgress(0.75, 'Lining the chart up with the audio…');
           const n = Math.min(buffer.length, Math.floor(BonusPack.ALIGN_SECONDS * buffer.sampleRate));
@@ -423,7 +455,7 @@
         } else {
           analysis = await analyseInBrowser(buffer, 0.7, 0.98);
           charts = {};
-          for (const d of DIFFS) charts[d] = ChartGen.generate(analysis, d);
+          for (const id of ChartGen.ALL_IDS) charts[id] = ChartGen.generateId(analysis, id);
           entry = { buffer, analysis, charts, prebuilt: false, shift: 0 };
         }
         bonusCache.set(id, entry);
@@ -499,7 +531,7 @@
     const built = SongPack.build(def);
     const analysis = SongPack.toAnalysis(built);
     const charts = {};
-    for (const d of DIFFS) charts[d] = ChartGen.generate(analysis, d);
+    for (const id of ChartGen.ALL_IDS) charts[id] = ChartGen.generateId(analysis, id);
     setProgress(0.45, 'Tuning the sound chip…');
     try {
       const buffer = await packBuffer(id);
@@ -578,7 +610,7 @@
       try { if (storage) storage.setItem(cacheKey, JSON.stringify(analysis)); } catch (e) { /* cache is optional */ }
     }
     const charts = {};
-    for (const d of DIFFS) charts[d] = ChartGen.generate(analysis, d);
+    for (const id of ChartGen.ALL_IDS) charts[id] = ChartGen.generateId(analysis, id);
     if (!charts.easy.notes.length) throw new Error('No beat could be found in this audio.');
     const fp = SaveData.fingerprint(analysis);
     const reg = save.registerSong(name, fp);
@@ -697,16 +729,22 @@
     const credit = [current.artist, current.credit].filter(Boolean).join(' · ');
     $('#song-credit').hidden = !credit;
     $('#song-credit').textContent = credit;
+    const mode = layoutMode();
+    if (mode !== 'keys') {
+      $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · ~${Math.round(current.analysis.bpm)} BPM · ` + (mode === 'touch4'
+        ? '4 lanes. Turn your phone upright for 2.'
+        : '2 lanes. Turn your phone sideways for 4.');
+    }
     $('#song-match').hidden = !current.matchNote;
     $('#song-match').textContent = current.matchNote || '';
-    $('#diffs').innerHTML = DIFFS.map((d) => {
+    $('#diffs').innerHTML = tierIds().map((d) => {
       const c = current.charts[d];
       const n = c.notes.length;
       const holds = c.notes.filter((x) => x.len).length;
       return `<div class="diff-col">
-        <button class="diff" data-diff="${d}"><strong>${LABEL(d)}</strong>
-          <span class="what">${esc(WHAT[d] || '')}</span>
-          <span class="keys" data-keys="${c.lanes}"></span>
+        <button class="diff" data-diff="${d}"><strong>${BASE_LABEL(parseId(d).difficulty)}</strong>
+          <span class="what">${esc((mode === 'keys' ? WHAT : WHAT_TOUCH)[parseId(d).difficulty] || '')}</span>
+          <span class="keys" data-keys="${c.lanes}">${mode === 'keys' ? '' : `<span class="lanes-tag">${c.lanes} LANES</span>`}</span>
           <span class="stats">${n} notes · ${(n / Math.max(1, current.analysis.duration)).toFixed(1)}/sec${holds ? ` · ${holds} long` : ''}</span>
           ${cardStars(d)}
         </button>
@@ -714,7 +752,7 @@
       </div>`;
     }).join('');
     updateDeviceUI();
-    show('song', { focus: `[data-diff="${lastDifficulty}"]` });
+    show('song', { focus: `[data-diff="${idFor(parseId(lastDifficulty).difficulty)}"]` });
   }
 
   $('#diffs').addEventListener('click', (e) => {
@@ -725,8 +763,19 @@
 
   // ---- playing --------------------------------------------------------------------------------------
 
+  let gameLayout = 'keys';
+  let pendingPlay = null;
+
   async function play(difficulty) {
     if (!current) return;
+    const tier = parseId(difficulty);
+    // First touch game: offer a quick timing check, since phone audio delay varies a lot.
+    if (tier.touch && !settings.touchCalibOffered) {
+      save.setSetting('touchCalibOffered', true);
+      pendingPlay = difficulty;
+      show('calib-offer');
+      return;
+    }
     lastDifficulty = difficulty;
     stopPreview();
     restartHold.cancel();
@@ -736,6 +785,11 @@
     await document.fonts.load('8px "Press Start 2P"').catch(() => {});
     show(null);
     $('#pause').hidden = true;
+    $('#pause-msg').textContent = '';
+    $('#btn-resume').disabled = false;
+    gameLayout = tier.touch ? 'touch' + tier.lanes : 'keys';
+    stage.setLayout(gameLayout, window.innerWidth / window.innerHeight);
+    wakeLock.acquire();
     const chart = current.charts[difficulty];
     Input.setGameplay(true, chart.lanes);
     game = new Game({
@@ -744,17 +798,22 @@
       chart,
       beats: current.analysis.beats,
       stage,
-      lookahead: (LOOKAHEAD[difficulty] || 1.5) / settings.speed,
-      calibration: settings.calibrationMs / 1000,
+      lookahead: (LOOKAHEAD[tier.difficulty] || 1.5) / settings.speed,
+      calibration: (tier.touch ? settings.calibrationTouchMs : settings.calibrationMs) / 1000,
       noFail: settings.noFail,
-      antiMash: settings.overhit && difficulty !== 'easy',
+      // Resting fingers make stray touches common, so the overhit rule is keys-only.
+      antiMash: !tier.touch && settings.overhit && tier.difficulty !== 'easy',
+      windowScale: tier.touch ? 1.15 : 1,
+      vibrate: tier.touch && settings.vibrate,
       hitSounds: settings.hitSounds,
       playerColor: save.active ? save.active.color : '#58f8f8',
       best: save.active ? save.pace(save.active.id, current.key, difficulty) : null,
-      intro: { title: current.title.toUpperCase().slice(0, 40), sub: ChartGen.DIFFICULTIES[difficulty].label.toUpperCase() },
+      intro: { title: current.title.toUpperCase().slice(0, 40), sub: LABEL(difficulty) },
       onEnd: (res) => {
         game = null;
+        wakeLock.release();
         Input.setGameplay(false);
+        applyLayout();
         showResults(difficulty, res);
       },
       onPauseChange: (paused) => {
@@ -772,7 +831,9 @@
   $('#btn-quit').addEventListener('click', () => {
     if (game) game.stop();
     game = null;
+    wakeLock.release();
     Input.setGameplay(false);
+    applyLayout();
     $('#pause').hidden = true;
     showSong();
   });
@@ -878,11 +939,12 @@
     applyBtn.hidden = true;
     if (res.timingSamples >= 20 && Math.abs(avg) >= 15) {
       $('#res-timing').textContent = `Your hits landed ${Math.abs(avg)} ms ${avg > 0 ? 'late' : 'early'} on average. If that felt on time, adjust the timing.`;
-      const next = Math.max(-200, Math.min(200, settings.calibrationMs + avg));
+      const calKey = parseId(difficulty).touch ? 'calibrationTouchMs' : 'calibrationMs';
+      const next = Math.max(-200, Math.min(200, settings[calKey] + avg));
       applyBtn.textContent = `ADJUST TIMING (${avg > 0 ? '+' : ''}${avg} MS)`;
       applyBtn.hidden = false;
       applyBtn.onclick = () => {
-        save.setSetting('calibrationMs', next);
+        save.setSetting(calKey, next);
         renderOptions();
         applyBtn.hidden = true;
         $('#res-timing').textContent = `Timing adjusted to ${next} ms. Change it any time in Options.`;
@@ -893,10 +955,12 @@
 
     // What to try next.
     let suggest = '';
+    const base = parseId(difficulty).difficulty;
+    const tierLabel = (b) => LABEL(idFor(b));
     if (res.failed) {
-      suggest = PREV_TIER[difficulty] ? `Tough one. Try ${LABEL(PREV_TIER[difficulty])}, or turn on No-fail in Options.` : 'Tough one. Turn on No-fail in Options to play it through.';
-    } else if ((res.grade === 'S' || res.stars >= 4) && NEXT_TIER[difficulty]) {
-      suggest = `Ready for ${LABEL(NEXT_TIER[difficulty])}?`;
+      suggest = PREV_TIER[base] ? `Tough one. Try ${tierLabel(PREV_TIER[base])}, or turn on No-fail in Options.` : 'Tough one. Turn on No-fail in Options to play it through.';
+    } else if ((res.grade === 'S' || res.stars >= 4) && NEXT_TIER[base]) {
+      suggest = `Ready for ${tierLabel(NEXT_TIER[base])}?`;
     } else if (res.grade === 'S' && difficulty === 'hard') {
       suggest = 'Try Duo: Hard speed on two keys.';
     }
@@ -1096,7 +1160,7 @@
 
   $('#boards-list').addEventListener('click', (e) => {
     const b = e.target.closest('[data-board-key]');
-    if (b) openBoard(b.dataset.boardKey, b.dataset.title, 'easy', 'boards');
+    if (b) openBoard(b.dataset.boardKey, b.dataset.title, idFor('easy'), 'boards');
   });
 
   function openBoard(key, title, diff, back) {
@@ -1109,7 +1173,11 @@
   function renderBoard() {
     const { key, title, diff } = boardState;
     $('#board-title').textContent = title;
-    $('#board-tabs').innerHTML = DIFFS.map((d) => `<button data-board-diff="${d}" class="${d === diff ? 'on' : ''}">${LABEL(d)}</button>`).join('');
+    const fam = familyOf(diff);
+    $('#board-tabs').innerHTML =
+      Object.entries(FAMILIES).map(([f, label]) => `<button data-board-family="${f}" class="${f === fam ? 'on' : ''}">${label}</button>`).join('') +
+      '<span class="tab-break"></span>' +
+      idsFor(fam).map((d) => `<button data-board-diff="${d}" class="${d === diff ? 'on' : ''}">${BASE_LABEL(parseId(d).difficulty)}</button>`).join('');
     const rows = save.leaderboard(key, diff, 25);
     const me = save.active;
     $('#board-table').innerHTML = '<tr><th>#</th><th>PLAYER</th><th class="num">SCORE</th><th>GRADE</th><th class="num">ACC</th><th class="num">STREAK</th><th>DATE</th></tr>' +
@@ -1125,6 +1193,16 @@
   }
 
   $('#board-tabs').addEventListener('click', (e) => {
+    const f = e.target.closest('[data-board-family]');
+    if (f) {
+      // Same tier, other input: 'hard' ↔ 'touch4:hard' ↔ 'touch2:hard'.
+      const base = parseId(boardState.diff).difficulty;
+      const ids = idsFor(f.dataset.boardFamily);
+      boardState.diff = ids.find((id) => parseId(id).difficulty === base) || ids[0];
+      renderBoard();
+      requestAnimationFrame(() => { const el = $(`[data-board-family="${f.dataset.boardFamily}"]`); if (el) el.focus(); });
+      return;
+    }
     const b = e.target.closest('[data-board-diff]');
     if (!b) return;
     boardState.diff = b.dataset.boardDiff;
@@ -1204,8 +1282,12 @@
   function renderOptions() {
     $('#opt-speed').value = settings.speed;
     $('#opt-speed-out').textContent = settings.speed.toFixed(1) + 'x';
-    $('#opt-calib').value = settings.calibrationMs;
-    $('#opt-calib-out').textContent = (settings.calibrationMs > 0 ? '+' : '') + settings.calibrationMs + ' ms';
+    const cal = settings[calKey()];
+    $('#opt-calib').value = cal;
+    $('#opt-calib-out').textContent = (cal > 0 ? '+' : '') + cal + ' ms';
+    $('#opt-calib-label').textContent = Input.touch ? 'AUDIO OFFSET (TOUCH)' : 'AUDIO OFFSET';
+    $('#opt-vibrate').hidden = !navigator.vibrate;
+    $('#opt-vibrate span').textContent = settings.vibrate ? 'ON' : 'OFF';
     $('#opt-music').value = settings.music;
     $('#opt-music-out').textContent = Math.round(settings.music * 100) + '%';
     $('#opt-sfx').value = settings.sfx;
@@ -1225,12 +1307,15 @@
     renderOptions();
   });
   bindRange('#opt-speed', 'speed', parseFloat);
-  bindRange('#opt-calib', 'calibrationMs', (v) => parseInt(v, 10));
+  $('#opt-calib').addEventListener('input', (e) => { save.setSetting(calKey(), parseInt(e.target.value, 10)); renderOptions(); });
   bindRange('#opt-music', 'music', parseFloat);
   bindRange('#opt-sfx', 'sfx', parseFloat);
-  for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-overhit', 'overhit']]) {
+  for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-overhit', 'overhit'], ['#opt-vibrate', 'vibrate']]) {
     $(id).addEventListener('click', () => { save.setSetting(key, !settings[key]); renderOptions(); });
   }
+  /** Keyboard/controller and touch each keep their own timing offset. */
+  const calKey = () => (Input.touch ? 'calibrationTouchMs' : 'calibrationMs');
+
   // ---- calibration ---------------------------------------------------------------------------------------
 
   const calibrate = (() => {
@@ -1294,14 +1379,18 @@
         if (offsets.length < 5) { $('#calib-status').textContent = 'Not enough taps. Try again.'; return; }
         offsets.sort((a, b) => a - b);
         const median = offsets[offsets.length >> 1];
-        save.setSetting('calibrationMs', Math.max(-200, Math.min(200, Math.round(median * 1000))));
+        save.setSetting(calKey(), Math.max(-200, Math.min(200, Math.round(median * 1000))));
         renderOptions();
-        $('#calib-status').textContent = `Done. Offset set to ${settings.calibrationMs} ms.`;
+        $('#calib-status').textContent = `Done. Offset set to ${settings[calKey()]} ms.`;
       }, (1.0 + COUNT * INTERVAL + 0.6) * 1000);
     }
 
     window.addEventListener('keydown', (e) => {
       if (screen === 'calib' && e.code === 'Space' && !e.repeat) { e.preventDefault(); tap(e.timeStamp); }
+    });
+    // On a phone, tap anywhere on the calibration screen (except its buttons).
+    $('#screen-calib').addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' && !e.target.closest('button')) { e.preventDefault(); tap(e.timeStamp); }
     });
     return { run, tap, cancel };
   })();
@@ -1359,6 +1448,91 @@
     if (file) { songOrigin = 'import'; importFile(file); }
   });
 
+  // ---- phones: layout, orientation, wake lock, full screen ------------------------------------------------
+
+  /** Match the stage to the current device and orientation (not during a song). */
+  function applyLayout() {
+    document.body.classList.toggle('touch', Input.touch);
+    if (game) return;
+    stage.setLayout(layoutMode(), window.innerWidth / window.innerHeight);
+  }
+
+  let resizeTimer = 0;
+  function onResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (game) {
+        // Turning the phone mid-song would change the lanes: pause until it's turned back.
+        if (gameLayout !== 'keys' && layoutMode() !== gameLayout) {
+          if (!game.paused) game.pause();
+          $('#pause-msg').textContent = gameLayout === 'touch4' ? 'Turn your phone sideways to keep playing.' : 'Turn your phone upright to keep playing.';
+          $('#btn-resume').disabled = true;
+        } else {
+          $('#pause-msg').textContent = '';
+          $('#btn-resume').disabled = false;
+          stage.setLayout(gameLayout, window.innerWidth / window.innerHeight);
+        }
+        return;
+      }
+      const before = stage.layout;
+      applyLayout();
+      if (stage.layout !== before && screen === 'song' && current) showSong();
+    }, 150);
+  }
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+
+  Input.on('device', () => {
+    const before = stage.layout;
+    applyLayout();
+    if (!game && stage.layout !== before && screen === 'song' && current) showSong();
+    renderOptions();
+  });
+
+  const wakeLock = {
+    lock: null,
+    async acquire() {
+      try {
+        if ('wakeLock' in navigator && !this.lock) {
+          this.lock = await navigator.wakeLock.request('screen');
+          this.lock.addEventListener('release', () => { this.lock = null; });
+        }
+      } catch (e) { /* not allowed; the screen may dim */ }
+    },
+    release() {
+      if (this.lock) { this.lock.release().catch(() => {}); this.lock = null; }
+    },
+  };
+
+  // Phone call, app switch or locked screen: pause, and keep the screen awake again on return.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && game && !game.paused) game.pause();
+    if (!document.hidden && game) wakeLock.acquire();
+  });
+
+  // Fingers on the stage play the lanes (and the OD and pause buttons).
+  Input.attachTouch($('#stage'), (x, y) => (game ? stage.hitTest(x, y, game.lanes) : null));
+
+  // First touch game: calibrate now or play.
+  let calibReturn = 'options';
+  $('#btn-offer-calib').addEventListener('click', () => { calibReturn = 'song'; calibrate.run(); });
+  $('#btn-offer-play').addEventListener('click', () => { const id = pendingPlay; pendingPlay = null; if (id) play(id); });
+  $('#btn-calib-done').addEventListener('click', () => {
+    calibrate.cancel();
+    const to = calibReturn;
+    calibReturn = 'options';
+    if (to === 'song' && current) showSong(); else { renderOptions(); show('options'); }
+  });
+
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  $('#ios-hint').hidden = !isIOS;
+
+  // ---- installable app ------------------------------------------------------------------------------------------
+
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* offline play just won't be available */ });
+  }
+
   // ---- boot ------------------------------------------------------------------------------------------------------
 
   function attractLoop() {
@@ -1366,6 +1540,7 @@
     requestAnimationFrame(attractLoop);
   }
 
+  applyLayout();
   renderTitle();
   renderOptions();
   updateDeviceUI();
@@ -1379,6 +1554,9 @@
     get game() { return game; },
     get current() { return current; },
     get screen() { return screen; },
+    stage,
+    Input,
+    layoutMode,
     play,
     loadPack,
     loadBonus,

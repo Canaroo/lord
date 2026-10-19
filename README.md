@@ -2,7 +2,8 @@
 
 A 16-bit rhythm game in the spirit of *Frets on Fire* and *Guitar Hero*. Play an original
 chiptune song pack and bonus tracks, or import any MP3 and the game listens to it and
-builds the note chart for you. Play on a keyboard or a game controller.
+builds the note chart for you. Play on a keyboard, a game controller, or a phone or tablet
+touchscreen.
 
 **Play it:** https://canaroo.github.io/lord/
 
@@ -35,6 +36,33 @@ streak isn't broken.
 Controllers are detected automatically. Browsers only reveal a controller after one of its
 buttons is pressed, so press any button and the on-screen labels switch to that pad's buttons.
 The keyboard keeps working alongside it.
+
+## Playing on a phone or tablet
+
+The game switches to touch controls on its own when you tap the screen, and back again if you
+press a key or a controller button.
+
+- **Sideways: 4 lanes.** Tap the frets along the bottom with your fingers or thumbs.
+- **Upright: 2 lanes**, one per thumb, like Duo.
+- **Tiers:** Easy, Medium, Medium+ and Hard, in either direction. Touch charts are built for
+  thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
+  holds a long note, the other hand plays everything else. The timing window is slightly wider
+  than on keys, and the overhit penalty is off, since a thumb can brush the glass.
+- **Overdrive:** tap the OD meter at the top when it says *TAP OD*. **Pause:** the **II** button.
+- **Turning the phone mid-song** pauses it until you turn it back, because the lanes would change.
+- Touch scores have their own leaderboards (**TOUCH 4** and **TOUCH 2** tabs), so thumbs never
+  compete against keyboards.
+- **First game:** the game offers a quick tap-along timing check. Phone speakers and Bluetooth
+  earbuds lag differently, so it's worth doing; redo it any time in **Options**.
+- **Vibration** on misses and streaks can be turned on in **Options** (Android only).
+- The screen stays awake while you play, and **Press Start** goes full screen.
+- **iPhone:** if there's no sound, flip the silent switch off.
+
+**Install it like an app:** open the game in Chrome on Android and choose **Add to Home screen**
+(or *Install app*), or in Safari on iPhone/iPad tap **Share → Add to Home Screen**. It then
+opens full screen with its own icon and works offline: the song pack, the game, and any bonus
+track you've already played. Updates download in the background and show up the next time you
+open it.
 
 ## How to play
 
@@ -138,13 +166,14 @@ There is no build step. The page is plain HTML, CSS and JavaScript.
 
 ```
 js/analyzer.js   onset detection, tempo, beat tracking
-js/chartgen.js   analysis → Easy/Hard note charts
+js/chartgen.js   analysis → note charts for every tier, keys and touch
 js/songs.js      chiptune song pack (composition, synthesis, charts)
 js/bonus.js      bonus tracks: lining pre-built charts up with the decoded audio
 tools/build-charts.js   builds bonus-track charts (needs ffmpeg)
 js/render.js     the 16-bit stage: highway, crowd, lights, HUD
 js/game.js       timing, judging, scoring, rock meter, overdrive
-js/input.js      keyboard and Gamepad API input
+js/input.js      keyboard, Gamepad API and touch input
+sw.js            service worker (offline play); manifest.webmanifest + icons/ make it installable
 js/sfx.js        chiptune sound effects, volume buses, reactive music filters
 js/library.js    imported songs saved in the browser (IndexedDB)
 js/save.js       players, scores, leaderboards, share links, song matching
@@ -157,16 +186,18 @@ npm start                         # serve locally on http://localhost:8080
 npm test                          # unit tests (plain Node, no dependencies)
 npm run build-charts              # build charts for MP3s in songs/
 npm i -D playwright && npm run e2e -- [song.mp3]   # full browser test
+E2E_ONLY=touch npm run e2e        # just the phone checks
 ```
 
 The end-to-end test drives the game with a simulated Xbox controller. It enters initials,
 navigates menus with the D-pad, plays a full song (overdrive included), checks the
 leaderboard, shares the score, opens the link as a friend in a separate browser, accepts the
-challenge, fails a song on purpose, pauses with Start, and imports an MP3.
+challenge, fails a song on purpose, pauses with Start, and imports an MP3. It then switches to
+a simulated phone: installs the app, plays sideways on 4 lanes and upright on 2 with finger
+taps, taps the OD meter and pause button, and turns the phone mid-song.
 
 ### Ideas for next steps
 
-- Hold notes for sustained sounds.
 - More chiptune tracks. Each one is a small block of pattern data in `js/songs.js`.
 - An online leaderboard. Scores are already structured for it; it needs a small hosted
   database such as Supabase.

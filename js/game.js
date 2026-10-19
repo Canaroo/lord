@@ -56,6 +56,8 @@
      * @param {boolean} o.noFail
      * @param {boolean} o.antiMash     stray presses break the streak
      * @param {boolean} o.hitSounds    a soft tick on every hit
+     * @param {number}  o.windowScale  widen the timing windows (touch)
+     * @param {boolean} o.vibrate      short buzzes on misses and level-ups (phones)
      * @param {string}  o.playerColor  the guitarist's colour
      * @param {{score:number, timeline:number[]}|null} o.best  personal best, for pace
      * @param {{title:string, sub:string}} o.intro
@@ -74,6 +76,10 @@
       this.noFail = !!o.noFail;
       this.antiMash = !!o.antiMash;
       this.hitSounds = !!o.hitSounds;
+      // Touch is less precise than a key, so its timing windows are a bit wider.
+      const ws = o.windowScale || 1;
+      this.win = { perfect: WINDOWS.perfect * ws, good: WINDOWS.good * ws, ok: WINDOWS.ok * ws };
+      this.vibrate = !!o.vibrate && typeof navigator !== 'undefined' && !!navigator.vibrate;
       this.playerColor = o.playerColor || '#58f8f8';
       this.best = o.best && o.best.timeline && o.best.timeline.length ? o.best : null;
       this.intro = o.intro;
@@ -244,6 +250,10 @@
       this._banner('OVERDRIVE!', '#58f8f8');
     }
 
+    _buzz(pattern) {
+      if (this.vibrate) { try { navigator.vibrate(pattern); } catch (e) { /* not allowed */ } }
+    }
+
     _banner(text, color) {
       this.banners = this.banners.filter((b) => performance.now() - b.at < 1600);
       this.banners.push({ text, color, at: performance.now(), y: 92 });
@@ -254,10 +264,10 @@
       let bestD = Infinity;
       for (let i = this.nextIdx; i < this.notes.length; i++) {
         const n = this.notes[i];
-        if (n.t - t > WINDOWS.ok) break;
+        if (n.t - t > this.win.ok) break;
         if (n.judged || n.lane !== lane) continue;
         const d = Math.abs(n.t - t);
-        if (d <= WINDOWS.ok && d < bestD) { best = n; bestD = d; }
+        if (d <= this.win.ok && d < bestD) { best = n; bestD = d; }
       }
       if (best) { this._hit(best, bestD, t); return; }
       if (t < 0 || !this.antiMash) return;
@@ -289,7 +299,7 @@
 
     _hit(best, bestD, t) {
       const lane = best.lane;
-      const kind = bestD <= WINDOWS.perfect ? 'perfect' : bestD <= WINDOWS.good ? 'good' : 'ok';
+      const kind = bestD <= this.win.perfect ? 'perfect' : bestD <= this.win.good ? 'good' : 'ok';
       best.judged = kind;
       if (best.len > 0) {
         best.holdEnd = best.t + best.len;
@@ -321,10 +331,12 @@
       if (this.combo % 10 === 0 && this.combo <= 30) {
         this.stage.levelUp(this.level);
         Sfx.levelUp(this.level);
+        this._buzz(12);
       }
       if (this.combo % 50 === 0) {
         this._banner(`${this.combo} NOTE STREAK!`, '#f8d830');
         Sfx.streak(this.combo);
+        this._buzz([15, 40, 15]);
         this.stage.kick(2);
         this.stage.flashScreen(0.25);
         if (!this.odActive) this.od = Math.min(1, this.od + 0.1);
@@ -344,6 +356,7 @@
         this.powerDownAt = performance.now();
       }
       Sfx.missDip();
+      this._buzz(25);
       this.combo = 0;
       this.judgement = { kind: 'miss', at: performance.now() };
       const was = this.rock;
@@ -355,7 +368,7 @@
     _sweepMisses(t) {
       for (let i = this.nextIdx; i < this.notes.length; i++) {
         const n = this.notes[i];
-        if (n.t >= t - WINDOWS.ok) break;
+        if (n.t >= t - this.win.ok) break;
         if (!n.judged) {
           n.judged = 'miss';
           this._miss(n);
@@ -372,6 +385,7 @@
       this.source.playbackRate.setValueAtTime(1, now);
       this.source.playbackRate.linearRampToValueAtTime(0.05, now + 1.2);
       Sfx.fail();
+      this._buzz(220);
       this.stage.kick(5);
       setTimeout(() => {
         if (!this.running) return;
