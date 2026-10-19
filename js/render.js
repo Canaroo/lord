@@ -184,12 +184,14 @@
       if (mode === 'touch4') {
         w = Math.max(400, Math.min(488, Math.round(225 * aspect)));
         hz = 58;
-        hit = h - 40;
+        // The strike line sits at ~72% height; the lanes carry on below it as big
+        // tap pads, so thumbs rest under the line and never hide incoming notes.
+        hit = Math.round(h * 0.72);
       } else if (mode === 'touch2') {
         w = 225;
         h = Math.max(360, Math.min(500, Math.round(225 / Math.min(1, aspect))));
         hz = Math.round(h * 0.32);
-        hit = h - 62;
+        hit = Math.round(h * 0.8);
       }
       if (mode === LAYOUT && w === W && h === H) return false;
       LAYOUT = mode;
@@ -204,7 +206,7 @@
     get layout() { return LAYOUT; }
 
     geometry(lanes) {
-      const halfW = LAYOUT === 'touch4' ? Math.min(W * 0.43, 180)
+      const halfW = LAYOUT === 'touch4' ? Math.min(W * 0.36, 150)
         : LAYOUT === 'touch2' ? Math.min(W * 0.42, 96)
         : { 2: 44, 3: 60, 4: 72 }[lanes] || 82;
       return {
@@ -413,6 +415,7 @@
     }
 
     drawFrets(v, geo) {
+      if (LAYOUT !== 'keys') { this.drawPads(v, geo); return; }
       const y = geo.yAt(0);
       const rx = geo.laneW * 0.36;
       for (let l = 0; l < v.lanes; l++) {
@@ -424,6 +427,42 @@
         this.ellipse(x, y + 2 - lift, rx, rx * 0.5, down ? LANES_LIGHT[l] : LANES[l]);
         this.ellipse(x, y + 2 - lift, rx * 0.55, rx * 0.26, down ? PAL.white : '#0e0e20');
         if (v.labels && v.labels[l]) this.text(v.labels[l], x, y + 12, down ? PAL.white : PAL.grey, 8, 'center');
+      }
+    }
+
+    /**
+     * Phones: each lane continues below the strike line to the bottom of the screen
+     * as a big tap pad (it lights up while pressed), with a solid strike plate on
+     * the line. The whole pad is the touch target, not just the plate.
+     */
+    drawPads(v, geo) {
+      const g = this.g;
+      const ready = v.hud && v.hud.odReady && !v.odActive;
+      const hy = Math.round(geo.yAt(0));
+      for (let l = 0; l < v.lanes; l++) {
+        const down = v.held && v.held[l];
+        for (let y = hy + 3; y < H; y++) {
+          const sc = (y - HORIZON) / (HIT_Y - HORIZON);
+          const x0 = geo.cx + (l - v.lanes / 2) * geo.laneW * sc;
+          const w = geo.laneW * sc;
+          const k = (y - hy) / (H - hy); // 0 at the line, 1 at the bottom
+          g.globalAlpha = down ? 0.6 - 0.25 * k : 0.34 - 0.16 * k;
+          g.fillStyle = down ? LANES_LIGHT[l] : ready && (y >> 2) % 2 ? PAL.cyan : LANES_DARK[l];
+          g.fillRect(Math.round(x0 + 2 * sc), y, Math.round(w - 4 * sc), 1);
+          // Pad edges.
+          g.globalAlpha = down ? 0.9 : 0.45;
+          g.fillStyle = LANES[l];
+          g.fillRect(Math.round(x0 + 2 * sc), y, 1, 1);
+          g.fillRect(Math.round(x0 + w - 2 * sc) - 1, y, 1, 1);
+        }
+        g.globalAlpha = 1;
+        // Strike plate: a solid bar across the lane on the line.
+        const x0 = geo.cx + (l - v.lanes / 2) * geo.laneW + 2;
+        const w = geo.laneW - 4;
+        this.rect(x0 - 1, hy - 4, w + 2, 9, PAL.ink);
+        this.rect(x0, hy - 3, w, 7, down ? LANES_LIGHT[l] : LANES_DARK[l]);
+        this.rect(x0, hy - 3, w, 2, down ? PAL.white : LANES[l]);
+        this.rect(x0 + 3, hy + 1, w - 6, 1, down ? PAL.white : '#0e0e20');
       }
     }
 
@@ -439,7 +478,7 @@
       for (let y = yFar; y <= yNear; y++) {
         const s = (y - HORIZON) / (HIT_Y - HORIZON);
         const x = geo.cx + geo.laneX(lane) * s;
-        const w = Math.max(1, geo.laneW * 0.15 * s);
+        const w = Math.max(1, geo.laneW * (LAYOUT === 'keys' ? 0.15 : 0.22) * s);
         g.fillStyle = body;
         g.fillRect(Math.round(x - w), y, Math.round(w * 2) || 1, 1);
         if (w > 2) {
@@ -456,7 +495,7 @@
       for (const h of v.holds || []) {
         const down = v.held && v.held[h.lane];
         this.drawTail(geo, h.lane, 0, zOf(h.holdEnd), down ? LANES_LIGHT[h.lane] : LANES_DARK[h.lane], down ? PAL.white : LANES[h.lane], down ? 1 : 0.55);
-        if (down) {
+        if (down && LAYOUT === 'keys') {
           const y = geo.yAt(0);
           const x = geo.cx + geo.laneX(h.lane);
           const r = geo.laneW * 0.3;
@@ -494,6 +533,7 @@
         let y = geo.yAt(z);
         const rx = Math.max(1.5, geo.laneW * 0.36 * s);
         const ry = rx * 0.55;
+        if (LAYOUT !== 'keys') { this.drawBar(n, x, y, s, geo, z, v.odActive); continue; }
         if (n.judged === 'miss') {
           this.g.globalAlpha = 0.5;
           this.ellipse(x, y, rx + 1, ry + 1, PAL.ink);
@@ -508,6 +548,27 @@
         this.ellipse(x - rx * 0.25, y - ry * 0.45, rx * 0.35, ry * 0.25, v.odActive ? PAL.cyan : PAL.white);
         this.g.globalAlpha = 1;
       }
+    }
+
+    /** Phones: a note is a flat bar almost as wide as its lane, like the pad it's aimed at. */
+    drawBar(n, x, y, s, geo, z, od) {
+      const w = Math.max(3, geo.laneW * 0.86 * s);
+      const h = Math.max(2, Math.round(8 * s));
+      const x0 = Math.round(x - w / 2);
+      const y0 = Math.round(y - h / 2);
+      const W2 = Math.round(w);
+      if (n.judged === 'miss') {
+        this.g.globalAlpha = 0.5;
+        this.rect(x0, y0, W2, h, '#4a4a60');
+        this.g.globalAlpha = 1;
+        return;
+      }
+      if (z > 0.95) this.g.globalAlpha = Math.max(0, (1.15 - z) / 0.2);
+      this.rect(x0 - 1, y0 - 1, W2 + 2, h + 2, od ? PAL.cyan : PAL.ink);
+      this.rect(x0, y0, W2, h, LANES_DARK[n.lane]);
+      this.rect(x0, y0, W2, Math.max(1, h - Math.ceil(h / 3)), LANES[n.lane]);
+      if (h >= 4) this.rect(x0 + Math.round(w * 0.12), y0 + 1, Math.round(w * 0.76), Math.max(1, Math.round(h / 5)), od ? PAL.cyan : PAL.white);
+      this.g.globalAlpha = 1;
     }
 
     drawFlames(v, geo, nowMs, energy = 0) {
@@ -665,15 +726,12 @@
 
       if (ready) this.drawSwipeArrows(geo, nowMs);
 
-      // Ready: the strike line and fret rings pulse, so it's seen without looking away.
+      // Ready: a halo pulses round the strike plates (and the pads turn cyan), so
+      // it's seen without looking away.
       if (ready) {
         const hy = Math.round(geo.yAt(0));
         this.g.globalAlpha = 0.4 + 0.6 * glow;
-        this.rect(geo.cx - geo.halfW - 4, hy - 2, geo.halfW * 2 + 8, 5, PAL.cyan);
-        const rr = geo.laneW * 0.36;
-        for (let l = 0; l < v.lanes; l++) {
-          this.ellipse(geo.cx + geo.laneX(l), hy + 1, rr + 4, rr * 0.5 + 4, glow > 0.5 ? PAL.white : PAL.cyan);
-        }
+        this.rect(geo.cx - geo.halfW - 4, hy - 8, geo.halfW * 2 + 8, 17, glow > 0.5 ? PAL.white : PAL.cyan);
         this.g.globalAlpha = 1;
       }
 
@@ -764,8 +822,8 @@
      */
     drawSwipeArrows(geo, nowMs) {
       const span = HIT_Y - HORIZON;
-      const yLo = HORIZON + span * 0.8;
-      const yHi = HORIZON + span * 0.3;
+      const yLo = HORIZON + span * 0.95;
+      const yHi = HORIZON + span * 0.5;
       const count = 4;
       const phase = (nowMs / 650) % 1;
       for (const side of [-1, 1]) {
@@ -1090,14 +1148,20 @@
       if (inside(zones.pause)) return { type: 'pause' };
       if (p.y < HUD_TOP) return null;
       const geo = this.geometry(lanes);
-      const pos = (p.x - (geo.cx - geo.halfW)) / geo.laneW; // 1.8 = lane 1, near lane 2
+      // Lanes follow the highway's perspective: narrower up the screen, wider on
+      // the pads below the line.
+      const sc = Math.max(0.55, (p.y - HORIZON) / (HIT_Y - HORIZON));
+      const pos = (p.x - (geo.cx - geo.halfW * sc)) / (geo.laneW * sc); // 1.8 = lane 1, near lane 2
       return { type: 'lane', lane: Math.max(0, Math.min(lanes - 1, Math.floor(pos))), pos };
     }
 
     /** Centre of a lane's touch column on screen (for tests and hints). */
     laneCenterClient(lanes, lane) {
       const geo = this.geometry(lanes);
-      return this.toClient(geo.cx + geo.laneX(lane), HIT_Y + 8);
+      // Middle of the lane's pad, below the strike line, where a thumb rests.
+      const y = HIT_Y + (H - HIT_Y) * 0.45;
+      const sc = (y - HORIZON) / (HIT_Y - HORIZON);
+      return this.toClient(geo.cx + geo.laneX(lane) * sc, y);
     }
 
     zoneCenterClient(name) {

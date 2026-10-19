@@ -48,6 +48,11 @@ press a key or a controller button.
   thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
   holds a long note, the other hand plays everything else. The timing window is slightly wider
   than on keys, and the overhit penalty is off, since a thumb can brush the glass.
+- **Big tap pads, raised strike line:** on phones the notes are flat, lane-wide bars and the
+  frets are lane-wide strike plates. The line sits about 72% of the way down when sideways (80%
+  upright), and each lane carries on below it as a big pad down to the bottom edge. Rest your
+  thumbs on the pads, below the line, and tap anywhere in a lane's column, so your thumbs never
+  cover the notes coming in. A pressed pad lights up.
 - **Long notes on a phone:** once you've grabbed one, that thumb can **slide anywhere**, off to
   the side or down off the frets, and it keeps holding. A glowing ring under your thumb, tied to
   its fret, shows it's still held, and the first few long notes in a song say so. A quick wobble
