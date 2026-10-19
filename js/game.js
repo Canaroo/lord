@@ -247,6 +247,7 @@
       Sfx.setOverdrive(true);
       this.stage.flashScreen(0.55);
       this.stage.kick(3);
+      this.banners = this.banners.filter((b) => b.text !== 'SWIPE UP!');
       this._banner('OVERDRIVE!', '#58f8f8');
     }
 
@@ -254,9 +255,9 @@
       if (this.vibrate) { try { navigator.vibrate(pattern); } catch (e) { /* not allowed */ } }
     }
 
-    _banner(text, color) {
+    _banner(text, color, sub) {
       this.banners = this.banners.filter((b) => performance.now() - b.at < 1600);
-      this.banners.push({ text, color, at: performance.now(), y: 92 });
+      this.banners.push({ text, color, sub, at: performance.now(), y: 92 });
     }
 
     _judgePress(lane, t) {
@@ -345,6 +346,7 @@
         this.odReadyAnnounced = true;
         this.odReadyAt = performance.now();
         Sfx.overdriveReady();
+        if (this.stage.layout !== 'keys') this._banner('SWIPE UP!', '#58f8f8', 'OVERDRIVE READY');
       }
     }
 

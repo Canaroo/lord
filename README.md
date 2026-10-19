@@ -48,9 +48,14 @@ press a key or a controller button.
   thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
   holds a long note, the other hand plays everything else. The timing window is slightly wider
   than on keys, and the overhit penalty is off, since a thumb can brush the glass.
-- **Overdrive:** when the OD meter flashes and arrows rise beside the frets, **flick any finger
-  up** off the frets. Your thumbs never have to leave the bottom of the screen. (Tapping the meter
-  works too.) **Pause:** the **II** button, or the phone's **Back** button.
+- **Everything you need is on the highway.** The left edge of the highway is the **OD meter**
+  and the right edge is the **rock meter**, both filling up from the frets. Your multiplier and
+  streak are painted on the track just above the frets. The top of the screen only holds your
+  score, stars, personal-best pace and the **II** pause button.
+- **Overdrive:** when it's ready, a chime plays, *SWIPE UP!* sweeps across the highway, and the
+  frets and track glow cyan until you use it. **Flick any finger up** off the frets to fire it.
+  Your thumbs never have to leave the bottom of the screen. **Pause:** the **II** button, or the
+  phone's **Back** button.
 - **Menus:** every menu has a **BACK** button at the bottom, and the phone's own Back button
   (or an edge swipe on iPhone) steps back one menu instead of leaving the game.
 - **Turning the phone mid-song** pauses it until you turn it back, because the lanes would change.

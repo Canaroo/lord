@@ -203,8 +203,10 @@ async function touchTests(browser) {
   await page.evaluate(TOUCH_BOT);
   await page.waitForTimeout(6000);
   // Overdrive: flick a thumb up off the frets.
-  await page.evaluate(() => { const g = BeatFrets.game; g.od = Math.max(g.od, 0.6); g.odReadyAt = performance.now(); });
-  await page.waitForTimeout(150);
+  await page.evaluate(() => { const g = BeatFrets.game; g.od = Math.max(g.od, 0.6); g.odReadyAnnounced = false; });
+  await page.waitForFunction(() => BeatFrets.game.odReadyAnnounced, null, { timeout: 5000 });
+  await page.waitForTimeout(250);
+  check(await page.evaluate(() => BeatFrets.game.banners.some((b) => b.text === 'SWIPE UP!')), 'a SWIPE UP banner shows on the highway when overdrive is ready');
   await page.screenshot({ path: path.join(outDir, 'e2e-touch-odready.png') });
   await touchSwipe(page, 1);
   check(await page.evaluate(() => BeatFrets.game.odActive), 'swiping up triggers overdrive');
@@ -238,6 +240,10 @@ async function touchTests(browser) {
   const res2 = await page.evaluate(() => BeatFrets.game.counts);
   check(res2.miss === 0 && res2.perfect > 10, `two thumbs hit every note (${JSON.stringify(res2)})`);
   await page.screenshot({ path: path.join(outDir, 'e2e-touch-port.png') });
+  await page.evaluate(() => { const g = BeatFrets.game; g.od = Math.max(g.od, 0.6); g.odReadyAnnounced = false; });
+  await page.waitForFunction(() => BeatFrets.game.odReadyAnnounced, null, { timeout: 5000 });
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: path.join(outDir, 'e2e-touch-port-od.png') });
 
   // Turning the phone mid-song pauses until it's turned back.
   await page.setViewportSize(LAND);

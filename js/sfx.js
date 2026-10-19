@@ -155,7 +155,8 @@
       const top = Math.min(4, Math.floor(n / 50));
       seq([[72, 0.05], [76, 0.05], [79, 0.05], [84 + top * 2, 0.12]], { duty: 0.125, vol: 0.18 });
     },
-    overdriveReady: () => seq([[88, 0.05], [91, 0.05], [96, 0.1]], { duty: 0.125, vol: 0.16 }),
+    // A bright rising run that cuts through the music: overdrive is ready.
+    overdriveReady: () => seq([[76, 0.05], [79, 0.05], [84, 0.05], [88, 0.05], [91, 0.05], [96, 0.22]], { duty: 0.25, vol: 0.24, gap: 0.008 }),
     overdrive: () => {
       seq([[60, 0.25]], { duty: 0.25, vol: 0.2, slide: 24 });
       burst(0.5, 3000, 0.18);

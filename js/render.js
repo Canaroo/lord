@@ -17,7 +17,7 @@
   let HORIZON = 64;
   let HIT_Y = 192;
   let LAYOUT = 'keys';
-  const HUD_TOP = 64; // touch: taps above this line are HUD buttons, below are lanes
+  const HUD_TOP = 26; // touch: taps above this line are the top strip (pause), below are lanes
   const PERSPECTIVE = 3;
   const FONT = '"Press Start 2P", monospace';
 
@@ -244,6 +244,7 @@
       this.drawGuitarist(v, bi, phase, energy, powerDown);
       if (LAYOUT === 'keys') this.drawCrowd(bi, phase, hype, energy, v.attract);
       this.drawHighway(v, geo, pulse, level, energy);
+      if (v.hud && LAYOUT !== 'keys') this.drawTrackHud(v, geo, nowMs);
       this.drawFrets(v, geo);
       this.drawNotes(v, geo);
       this.drawFlames(v, geo, nowMs, energy);
@@ -563,82 +564,114 @@
       }
     }
 
-    /** Phone HUD: one compact row across the top, with tappable OD and pause. */
+    /**
+     * Phone HUD, top strip: only what's worth a glance between notes (score, stars,
+     * personal-best pace) plus the pause button. Everything you need mid-song lives
+     * on the highway itself (drawTrackHud).
+     */
     drawTouchHud(v, h, nowMs) {
-      const bw = LAYOUT === 'touch2' ? 86 : 104;
-      this.window(4, 4, bw, 28);
-      this.text('SCORE', 9, 8, PAL.grey);
-      this.text(h.score.toLocaleString('en-US'), 9, 19, PAL.white);
-      this.window(W - 4 - bw, 4, bw, 28);
-      this.text('STREAK', W - bw + 1, 8, PAL.grey);
-      this.text(String(h.combo), W - bw + 1, 19, h.combo >= 50 ? PAL.gold : PAL.white);
-      // Pause button.
-      this.window(W / 2 - 11, 4, 22, 18);
-      this.rect(W / 2 - 4, 8, 3, 10, PAL.white);
-      this.rect(W / 2 + 1, 8, 3, 10, PAL.white);
-      if (LAYOUT === 'touch2') this.badge(W / 2, 46, h, nowMs);
-      else this.badge(4 + bw + 20, 18, h, nowMs);
+      this.rect(0, 0, W, 2, '#20204a');
+      this.rect(0, 0, W * h.progress, 2, PAL.cyan);
+      this.text(h.score.toLocaleString('en-US'), 5, 5, PAL.white);
       for (let i = 0; i < 5; i++) {
         const fill = i < h.stars ? 1 : i === h.stars ? h.starProgress : 0;
-        this.star(6 + i * 10, 35, fill);
+        this.star(5 + i * 9, 15, fill);
       }
       if (h.pace != null) {
         const ahead = h.pace >= 0;
-        this.text(`PB ${ahead ? '+' : '-'}${Math.abs(h.pace).toLocaleString('en-US')}`, W - bw - 2, 35, ahead ? PAL.green : PAL.red);
+        this.text(`PB ${ahead ? '+' : '-'}${Math.abs(h.pace).toLocaleString('en-US')}`, W - 5, 5, ahead ? PAL.green : PAL.red, 8, 'right');
       }
-      this.rect(0, 0, W, 2, '#20204a');
-      this.rect(0, 0, W * h.progress, 2, PAL.cyan);
-      // Overdrive bar: tap it to fire overdrive once it's half full.
-      const segs = 12, by = 46, bh = 11, segW = (bw - 6) / segs;
-      const odBlink = h.odReady && !v.odActive && Math.floor(nowMs / 250) % 2 === 0;
-      this.window(4, by, bw, bh);
-      for (let i = 0; i < segs; i++) {
-        const filled = h.od * segs > i;
-        this.rect(7 + i * segW, by + 3, segW - 1, bh - 6, filled ? (v.odActive || odBlink ? PAL.white : PAL.cyan) : '#101838');
-      }
-      if (h.odReady && !v.odActive) {
-        this.rect(4 + bw / 2 - h.odKey.length * 4 - 2, by + 1, h.odKey.length * 8 + 4, 9, PAL.ink);
-        this.text(h.odKey, 4 + bw / 2, by + 2, odBlink ? PAL.cyan : PAL.white, 8, 'center');
-        this.drawSwipeCue(v, h, nowMs);
-      }
-      // Rock meter bar.
-      const danger = h.rock < 0.25;
-      this.window(W - 4 - bw, by, bw, bh);
-      for (let i = 0; i < segs; i++) {
-        const zone = i < 3 ? PAL.red : i < 7 ? PAL.gold : PAL.green;
-        const lit = h.rock * segs > i;
-        const blink = danger && Math.floor(nowMs / 180) % 2 === 0;
-        this.rect(W - 1 - bw + i * segW, by + 3, segW - 1, bh - 6, lit ? (blink ? PAL.white : zone) : '#101838');
-      }
-      this.touchZones = {
-        od: { x: 0, y: 30, w: bw + 14, h: HUD_TOP - 30 },
-        pause: { x: W / 2 - 22, y: 0, w: 44, h: 30 },
-      };
+      // Pause button.
+      this.window(W / 2 - 11, 3, 22, 18);
+      this.rect(W / 2 - 4, 7, 3, 10, PAL.white);
+      this.rect(W / 2 + 1, 7, 3, 10, PAL.white);
+      this.touchZones = { pause: { x: W / 2 - 24, y: 0, w: 48, h: HUD_TOP } };
     }
 
-    /** Overdrive is ready: rising chevrons beside the frets, where the thumbs are. */
-    drawSwipeCue(v, h, nowMs) {
-      const geo = this.geometry(v.lanes);
-      const step = (nowMs / 90) % 3; // which chevron is lit, rising
-      for (const side of [-1, 1]) {
-        const x = Math.round(Math.max(10, Math.min(W - 10, geo.cx + side * (geo.halfW + 11))));
-        for (let k = 0; k < 3; k++) {
-          const y = Math.round(HIT_Y + 4 - k * 9);
-          const color = Math.floor(step) === k ? PAL.white : PAL.cyan;
-          for (let i = 0; i < 7; i++) {
-            this.rect(x - i - 1, y + i, 3, 2, PAL.ink);
-            this.rect(x + i - 1, y + i, 3, 2, PAL.ink);
-          }
-          for (let i = 0; i < 6; i++) {
-            this.rect(x - i, y + i, 2, 2, color);
-            this.rect(x + i - 1, y + i, 2, 2, color);
-          }
+    /**
+     * Phone HUD, on the highway where your eyes already are: the left rail is the
+     * overdrive meter, the right rail the rock meter, both filling up from the frets,
+     * and the multiplier and streak are painted on the track just above the frets
+     * (notes pass over them). When overdrive is ready the whole highway lights up.
+     */
+    drawTrackHud(v, geo, nowMs) {
+      const h = v.hud;
+      const ready = h.odReady && !v.odActive && !v.failed;
+      const yBot = Math.round(geo.yAt(0)) - 2;
+      const yTop = Math.round(HORIZON + (HIT_Y - HORIZON) * 0.3);
+      const span = yBot - yTop;
+      const danger = h.rock < 0.25 && Math.floor(nowMs / 180) % 2 === 0;
+      const climb = Math.floor(nowMs / 28);
+      const glow = ready ? 0.5 + 0.5 * Math.sin(nowMs / 110) : 0;
+
+      // Overdrive ready: a cyan wash rising from the frets.
+      if (ready) {
+        for (let y = yTop; y <= yBot; y++) {
+          const s = (y - HORIZON) / (HIT_Y - HORIZON);
+          const k = (yBot - y) / span;
+          this.g.globalAlpha = (0.05 + 0.13 * glow) * (1 - k);
+          this.rect(geo.cx - geo.halfW * s, y, geo.halfW * s * 2, 1, PAL.cyan);
         }
+        this.g.globalAlpha = 1;
       }
-      // Spell it out for the first few seconds.
-      if (nowMs - h.odReadyAt < 3000 && Math.floor(nowMs / 300) % 2 === 0) {
-        this.text('SWIPE UP: OVERDRIVE', W / 2, Math.min(H - 10, HIT_Y + 21), PAL.cyan, 8, 'center');
+
+      // Rail meters.
+      for (let y = yTop; y <= yBot; y++) {
+        const s = (y - HORIZON) / (HIT_Y - HORIZON);
+        const half = geo.halfW * s;
+        const w = s > 0.7 ? 4 : 3;
+        const d = yBot - y;
+        const k = d / span; // 0 at the frets, 1 at the top
+        const gap = d % 6 === 5;
+        const xl = Math.round(geo.cx - half) - 4 - w;
+        const xr = Math.round(geo.cx + half) + 4;
+        this.rect(xl - 1, y, w + 2, 1, PAL.ink);
+        this.rect(xr - 1, y, w + 2, 1, PAL.ink);
+        if (gap) continue;
+        let c = '#141c44';
+        if (k <= h.od) {
+          if (v.odActive) c = (d + climb) % 10 < 5 ? PAL.white : PAL.cyan;
+          else if (ready) c = ((d - climb) % 14 + 14) % 14 < 5 ? PAL.white : PAL.cyan;
+          else c = PAL.cyan;
+        }
+        this.rect(xl, y, w, 1, c);
+        c = '#141c44';
+        if (k <= h.rock) c = danger ? PAL.white : k < 0.25 ? PAL.red : k < 0.6 ? PAL.gold : PAL.green;
+        this.rect(xr, y, w, 1, c);
       }
+      const sTop = (yTop - HORIZON) / (HIT_Y - HORIZON);
+      const lx = geo.cx - geo.halfW * sTop - 6;
+      const rx = geo.cx + geo.halfW * sTop + 6;
+      this.text('OD', lx, yTop - 11, ready && glow > 0.5 ? PAL.white : PAL.cyan, 8, 'center');
+      this.text('ROCK', rx, yTop - 11, h.rock < 0.25 ? PAL.red : PAL.grey, 8, 'center');
+
+      // Ready: the strike line and fret rings pulse, so it's seen without looking away.
+      if (ready) {
+        const hy = Math.round(geo.yAt(0));
+        this.g.globalAlpha = 0.4 + 0.6 * glow;
+        this.rect(geo.cx - geo.halfW - 4, hy - 2, geo.halfW * 2 + 8, 5, PAL.cyan);
+        const rr = geo.laneW * 0.36;
+        for (let l = 0; l < v.lanes; l++) {
+          this.ellipse(geo.cx + geo.laneX(l), hy + 1, rr + 4, rr * 0.5 + 4, glow > 0.5 ? PAL.white : PAL.cyan);
+        }
+        this.g.globalAlpha = 1;
+      }
+
+      // Multiplier and streak, painted on the track above the frets.
+      const my = HIT_Y - (LAYOUT === 'touch2' ? 86 : 62);
+      const mc = this.multColor(h.mult);
+      this.g.globalAlpha = 0.85;
+      this.text('x' + h.mult, geo.cx, my, mc, 16, 'center');
+      for (let i = 0; i < 10; i++) this.rect(geo.cx - 27 + i * 5.6, my + 19, 4, 3, i < h.pips ? mc : '#2a2f6a');
+      if (h.combo > 0) this.text(`${h.combo} STREAK`, geo.cx, my + 25, h.combo >= 50 ? PAL.gold : PAL.white, 8, 'center');
+      this.g.globalAlpha = 1;
+      if (this.levelUpAt && nowMs - this.levelUpAt < 700) {
+        const k = (nowMs - this.levelUpAt) / 700;
+        this.g.globalAlpha = 1 - k;
+        this.text('x' + this.levelUpTo + '!', geo.cx, my - 14 - k * 10, PAL.gold, 16, 'center');
+        this.g.globalAlpha = 1;
+      }
+      if (ready && glow > 0.3) this.text('SWIPE UP', geo.cx, Math.min(H - 10, HIT_Y + 22), PAL.cyan, 8, 'center');
     }
 
     drawDesktopHud(v, h, nowMs) {
@@ -714,7 +747,8 @@
         const k = (nowMs - j.at) / 450;
         const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS', over: 'OVERHIT' }[j.kind];
         const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red }[j.kind];
-        const y = HIT_Y - 62 - (k < 0.15 ? (0.15 - k) * 40 : 0);
+        const jy = LAYOUT === 'touch2' ? HIT_Y - 106 : LAYOUT === 'touch4' ? HIT_Y - 86 : HIT_Y - 62;
+        const y = jy - (k < 0.15 ? (0.15 - k) * 40 : 0);
         this.g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
         this.text(label, W / 2, y, color, LAYOUT === 'touch2' ? 8 : 16, 'center');
         if (j.kind === 'good' || j.kind === 'ok') this.text(j.early ? 'EARLY' : 'LATE', W / 2, y + 20, PAL.grey, 8, 'center');
@@ -727,10 +761,12 @@
         const age = (nowMs - b.at) / 1000;
         if (age > 1.6) continue;
         const x = age < 0.2 ? W / 2 + (0.2 - age) * 1500 : age > 1.35 ? W / 2 - (age - 1.35) * 1600 : W / 2;
-        this.rect(0, by - 4, W, 24, 'rgba(8,8,26,0.75)');
+        const bh = b.sub ? 34 : 24;
+        this.rect(0, by - 4, W, bh, 'rgba(8,8,26,0.75)');
         this.rect(0, by - 4, W, 1, b.color);
-        this.rect(0, by + 19, W, 1, b.color);
+        this.rect(0, by + bh - 5, W, 1, b.color);
         this.text(b.text, x, by, b.color, LAYOUT === 'touch2' && b.text.length > 12 ? 8 : 16, 'center');
+        if (b.sub) this.text(b.sub, x, by + 19, PAL.white, 8, 'center');
       }
 
       // Points float up from the fret, coloured by the multiplier.
@@ -745,7 +781,7 @@
       }
 
       if (v.restart > 0) {
-        const ry = touch ? HUD_TOP + 4 : 44;
+        const ry = touch ? HUD_TOP + 6 : 44;
         this.window(W / 2 - 74, ry, 148, 24);
         this.text('HOLD TO RESTART', W / 2, ry + 5, PAL.white, 8, 'center');
         this.rect(W / 2 - 66, ry + 16, 132, 3, PAL.ink);
@@ -932,7 +968,6 @@
       const inside = (z) => z && p.x >= z.x && p.x <= z.x + z.w && p.y >= z.y && p.y <= z.y + z.h;
       const zones = this.touchZones || {};
       if (inside(zones.pause)) return { type: 'pause' };
-      if (inside(zones.od)) return { type: 'overdrive' };
       if (p.y < HUD_TOP) return null;
       const geo = this.geometry(lanes);
       const lane = Math.floor((p.x - (geo.cx - geo.halfW)) / geo.laneW);
