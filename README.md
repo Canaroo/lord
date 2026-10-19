@@ -50,10 +50,10 @@ press a key or a controller button.
   than on keys, and the overhit penalty is off, since a thumb can brush the glass.
 - **Everything you need is on the highway.** The left edge of the highway is the **OD meter**
   and the right edge is the **rock meter**, both filling up from the frets. Your multiplier and
-  streak are painted on the track just above the frets. The top of the screen only holds your
-  score, stars, personal-best pace and the **II** pause button.
-- **Overdrive:** when it's ready, a chime plays, *SWIPE UP!* sweeps across the highway, and the
-  frets and track glow cyan until you use it. **Flick any finger up** off the frets to fire it.
+  streak are painted on the track just above the frets. Your score sits big and centred just
+  above the highway, rolling up as you play, with your stars and personal-best pace under it.
+- **Overdrive:** when it's ready, a chime plays, *SWIPE UP!* sweeps across the highway, big
+  arrows climb up both sides of the highway, and the frets and track glow cyan until you use it. **Flick any finger up** off the frets to fire it.
   Your thumbs never have to leave the bottom of the screen. **Pause:** the **II** button, or the
   phone's **Back** button.
 - **Menus:** every menu has a **BACK** button at the bottom, and the phone's own Back button
@@ -70,8 +70,8 @@ press a key or a controller button.
 **Install it like an app:** open the game in Chrome on Android and choose **Add to Home screen**
 (or *Install app*), or in Safari on iPhone/iPad tap **Share → Add to Home Screen**. It then
 opens full screen with its own icon and works offline: the song pack, the game, and any bonus
-track you've already played. Updates download in the background and show up the next time you
-open it.
+track you've already played. With a connection it always loads the newest version; if an update
+arrives while it's open, it switches over the next time you're on the title screen or main menu.
 
 ## How to play
 

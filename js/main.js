@@ -93,7 +93,9 @@
     );
   }
 
+  let updateWaiting = false; // a new version is installed; load it at the next quiet moment
   function show(name, { focus } = {}) {
+    if (updateWaiting && !game && (name === 'title' || name === 'main')) { location.reload(); return; }
     stopPreview();
     screen = name;
     $('#panel').classList.toggle('hidden', !name);
@@ -1562,6 +1564,13 @@
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     navigator.serviceWorker.register('sw.js').catch(() => { /* offline play just won't be available */ });
+    // A new version took over: reload into it, but never in the middle of something.
+    const hadWorker = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadWorker) return;
+      if (!game && (screen === 'title' || screen === 'main')) location.reload();
+      else updateWaiting = true;
+    });
   }
 
   // ---- boot ------------------------------------------------------------------------------------------------------

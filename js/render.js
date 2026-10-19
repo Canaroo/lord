@@ -572,20 +572,37 @@
     drawTouchHud(v, h, nowMs) {
       this.rect(0, 0, W, 2, '#20204a');
       this.rect(0, 0, W * h.progress, 2, PAL.cyan);
-      this.text(h.score.toLocaleString('en-US'), 5, 5, PAL.white);
+      // Score: big and centred just above the highway, rolling up as points land.
+      if (this.shownScore == null || h.score < this.shownScore) this.shownScore = h.score;
+      if (h.score > this.shownScore) {
+        this.shownScore = Math.min(h.score, this.shownScore + Math.max(1, (h.score - this.shownScore) * 0.25));
+        this.scoreBumpAt = nowMs;
+      }
+      const shown = Math.round(this.shownScore).toLocaleString('en-US');
+      const portrait = LAYOUT === 'touch2';
+      const size = portrait && shown.length <= 8 ? 24 : 16;
+      const bump = this.scoreBumpAt && nowMs - this.scoreBumpAt < 120;
+      const sp = portrait ? 2 : 1; // star pixel size
+      const block = size + 8 + 7 * sp + (h.pace != null ? 11 : 0); // score, stars, pace
+      const sy = portrait ? Math.round(HUD_TOP + (HORIZON - HUD_TOP - block) * 0.65) : HUD_TOP + 1;
+      this.text(shown, W / 2, sy, bump ? PAL.white : this.multColor(h.mult) === PAL.grey ? PAL.white : this.multColor(h.mult), size, 'center');
+      const starsY = sy + size + 4;
       for (let i = 0; i < 5; i++) {
         const fill = i < h.stars ? 1 : i === h.stars ? h.starProgress : 0;
-        this.star(5 + i * 9, 15, fill);
+        this.star(W / 2 - (24 + 1) * sp + i * 10 * sp, starsY, fill, sp);
       }
       if (h.pace != null) {
         const ahead = h.pace >= 0;
-        this.text(`PB ${ahead ? '+' : '-'}${Math.abs(h.pace).toLocaleString('en-US')}`, W - 5, 5, ahead ? PAL.green : PAL.red, 8, 'right');
+        const paceText = `PB ${ahead ? '+' : '-'}${Math.abs(h.pace).toLocaleString('en-US')}`;
+        if (portrait) this.text(paceText, W / 2, starsY + 7 * sp + 4, ahead ? PAL.green : PAL.red, 8, 'center');
+        else this.text(paceText, W / 2 + 32, starsY, ahead ? PAL.green : PAL.red, 8, 'left');
       }
-      // Pause button.
-      this.window(W / 2 - 11, 3, 22, 18);
-      this.rect(W / 2 - 4, 7, 3, 10, PAL.white);
-      this.rect(W / 2 + 1, 7, 3, 10, PAL.white);
-      this.touchZones = { pause: { x: W / 2 - 24, y: 0, w: 48, h: HUD_TOP } };
+      // Pause button, top right: out of the way of the score.
+      const px = W - 27;
+      this.window(px, 4, 22, 18);
+      this.rect(px + 7, 8, 3, 10, PAL.white);
+      this.rect(px + 12, 8, 3, 10, PAL.white);
+      this.touchZones = { pause: { x: px - 14, y: 0, w: W - px + 14, h: HUD_TOP + 4 } };
     }
 
     /**
@@ -645,6 +662,8 @@
       this.text('OD', lx, yTop - 11, ready && glow > 0.5 ? PAL.white : PAL.cyan, 8, 'center');
       this.text('ROCK', rx, yTop - 11, h.rock < 0.25 ? PAL.red : PAL.grey, 8, 'center');
 
+      if (ready) this.drawSwipeArrows(geo, nowMs);
+
       // Ready: the strike line and fret rings pulse, so it's seen without looking away.
       if (ready) {
         const hy = Math.round(geo.yAt(0));
@@ -672,6 +691,41 @@
         this.g.globalAlpha = 1;
       }
       if (ready && glow > 0.3) this.text('SWIPE UP', geo.cx, Math.min(H - 10, HIT_Y + 22), PAL.cyan, 8, 'center');
+    }
+
+    /**
+     * Overdrive ready: big chevrons climbing up both sides of the highway, from
+     * near the frets to mid-screen, in the open space beside the rails.
+     */
+    drawSwipeArrows(geo, nowMs) {
+      const span = HIT_Y - HORIZON;
+      const yLo = HORIZON + span * 0.8;
+      const yHi = HORIZON + span * 0.3;
+      const count = 4;
+      const phase = (nowMs / 650) % 1;
+      for (const side of [-1, 1]) {
+        for (let k = 0; k < count; k++) {
+          const f = (k + phase) / count; // 0 at the bottom, 1 at the top
+          const y = Math.round(yLo - (yLo - yHi) * f);
+          const sc = (y - HORIZON) / span;
+          const edge = geo.halfW * sc + 12; // outside the rail meter
+          const margin = W / 2 - edge;
+          if (margin < 14) continue;
+          const x = Math.round(geo.cx + side * (edge + margin / 2));
+          const size = Math.max(6, Math.min(14, Math.floor(margin / 2) - 2));
+          this.g.globalAlpha = Math.sin(f * Math.PI) * 0.95;
+          const color = k === count - 1 || f > 0.6 ? PAL.white : PAL.cyan;
+          for (let i = 0; i <= size; i++) {
+            this.rect(x - i - 1, y + i - 1, 5, 5, PAL.ink);
+            this.rect(x + i - 3, y + i - 1, 5, 5, PAL.ink);
+          }
+          for (let i = 0; i <= size; i++) {
+            this.rect(x - i, y + i, 3, 3, color);
+            this.rect(x + i - 2, y + i, 3, 3, color);
+          }
+        }
+      }
+      this.g.globalAlpha = 1;
     }
 
     drawDesktopHud(v, h, nowMs) {
@@ -804,13 +858,13 @@
     }
 
     /** A 7×7 pixel star, filled from the bottom by `fill` (0–1). */
-    star(x, y, fill) {
+    star(x, y, fill, px = 1) {
       const SHAPE = ['...#...', '...#...', '#######', '.#####.', '..###..', '.##.##.', '##...##'];
       SHAPE.forEach((row, r) => {
         for (let c = 0; c < 7; c++) {
           if (row[c] !== '#') continue;
           const lit = 6 - r < fill * 7;
-          this.rect(x + c, y + r, 1, 1, lit ? PAL.gold : '#3a3a6a');
+          this.rect(x + c * px, y + r * px, px, px, lit ? PAL.gold : '#3a3a6a');
         }
       });
     }
@@ -857,7 +911,7 @@
       // Drawn on a 2× pixel grid so he reads clearly: (x, y) are art pixels
       // relative to his feet, which stand at (86, 160) on the stage.
       const S = 2;
-      const [gx, gy0] = LAYOUT === 'touch4' ? [W / 2 + 44, HORIZON] : LAYOUT === 'touch2' ? [14, HORIZON] : [80, 160];
+      const [gx, gy0] = LAYOUT === 'touch4' ? [22, HORIZON] : LAYOUT === 'touch2' ? [14, HORIZON] : [80, 160];
       const ox = gx, oy = gy0 - jump * S;
       const R = (x, y, w, h, c) => this.rect(ox + x * S, oy + y * S, w * S, h * S, c);
       const E = (x, y, rx, ry, c) => this.ellipse(ox + x * S, oy + y * S, rx * S, ry * S, c);

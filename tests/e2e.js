@@ -242,7 +242,7 @@ async function touchTests(browser) {
   await page.screenshot({ path: path.join(outDir, 'e2e-touch-port.png') });
   await page.evaluate(() => { const g = BeatFrets.game; g.od = Math.max(g.od, 0.6); g.odReadyAnnounced = false; });
   await page.waitForFunction(() => BeatFrets.game.odReadyAnnounced, null, { timeout: 5000 });
-  await page.waitForTimeout(350);
+  await page.waitForTimeout(1800);
   await page.screenshot({ path: path.join(outDir, 'e2e-touch-port-od.png') });
 
   // Turning the phone mid-song pauses until it's turned back.
