@@ -184,6 +184,17 @@ Song pack tracks (`js/songs.js`) are written as patterns and synthesised with a 
 sound palette: pulse-wave leads with SNES-style echo, triangle bass and noise drums. Their
 charts come from the notes themselves, with the melody walking across the frets.
 
+## Versions
+
+The version number shows on the title screen and at the bottom of **Options**, so you can tell
+which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
+cache name in `sw.js` together.
+
+- **1.2**: thicker note bars on phones (15 px at the strike line); version number on screen.
+- **1.1**: phone play: big lane pads below a raised strike line, flat bar notes, slide-away long
+  notes, tap assist, side HUD, swipe-up overdrive, installable app.
+- **1.0**: keyboard and controller play, song pack, MP3 import, leaderboards and sharing.
+
 ## Development
 
 There is no build step. The page is plain HTML, CSS and JavaScript.
