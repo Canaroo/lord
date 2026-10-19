@@ -73,3 +73,25 @@ test('Duo alternates quick notes between its two keys', () => {
     assert.ok(quick > 20 && alternating / quick > 0.85, `${song.id}: ${alternating}/${quick} quick notes alternate`);
   }
 });
+
+test('touch: a held long note never has notes for the same thumb, or right beside it', () => {
+  let holdsTotal = 0, outer = 0;
+  for (const song of SongPack.SONGS) {
+    const a = SongPack.toAnalysis(SongPack.build(song));
+    for (const id of ChartGen.ALL_IDS.filter((x) => x.startsWith('touch'))) {
+      const c = ChartGen.generateId(a, id);
+      const hand = (l) => (l < c.lanes / 2 ? 0 : 1);
+      for (const h of c.notes.filter((n) => n.len)) {
+        holdsTotal++;
+        if (c.lanes === 4 && (h.lane === 0 || h.lane === 3)) outer++;
+        const clash = c.notes.find((n) => n !== h && n.t > h.t + 0.01 && n.t < h.t + h.len + 0.1 &&
+          (hand(n.lane) === hand(h.lane) || (c.lanes === 4 && Math.abs(n.lane - h.lane) === 1)));
+        assert.ok(!clash, `${song.id} ${id}: note in lane ${clash && clash.lane} at ${clash && clash.t} while lane ${h.lane} is held`);
+      }
+      if (id.endsWith(':medium') || id.endsWith(':hard')) {
+        assert.ok(c.notes.some((n) => n.len), `${song.id} ${id} should still have long notes`);
+      }
+    }
+  }
+  assert.ok(holdsTotal > 0);
+});

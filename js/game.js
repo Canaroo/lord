@@ -57,6 +57,8 @@
      * @param {boolean} o.antiMash     stray presses break the streak
      * @param {boolean} o.hitSounds    a soft tick on every hit
      * @param {number}  o.windowScale  widen the timing windows (touch)
+     * @param {number}  o.holdGrace    seconds a long note survives a release (touch: a
+     *                                 wobbling thumb can lose contact for a moment)
      * @param {boolean} o.vibrate      short buzzes on misses and level-ups (phones)
      * @param {string}  o.playerColor  the guitarist's colour
      * @param {{score:number, timeline:number[]}|null} o.best  personal best, for pace
@@ -78,6 +80,7 @@
       this.hitSounds = !!o.hitSounds;
       // Touch is less precise than a key, so its timing windows are a bit wider.
       const ws = o.windowScale || 1;
+      this.holdGrace = o.holdGrace || 0;
       this.win = { perfect: WINDOWS.perfect * ws, good: WINDOWS.good * ws, ok: WINDOWS.ok * ws };
       this.vibrate = !!o.vibrate && typeof navigator !== 'undefined' && !!navigator.vibrate;
       this.playerColor = o.playerColor || '#58f8f8';
@@ -109,6 +112,7 @@
       this.failed = false;
       this.nextIdx = 0;
       this.held = new Array(this.lanes).fill(false);
+      this.releasedAt = new Array(this.lanes).fill(-Infinity);
       this.judgement = null;
       this.banners = [];
       this.powerDownAt = 0;
@@ -174,6 +178,7 @@
       this.source.disconnect();
       this.paused = true;
       this.held.fill(false);
+      this.releasedAt.fill(-Infinity);
       this.onPauseChange(true);
     }
 
@@ -237,7 +242,37 @@
     lane(lane, down, perfMs) {
       if (!this.running || this.paused || this.failed || lane >= this.lanes) return;
       this.held[lane] = down;
+      if (!down) this.releasedAt[lane] = performance.now();
       if (down) this._judgePress(lane, this.timeAt(perfMs));
+    }
+
+    /**
+     * Touch tap assist: hit areas are wider than they look. A tap that lands in a
+     * lane with nothing to hit (or one a thumb is already holding) counts for the
+     * neighbouring lane it leans toward, if that lane has a note due right now.
+     * @param {number} lane  the lane the tap landed in
+     * @param {number} pos   exact position in lanes (1.8 = lane 1, close to lane 2)
+     */
+    assistLane(lane, pos) {
+      if (!this.running || pos == null) return lane;
+      const t = this.now();
+      const due = (l) => {
+        if (l < 0 || l >= this.lanes) return false;
+        for (let i = this.nextIdx; i < this.notes.length; i++) {
+          const n = this.notes[i];
+          if (n.t - t > this.win.ok) return false;
+          if (n.lane === l && !n.judged && Math.abs(n.t - t) <= this.win.ok) return true;
+        }
+        return false;
+      };
+      const holding = (l) => this.held[l] && this.holds.some((h) => h.lane === l);
+      if (due(lane) && !holding(lane)) return lane;
+      const frac = pos - lane; // 0 = left edge of the lane, 1 = right edge
+      const near = frac < 0.5 ? lane - 1 : lane + 1;
+      const far = frac < 0.5 ? lane + 1 : lane - 1;
+      if (due(near) && (holding(lane) || Math.abs(frac - 0.5) > 0.15)) return near;
+      if (holding(lane) && due(far)) return far;
+      return lane;
     }
 
     activateOverdrive() {
@@ -303,6 +338,7 @@
       const kind = bestD <= this.win.perfect ? 'perfect' : bestD <= this.win.good ? 'good' : 'ok';
       best.judged = kind;
       if (best.len > 0) {
+        this.holdsStarted = (this.holdsStarted || 0) + 1;
         best.holdEnd = best.t + best.len;
         this.holds.push(best);
         this.holdTotal += best.len;
@@ -405,7 +441,7 @@
       for (const h of this.holds) {
         const seg = Math.max(0, Math.min(to, h.holdEnd) - Math.max(from, h.t));
         if (!seg) continue;
-        if (this.held[h.lane]) {
+        if (this.held[h.lane] || now - this.releasedAt[h.lane] < this.holdGrace * 1000) {
           this.score += HOLD_POINTS_PER_SEC * this.multiplier * seg;
           this.holdHeld += seg;
           if (!h.sparkAt || now - h.sparkAt > 70) {
@@ -485,6 +521,8 @@
         lanes: this.lanes,
         notes: this.notes,
         holds: this.holds,
+        fingers: this.stage.layout !== 'keys' ? Input.touchPoints() : null,
+        holdTip: this.stage.layout !== 'keys' && this.holdsStarted <= 3,
         nextIdx: this.nextIdx,
         lookahead: this.lookahead,
         held: this.held,

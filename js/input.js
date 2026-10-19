@@ -174,8 +174,10 @@
    * Each finger keeps the lane it landed on until it lifts, so holds work and
    * several fingers can press at once.
    */
+  let touchPoints = new Map();
   function attachTouch(canvas, resolve) {
     const fingers = new Map(); // pointerId → lane
+    touchPoints = new Map(); // pointerId → { lane, x, y }, for drawing where thumbs are
     const pressedBy = (lane) => [...fingers.values()].filter((l) => l === lane).length;
     // A quick flick upward with any finger fires overdrive, so thumbs never leave the frets.
     const SWIPE_MS = 350;
@@ -191,10 +193,13 @@
         try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events */ }
         const first = pressedBy(hit.lane) === 0;
         fingers.set(e.pointerId, hit.lane);
+        touchPoints.set(e.pointerId, { lane: hit.lane, x: e.clientX, y: e.clientY });
         if (first) emit('lane', hit.lane, true, e.timeStamp);
       } else emit('action', hit.type);
     });
     canvas.addEventListener('pointermove', (e) => {
+      const tp = touchPoints.get(e.pointerId);
+      if (tp) { tp.x = e.clientX; tp.y = e.clientY; }
       const sw = swipes.get(e.pointerId);
       if (!sw || sw.fired || !gameplay) return;
       const up = sw.y - e.clientY;
@@ -207,6 +212,7 @@
     });
     const lift = (e) => {
       swipes.delete(e.pointerId);
+      touchPoints.delete(e.pointerId);
       if (!fingers.has(e.pointerId)) return;
       const lane = fingers.get(e.pointerId);
       fingers.delete(e.pointerId);
@@ -247,6 +253,8 @@
     get device() { return device; },
     get touch() { return device.type === 'touch'; },
     attachTouch,
+    /** Fingers on the highway right now: [{ lane, x, y }] in client pixels. */
+    touchPoints: () => [...touchPoints.values()],
     laneLabels,
     glyph,
     KEYS,

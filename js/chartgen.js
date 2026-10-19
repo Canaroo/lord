@@ -195,16 +195,26 @@
       }
       let lane = order[0];
       if (lane === prevLane && order.length > 1 && (run >= cfg.maxRun || c.t - prevT < cfg.jackGap)) lane = order[1];
+      const active = reservedUntil.filter((u) => u > c.t).length;
+      const willHold = cfg.holds && c.d >= HOLD_MIN_SUSTAIN && reservations < holdBudget && active < cfg.holds.concurrent && cfg.lanes - active > 1;
+      // Touch, 4 lanes: a long note goes on its thumb's outer lane, so the held
+      // thumb sits at the edge and the other thumb has room beside it.
+      if (willHold && touch && cfg.lanes === 4) {
+        const outer = hand(lane, 4) === 0 ? 0 : 3;
+        if (reservedUntil[outer] <= c.t && !(outer === prevLane && c.t - prevT < cfg.jackGap)) lane = outer;
+      }
       run = lane === prevLane ? run + 1 : 1;
       recent.push(lane);
       if (recent.length > 12) recent.shift();
       notes.push({ t: +c.t.toFixed(4), lane, d: c.d });
-      const active = reservedUntil.filter((u) => u > c.t).length;
-      if (cfg.holds && c.d >= HOLD_MIN_SUSTAIN && reservations < holdBudget && active < cfg.holds.concurrent && cfg.lanes - active > 1) {
+      if (willHold) {
         const until = c.t + Math.min(c.d, cfg.holds.maxLen) + HOLD_GAP;
-        // On touch the whole thumb is busy holding, not just the lane.
+        // On touch the whole thumb is busy holding, not just the lane, and on
+        // 4 lanes the lane right beside it stays clear so thumbs don't collide.
         for (let l = 0; l < cfg.lanes; l++) {
-          if (l === lane || (touch && hand(l, cfg.lanes) === hand(lane, cfg.lanes))) reservedUntil[l] = until;
+          const sameHand = touch && hand(l, cfg.lanes) === hand(lane, cfg.lanes);
+          const beside = touch && cfg.lanes === 4 && Math.abs(l - lane) === 1;
+          if (l === lane || sameHand || beside) reservedUntil[l] = until;
         }
         reservations++;
       }
@@ -219,7 +229,7 @@
       prevT = c.t;
     }
     notes.sort((a, b) => a.t - b.t || a.lane - b.lane);
-    if (cfg.holds) addHolds(notes, cfg.holds, beatPeriod(analysis.beats));
+    if (cfg.holds) addHolds(notes, cfg.holds, beatPeriod(analysis.beats), touch ? cfg.lanes : 0);
     return { difficulty, lanes: cfg.lanes, notes: notes.map(({ t, lane, len }) => (len ? { t, lane, len } : { t, lane })) };
   }
 
@@ -269,7 +279,7 @@
    * to a share of all notes. A tail stops short of the next note in its lane,
    * is rounded down to the 16th note, and only `concurrent` tails may overlap.
    */
-  function addHolds(notes, { share, concurrent, maxLen }, period) {
+  function addHolds(notes, { share, concurrent, maxLen }, period, touchLanes = 0) {
     const step = period / 4;
     const limit = Math.floor(notes.length * share);
     const nextInLane = new Map();
@@ -287,9 +297,20 @@
       if (len < HOLD_MIN_LEN) continue;
       const overlapping = holds.filter((h) => h.t < n.t + len && n.t < h.t + h.len).length;
       if (overlapping >= concurrent) continue;
+      if (touchLanes && thumbBusy(notes, n, len, touchLanes)) continue;
       n.len = +len.toFixed(3);
       holds.push(n);
     }
+  }
+
+  /**
+   * Touch: while a thumb holds a long note, nothing else may come for that thumb,
+   * and on 4 lanes nothing in the lane right beside it (thumbs would collide).
+   */
+  function thumbBusy(notes, n, len, lanes) {
+    const until = n.t + len + HOLD_GAP;
+    return notes.some((o) => o !== n && o.t > n.t + 0.01 && o.t < until &&
+      (hand(o.lane, lanes) === hand(n.lane, lanes) || (lanes === 4 && Math.abs(o.lane - n.lane) === 1)));
   }
 
   const ALL_IDS = [...Object.keys(DIFFICULTIES), ...TOUCH_TIERS.map((d) => 'touch4:' + d), ...TOUCH_TIERS.map((d) => 'touch2:' + d)];

@@ -270,6 +270,61 @@ async function touchTests(browser) {
   await page.waitForTimeout(200);
   check(await page.evaluate(() => BeatFrets.game.paused) && await page.isVisible('#pause'), 'the on-screen II button pauses');
 
+  // Long notes: the holding thumb can slide away (here: to the far corner) and keep
+  // holding, and taps that land just inside the next lane still count (tap assist).
+  await page.tap('#btn-quit').catch(() => {});
+  await page.setViewportSize(LAND);
+  await page.waitForTimeout(400);
+  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  await screenIs(page, 'song');
+  await page.tap('[data-diff="touch4:hard"]');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
+  await page.evaluate(() => {
+    const g = window.__touchGame = BeatFrets.game, st = BeatFrets.stage, cv = document.getElementById('stage');
+    window.__assisted = 0;
+    let i = 0, pid = 2000;
+    const send = (type, id, x, y) => cv.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', clientX: x, clientY: y, bubbles: true }));
+    const lonely = (n) => !g.notes.some((m) => m !== n && Math.abs(m.t - n.t) < 0.3);
+    const loop = () => {
+      if (!g.running || g !== BeatFrets.game) return;
+      const t = g.now();
+      while (i < g.notes.length && g.notes[i].t <= t) {
+        const n = g.notes[i++], id = pid++;
+        const c = st.laneCenterClient(g.lanes, n.lane);
+        let x = c.x;
+        if (!n.len && n.lane > 0 && lonely(n)) {
+          // Land 20% into the lane to the left, leaning toward the note's lane.
+          const w = c.x - st.laneCenterClient(g.lanes, n.lane - 1).x;
+          x = c.x - w * 0.7;
+          window.__assisted++;
+        }
+        send('pointerdown', id, x, c.y);
+        if (n.len) {
+          setTimeout(() => send('pointermove', id, 8, innerHeight - 8), 60);
+          setTimeout(() => send('pointerup', id, 8, innerHeight - 8), n.len * 1000 + 40);
+        } else setTimeout(() => send('pointerup', id, x, c.y), 40);
+      }
+      requestAnimationFrame(loop);
+    };
+    loop();
+  });
+  await page.waitForFunction(() => window.__touchGame.holds.length && BeatFrets.Input.touchPoints().some((f) => f.x < 20), null, { timeout: 20000 });
+  await page.waitForTimeout(120);
+  await page.screenshot({ path: path.join(outDir, 'e2e-touch-grab.png') });
+  await page.waitForTimeout(12000);
+  await page.screenshot({ path: path.join(outDir, 'e2e-touch-hold.png') });
+  const hold = await page.evaluate(() => {
+    const g = window.__touchGame;
+    const done = g.notes.filter((n) => n.judged);
+    const now = g.now();
+    const due = g.notes.filter((n) => n.len && n.judged).reduce((sum, n) => sum + Math.min(n.len, Math.max(0, now - n.t)), 0);
+    return { counts: g.counts, held: +g.holdHeld.toFixed(2), due: +due.toFixed(2), started: g.holdsStarted, assisted: window.__assisted, judged: done.length };
+  });
+  check(hold.started > 0 && hold.counts.miss === 0 && hold.held > 0.85 * hold.due, `long notes keep holding while the thumb slides away (${JSON.stringify(hold)})`);
+  check(hold.assisted > 3 && hold.counts.miss === 0, 'taps just inside the next lane count for its note (tap assist)');
+  await touchZone(page, 'pause');
+  await page.waitForTimeout(200);
+
   // The keyboard takes over as soon as it's used.
   await page.keyboard.press('ArrowDown');
   check(await page.evaluate(() => BeatFrets.Input.device.type === 'keyboard'), 'using the keyboard switches to key controls');

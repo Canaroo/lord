@@ -248,6 +248,7 @@
       this.drawFrets(v, geo);
       this.drawNotes(v, geo);
       this.drawFlames(v, geo, nowMs, energy);
+      if (v.fingers) this.drawGrabs(v, geo, nowMs);
       this.drawParticles(dt);
       if (powerDown > 0) {
         this.g.fillStyle = `rgba(8,8,26,${0.45 * powerDown})`;
@@ -676,21 +677,85 @@
         this.g.globalAlpha = 1;
       }
 
-      // Multiplier and streak, painted on the track above the frets.
-      const my = HIT_Y - (LAYOUT === 'touch2' ? 86 : 62);
+      this.drawSideHud(v, geo, nowMs);
+      if (ready && glow > 0.3) this.text('SWIPE UP', geo.cx, Math.min(H - 10, HIT_Y + 22), PAL.cyan, 8, 'center');
+    }
+
+    /**
+     * Phone HUD beside the far end of the highway, in the empty space either side,
+     * so it's in view without ever covering a note: multiplier and streak on the
+     * left, PERFECT / GOOD / MISS on the right.
+     */
+    drawSideHud(v, geo, nowMs) {
+      const h = v.hud;
+      const span = HIT_Y - HORIZON;
+      const sideX = (side, y) => {
+        const edge = geo.halfW * ((y - HORIZON) / span) + 12;
+        return Math.round(geo.cx + side * (edge + (W / 2 - edge) / 2));
+      };
+      // Left: multiplier, progress pips, streak.
+      const my = Math.round(HORIZON + span * (LAYOUT === 'touch2' ? 0.04 : 0.06));
+      const lx = sideX(-1, my + 20);
       const mc = this.multColor(h.mult);
-      this.g.globalAlpha = 0.85;
-      this.text('x' + h.mult, geo.cx, my, mc, 16, 'center');
-      for (let i = 0; i < 10; i++) this.rect(geo.cx - 27 + i * 5.6, my + 19, 4, 3, i < h.pips ? mc : '#2a2f6a');
-      if (h.combo > 0) this.text(`${h.combo} STREAK`, geo.cx, my + 25, h.combo >= 50 ? PAL.gold : PAL.white, 8, 'center');
-      this.g.globalAlpha = 1;
+      this.text('x' + h.mult, lx, my, mc, 16, 'center');
+      for (let i = 0; i < 10; i++) this.rect(lx - 25 + i * 5, my + 19, 4, 3, i < h.pips ? mc : '#2a2f6a');
+      if (h.combo > 0) {
+        this.text(String(h.combo), lx, my + 26, h.combo >= 50 ? PAL.gold : PAL.white, 16, 'center');
+        this.text('STREAK', lx, my + 44, PAL.grey, 8, 'center');
+      }
       if (this.levelUpAt && nowMs - this.levelUpAt < 700) {
         const k = (nowMs - this.levelUpAt) / 700;
         this.g.globalAlpha = 1 - k;
-        this.text('x' + this.levelUpTo + '!', geo.cx, my - 14 - k * 10, PAL.gold, 16, 'center');
+        this.text('LEVEL UP!', lx, my - 12 - k * 8, PAL.gold, 8, 'center');
         this.g.globalAlpha = 1;
       }
-      if (ready && glow > 0.3) this.text('SWIPE UP', geo.cx, Math.min(H - 10, HIT_Y + 22), PAL.cyan, 8, 'center');
+      // Right: the last judgement.
+      const jd = v.judgement;
+      if (jd && nowMs - jd.at < 450) {
+        const k = (nowMs - jd.at) / 450;
+        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS', over: 'OVERHIT' }[jd.kind];
+        const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red }[jd.kind];
+        const jy = my + 4 - (k < 0.15 ? (0.15 - k) * 30 : 0);
+        const rx = sideX(1, jy + 10);
+        const big = LAYOUT === 'touch4';
+        this.g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
+        this.text(label, rx, jy, color, big ? 16 : 8, 'center');
+        if (jd.kind === 'good' || jd.kind === 'ok') this.text(jd.early ? 'EARLY' : 'LATE', rx, jy + (big ? 20 : 12), PAL.grey, 8, 'center');
+        this.g.globalAlpha = 1;
+      }
+    }
+
+    /**
+     * A thumb holding a long note can slide anywhere and keep holding. Show that:
+     * a glowing ring under the thumb, tied to its fret, plus a tip on the first few.
+     */
+    drawGrabs(v, geo, nowMs) {
+      for (const f of v.fingers) {
+        if (!v.holds.some((h) => h.lane === f.lane)) continue;
+        const p = this.toBuffer(f.x, f.y);
+        const fret = this.fretPos(v.lanes, f.lane);
+        const color = LANES[f.lane];
+        const dist = Math.hypot(p.x - fret.x, p.y - fret.y);
+        if (dist > 10) {
+          // Dotted tether from the fret to the thumb.
+          const steps = Math.floor(dist / 5);
+          for (let i = 1; i < steps; i++) {
+            const k = i / steps;
+            this.rect(fret.x + (p.x - fret.x) * k - 1, fret.y + (p.y - fret.y) * k - 1, 2, 2, color);
+          }
+        }
+        const r = 9 + Math.sin(nowMs / 90) * 1.5;
+        this.ellipse(p.x, p.y, r + 1, r * 0.6 + 1, PAL.ink);
+        this.ellipse(p.x, p.y, r, r * 0.6, color);
+        this.ellipse(p.x, p.y, r - 3, r * 0.6 - 3, PAL.white);
+      }
+      if (v.holdTip && v.holds.length) {
+        const h = v.holds[0];
+        const fret = this.fretPos(v.lanes, h.lane);
+        const x = Math.max(44, Math.min(W - 44, fret.x));
+        this.text('KEEP HOLDING', x, fret.y - 34, PAL.white, 8, 'center');
+        this.text('SLIDE AWAY OK', x, fret.y - 24, PAL.cyan, 8, 'center');
+      }
     }
 
     /**
@@ -795,8 +860,8 @@
 
     drawHudCommon(v, h, nowMs) {
       const touch = LAYOUT !== 'keys';
-      // Judgement pop.
-      const j = v.judgement;
+      // Judgement pop (phones show it beside the highway instead).
+      const j = touch ? null : v.judgement;
       if (j && nowMs - j.at < 450) {
         const k = (nowMs - j.at) / 450;
         const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS', over: 'OVERHIT' }[j.kind];
@@ -811,7 +876,8 @@
 
       // Banners slide in from the right and out to the left.
       for (const b of v.banners || []) {
-        const by = touch ? Math.round(HORIZON + (HIT_Y - HORIZON) * 0.22) : b.y;
+        // Phones: in the sky just above the highway, never over the notes.
+        const by = touch ? Math.max(HUD_TOP + 2, HORIZON - (b.sub ? 32 : 22)) : b.y;
         const age = (nowMs - b.at) / 1000;
         if (age > 1.6) continue;
         const x = age < 0.2 ? W / 2 + (0.2 - age) * 1500 : age > 1.35 ? W / 2 - (age - 1.35) * 1600 : W / 2;
@@ -824,7 +890,7 @@
       }
 
       // Points float up from the fret, coloured by the multiplier.
-      for (const p of v.popups || []) {
+      for (const p of touch ? [] : v.popups || []) {
         const age = nowMs - p.at;
         if (age > 650) continue;
         const pos = this.fretPos(v.lanes, p.lane);
@@ -1024,8 +1090,8 @@
       if (inside(zones.pause)) return { type: 'pause' };
       if (p.y < HUD_TOP) return null;
       const geo = this.geometry(lanes);
-      const lane = Math.floor((p.x - (geo.cx - geo.halfW)) / geo.laneW);
-      return { type: 'lane', lane: Math.max(0, Math.min(lanes - 1, lane)) };
+      const pos = (p.x - (geo.cx - geo.halfW)) / geo.laneW; // 1.8 = lane 1, near lane 2
+      return { type: 'lane', lane: Math.max(0, Math.min(lanes - 1, Math.floor(pos))), pos };
     }
 
     /** Centre of a lane's touch column on screen (for tests and hints). */

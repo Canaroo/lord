@@ -48,9 +48,19 @@ press a key or a controller button.
   thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
   holds a long note, the other hand plays everything else. The timing window is slightly wider
   than on keys, and the overhit penalty is off, since a thumb can brush the glass.
+- **Long notes on a phone:** once you've grabbed one, that thumb can **slide anywhere**, off to
+  the side or down off the frets, and it keeps holding. A glowing ring under your thumb, tied to
+  its fret, shows it's still held, and the first few long notes in a song say so. A quick wobble
+  that loses contact for a split second doesn't drop it. Phone charts put long notes on the outer
+  lanes and keep the lane beside them clear, so the other thumb never has to squeeze in next to
+  the held one.
+- **Tap assist:** hit areas are a little wider than they look. A tap that lands just inside the
+  lane next to a note (or on a lane your other thumb is holding) counts for the note.
+- **Nothing covers the notes.** The multiplier and streak sit to the left of the far end of the
+  highway, and PERFECT / GOOD / MISS to the right. Banners like *OVERDRIVE!* appear in the sky
+  above it.
 - **Everything you need is on the highway.** The left edge of the highway is the **OD meter**
-  and the right edge is the **rock meter**, both filling up from the frets. Your multiplier and
-  streak are painted on the track just above the frets. Your score sits big and centred just
+  and the right edge is the **rock meter**, both filling up from the frets. Your score sits big and centred just
   above the highway, rolling up as you play, with your stars and personal-best pace under it.
 - **Overdrive:** when it's ready, a chime plays, *SWIPE UP!* sweeps across the highway, big
   arrows climb up both sides of the highway, and the frets and track glow cyan until you use it. **Flick any finger up** off the frets to fire it.

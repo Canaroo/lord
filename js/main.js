@@ -809,6 +809,7 @@
       // Resting fingers make stray touches common, so the overhit rule is keys-only.
       antiMash: !tier.touch && settings.overhit && tier.difficulty !== 'easy',
       windowScale: tier.touch ? 1.15 : 1,
+      holdGrace: tier.touch ? 0.12 : 0,
       vibrate: tier.touch && settings.vibrate,
       hitSounds: settings.hitSounds,
       playerColor: save.active ? save.active.color : '#58f8f8',
@@ -1516,7 +1517,12 @@
   });
 
   // Fingers on the stage play the lanes (and the OD and pause buttons).
-  Input.attachTouch($('#stage'), (x, y) => (game ? stage.hitTest(x, y, game.lanes) : null));
+  Input.attachTouch($('#stage'), (x, y) => {
+    if (!game) return null;
+    const hit = stage.hitTest(x, y, game.lanes);
+    if (hit && hit.type === 'lane') hit.lane = game.assistLane(hit.lane, hit.pos);
+    return hit;
+  });
 
   // First touch game: calibrate now or play.
   let calibReturn = 'options';
