@@ -553,7 +553,7 @@
     /** Phones: a note is a flat bar almost as wide as its lane, like the pad it's aimed at. */
     drawBar(n, x, y, s, geo, z, od) {
       const w = Math.max(3, geo.laneW * 0.86 * s);
-      const h = Math.max(2, Math.round(8 * s));
+      const h = Math.max(3, Math.round(13 * s));
       const x0 = Math.round(x - w / 2);
       const y0 = Math.round(y - h / 2);
       const W2 = Math.round(w);
@@ -567,7 +567,7 @@
       this.rect(x0 - 1, y0 - 1, W2 + 2, h + 2, od ? PAL.cyan : PAL.ink);
       this.rect(x0, y0, W2, h, LANES_DARK[n.lane]);
       this.rect(x0, y0, W2, Math.max(1, h - Math.ceil(h / 3)), LANES[n.lane]);
-      if (h >= 4) this.rect(x0 + Math.round(w * 0.12), y0 + 1, Math.round(w * 0.76), Math.max(1, Math.round(h / 5)), od ? PAL.cyan : PAL.white);
+      if (h >= 4) this.rect(x0 + Math.round(w * 0.1), y0 + Math.max(1, Math.round(h / 6)), Math.round(w * 0.8), Math.max(1, Math.round(h / 4)), od ? PAL.cyan : PAL.white);
       this.g.globalAlpha = 1;
     }
 
