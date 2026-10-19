@@ -396,3 +396,8 @@ body.touch .screen { max-height: calc(100vh - 24px); max-height: calc(100dvh - 2
 body.touch .mini-board { display: none; }
 body.touch .diffs { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
 body.touch .diff { padding: 10px 10px 10px 28px; gap: 6px; }
+
+/* Wording that only fits one kind of input. */
+.touch-only { display: none; }
+body.touch .touch-only { display: revert; }
+body.touch .kbd-only { display: none; }

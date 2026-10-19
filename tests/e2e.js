@@ -114,6 +114,15 @@ const TOUCH_BOT = () => {
   };
   loop();
 };
+// A quick upward flick starting on a fret.
+const touchSwipe = (page, lane) => page.evaluate(async (l) => {
+  const g = BeatFrets.game, cv = document.getElementById('stage');
+  const c = BeatFrets.stage.laneCenterClient(g.lanes, l);
+  const ev = (type, y) => cv.dispatchEvent(new PointerEvent(type, { pointerId: 950, pointerType: 'touch', clientX: c.x, clientY: y, bubbles: true }));
+  ev('pointerdown', c.y);
+  for (let k = 1; k <= 4; k++) { await new Promise((r) => setTimeout(r, 16)); ev('pointermove', c.y - k * 25); }
+  ev('pointerup', c.y - 100);
+}, lane);
 const touchZone = (page, zone) => page.evaluate((z) => {
   const c = BeatFrets.stage.zoneCenterClient(z), cv = document.getElementById('stage');
   for (const type of ['pointerdown', 'pointerup']) cv.dispatchEvent(new PointerEvent(type, { pointerId: 900, pointerType: 'touch', clientX: c.x, clientY: c.y, bubbles: true }));
@@ -146,6 +155,31 @@ async function touchTests(browser) {
   await page.keyboard.type('kid');
   await page.tap('#btn-initials-ok');
   await screenIs(page, 'main');
+
+  // Every menu has a BACK button you can reach, and the phone's own Back steps back one menu.
+  const missing = await page.evaluate(() => [...document.querySelectorAll('.screen')]
+    // Main is the top menu; results and calibration leave by SONG and DONE.
+    .filter((s) => s.dataset.back && !['screen-main', 'screen-results', 'screen-calib'].includes(s.id))
+    .filter((s) => !s.querySelector('[data-back-btn], [data-go]'))
+    .map((s) => s.id));
+  check(!missing.length, 'every menu has an on-screen way back ' + missing.join(' '));
+  for (const go of ['pack', 'import', 'boards', 'players', 'options', 'data']) {
+    await page.tap(`#screen-main [data-go="${go}"]`);
+    await screenIs(page, go);
+    await page.tap(`#screen-${go} [data-back-btn]`);
+    await screenIs(page, 'main');
+  }
+  check(true, 'BACK buttons return to the main menu');
+  await page.tap('#screen-main [data-go="options"]');
+  await screenIs(page, 'options');
+  await page.goBack();
+  await screenIs(page, 'main');
+  check(true, "the phone's Back button goes back one menu");
+  await page.tap('#screen-main [data-go="boards"]');
+  await screenIs(page, 'boards');
+  await page.goBack();
+  await screenIs(page, 'main');
+  check(page.url().startsWith(url), "repeated phone Back stays in the game");
   await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
   await screenIs(page, 'song');
   const landIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
@@ -168,10 +202,12 @@ async function touchTests(browser) {
 
   await page.evaluate(TOUCH_BOT);
   await page.waitForTimeout(6000);
-  // Overdrive: tap the OD meter.
-  await page.evaluate(() => { BeatFrets.game.od = Math.max(BeatFrets.game.od, 0.6); });
-  await touchZone(page, 'od');
-  check(await page.evaluate(() => BeatFrets.game.odActive), 'tapping the OD meter triggers overdrive');
+  // Overdrive: flick a thumb up off the frets.
+  await page.evaluate(() => { const g = BeatFrets.game; g.od = Math.max(g.od, 0.6); g.odReadyAt = performance.now(); });
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: path.join(outDir, 'e2e-touch-odready.png') });
+  await touchSwipe(page, 1);
+  check(await page.evaluate(() => BeatFrets.game.odActive), 'swiping up triggers overdrive');
   await page.screenshot({ path: path.join(outDir, 'e2e-touch-land.png') });
   await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 120000 });
   const res1 = await page.evaluate(() => window.__touchGame.counts);
@@ -211,6 +247,14 @@ async function touchTests(browser) {
   await page.setViewportSize(PORT);
   await page.waitForTimeout(500);
   check(await page.evaluate(() => !document.getElementById('btn-resume').disabled && BeatFrets.stage.layout === 'touch2'), 'turning it back allows resuming');
+  await page.tap('#btn-resume');
+  await page.waitForFunction(() => !BeatFrets.game.paused, null, { timeout: 5000 });
+
+  // The phone's Back button pauses mid-song.
+  await page.waitForTimeout(2500);
+  await page.goBack();
+  await page.waitForTimeout(200);
+  check(await page.evaluate(() => BeatFrets.game && BeatFrets.game.paused) && page.url().startsWith(url), "the phone's Back button pauses the song");
   await page.tap('#btn-resume');
   await page.waitForFunction(() => !BeatFrets.game.paused, null, { timeout: 5000 });
 

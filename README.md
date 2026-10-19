@@ -48,7 +48,11 @@ press a key or a controller button.
   thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
   holds a long note, the other hand plays everything else. The timing window is slightly wider
   than on keys, and the overhit penalty is off, since a thumb can brush the glass.
-- **Overdrive:** tap the OD meter at the top when it says *TAP OD*. **Pause:** the **II** button.
+- **Overdrive:** when the OD meter flashes and arrows rise beside the frets, **flick any finger
+  up** off the frets. Your thumbs never have to leave the bottom of the screen. (Tapping the meter
+  works too.) **Pause:** the **II** button, or the phone's **Back** button.
+- **Menus:** every menu has a **BACK** button at the bottom, and the phone's own Back button
+  (or an edge swipe on iPhone) steps back one menu instead of leaving the game.
 - **Turning the phone mid-song** pauses it until you turn it back, because the lanes would change.
 - Touch scores have their own leaderboards (**TOUCH 4** and **TOUCH 2** tabs), so thumbs never
   compete against keyboards.
@@ -194,7 +198,8 @@ navigates menus with the D-pad, plays a full song (overdrive included), checks t
 leaderboard, shares the score, opens the link as a friend in a separate browser, accepts the
 challenge, fails a song on purpose, pauses with Start, and imports an MP3. It then switches to
 a simulated phone: installs the app, plays sideways on 4 lanes and upright on 2 with finger
-taps, taps the OD meter and pause button, and turns the phone mid-song.
+taps, swipes up for overdrive, uses the BACK buttons and the phone's Back button, taps pause, and
+turns the phone mid-song.
 
 ### Ideas for next steps
 

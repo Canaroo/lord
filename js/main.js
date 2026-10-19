@@ -99,6 +99,7 @@
     $('#panel').classList.toggle('hidden', !name);
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
     $('#hints').hidden = !name;
+    if (name && name !== 'title') guardHistory();
     if (!name) return;
     const el = $('#screen-' + name);
     el.scrollTop = 0;
@@ -162,6 +163,7 @@
   function goBack() {
     if (!$('#pause').hidden) { if (game) game.resume(); return; }
     if (screen === 'initials') { initials.cancel(); return; }
+    if (screen === 'calib') { leaveCalib(); return; }
     if (screen === 'song') { Sfx.back(); show(songOrigin); return; }
     const el = screen && $('#screen-' + screen);
     const target = el && el.dataset.back;
@@ -186,6 +188,7 @@
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
     if (!btn || game) return;
+    if (btn.hasAttribute('data-back-btn')) { goBack(); return; }
     if (btn.dataset.go) {
       const to = btn.dataset.go;
       if (to === 'main') renderMain();
@@ -1517,12 +1520,40 @@
   let calibReturn = 'options';
   $('#btn-offer-calib').addEventListener('click', () => { calibReturn = 'song'; calibrate.run(); });
   $('#btn-offer-play').addEventListener('click', () => { const id = pendingPlay; pendingPlay = null; if (id) play(id); });
-  $('#btn-calib-done').addEventListener('click', () => {
+  $('#btn-calib-done').addEventListener('click', leaveCalib);
+  function leaveCalib() {
     calibrate.cancel();
     const to = calibReturn;
     calibReturn = 'options';
     if (to === 'song' && current) showSong(); else { renderOptions(); show('options'); }
+  }
+
+  // ---- the phone's Back button ----------------------------------------------------------------------------------
+  // Past the title screen, one spare history entry sits on top. Back (Android's button, the
+  // browser's, an iPhone edge swipe) uses it up to step back one menu, or to pause mid-song,
+  // instead of leaving the game. From the title screen, Back leaves as usual.
+
+  let guarded = false;
+  function guardHistory() {
+    if (guarded) return;
+    guarded = true;
+    history.pushState({ beatFrets: true }, '');
+  }
+  window.addEventListener('popstate', () => {
+    if (!guarded) return; // a share link's hash changing, not Back
+    guarded = false;
+    if (game) {
+      restartHold.cancel();
+      if (!game.paused) game.pause();
+    } else if (screen === 'results' && resultsAnim) {
+      resultsAnim();
+    } else {
+      goBack();
+    }
+    if (game || (screen && screen !== 'title')) guardHistory();
   });
+  // Browsers may skip history entries made without a tap, so re-arm on the next one.
+  window.addEventListener('pointerdown', () => { if (game || (screen && screen !== 'title')) guardHistory(); }, true);
 
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   $('#ios-hint').hidden = !isIOS;

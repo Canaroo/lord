@@ -177,10 +177,14 @@
   function attachTouch(canvas, resolve) {
     const fingers = new Map(); // pointerId → lane
     const pressedBy = (lane) => [...fingers.values()].filter((l) => l === lane).length;
+    // A quick flick upward with any finger fires overdrive, so thumbs never leave the frets.
+    const SWIPE_MS = 350;
+    const swipes = new Map(); // pointerId → { x, y, t, fired }
     canvas.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse' || !gameplay) return;
       e.preventDefault();
       setDevice(TOUCH);
+      swipes.set(e.pointerId, { x: e.clientX, y: e.clientY, t: e.timeStamp, fired: false });
       const hit = resolve(e.clientX, e.clientY);
       if (!hit) return;
       if (hit.type === 'lane') {
@@ -190,7 +194,19 @@
         if (first) emit('lane', hit.lane, true, e.timeStamp);
       } else emit('action', hit.type);
     });
+    canvas.addEventListener('pointermove', (e) => {
+      const sw = swipes.get(e.pointerId);
+      if (!sw || sw.fired || !gameplay) return;
+      const up = sw.y - e.clientY;
+      const dist = Math.max(28, window.innerHeight * 0.06);
+      if (e.timeStamp - sw.t > SWIPE_MS) { swipes.delete(e.pointerId); return; }
+      if (up > dist && up > Math.abs(e.clientX - sw.x) * 1.5) {
+        sw.fired = true;
+        emit('action', 'overdrive');
+      }
+    });
     const lift = (e) => {
+      swipes.delete(e.pointerId);
       if (!fingers.has(e.pointerId)) return;
       const lane = fingers.get(e.pointerId);
       fingers.delete(e.pointerId);
@@ -210,7 +226,7 @@
   }
 
   function glyph(name) {
-    if (device.type === 'touch') return { overdrive: 'TAP OD', pause: 'II', confirm: 'TAP', back: 'BACK' }[name];
+    if (device.type === 'touch') return { overdrive: 'SWIPE UP', pause: 'II', confirm: 'TAP', back: 'BACK' }[name];
     if (device.type !== 'gamepad') return { overdrive: 'SPACE', pause: 'ESC', confirm: 'ENTER', back: 'ESC' }[name];
     const g = GLYPHS[device.family] || GLYPHS.xbox;
     return { overdrive: g.Y, pause: g.START, confirm: g.A, back: g.B }[name];

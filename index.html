@@ -35,13 +35,13 @@
     <!-- Initials entry -->
     <section id="screen-initials" class="screen win" data-back="title">
       <h2>ENTER YOUR INITIALS</h2>
-      <p class="hint">These go on the leaderboard. <span class="kbd-only">Type letters, or use</span> ▲▼ to change, ◀▶ to move.</p>
+      <p class="hint">These go on the leaderboard. <span class="kbd-only">Type letters, or use ▲▼ to change, ◀▶ to move.</span><span class="touch-only">Tap ▲ and ▼ to change each letter.</span></p>
       <div class="initials" id="initials" role="group" aria-label="Initials">
         <div class="slot" data-i="0"><span class="up">▲</span><b>A</b><span class="dn">▼</span></div>
         <div class="slot" data-i="1"><span class="up">▲</span><b>A</b><span class="dn">▼</span></div>
         <div class="slot" data-i="2"><span class="up">▲</span><b>A</b><span class="dn">▼</span></div>
       </div>
-      <div class="menu row"><button id="btn-initials-ok" data-autofocus>OK</button></div>
+      <div class="menu row"><button id="btn-initials-ok" data-autofocus>OK</button><button data-back-btn>BACK</button></div>
     </section>
 
     <!-- Main menu -->
@@ -67,6 +67,7 @@
         <p class="eyebrow">BONUS TRACKS</p>
         <div class="menu" id="bonus-list"></div>
       </div>
+      <div class="menu row back-row"><button data-back-btn>BACK</button></div>
     </section>
 
     <!-- Import -->
@@ -79,6 +80,7 @@
       </label>
       <p class="hint">Songs are saved in this browser, so next time they're one click away below. If a friend imports their own copy of the same song, your scores land on the same leaderboard.</p>
       <div class="menu" id="recent-list"></div>
+      <div class="menu row back-row"><button data-back-btn>BACK</button></div>
     </section>
 
     <!-- Loading -->
@@ -96,7 +98,8 @@
       <p id="song-match" class="match" hidden></p>
       <p id="song-credit" class="hint" hidden></p>
       <div class="diffs" id="diffs"></div>
-      <p class="hint">Hit each note as it crosses the line, and hold long notes until their tail ends. Hold <b>R</b> (or Back) to restart. Fill the OD meter, then press <b data-glyph="overdrive">SPACE</b> for double points. Don't let the rock meter run out.</p>
+      <p class="hint kbd-only">Hit each note as it crosses the line, and hold long notes until their tail ends. Hold <b>R</b> (or Back) to restart. Fill the OD meter, then press <b data-glyph="overdrive">SPACE</b> for double points. Don't let the rock meter run out.</p>
+      <p class="hint touch-only">Tap each note as it crosses the line, and keep your finger down on long notes. When the OD meter flashes, <b>swipe up</b> with any finger for double points. <b>II</b> pauses.</p>
       <div class="menu row"><button id="btn-song-back">BACK</button></div>
     </section>
 
@@ -167,6 +170,7 @@
     <section id="screen-boards" class="screen win" data-back="main">
       <h2 class="small">LEADERBOARDS</h2>
       <div class="menu" id="boards-list"></div>
+      <div class="menu row back-row"><button data-back-btn>BACK</button></div>
     </section>
 
     <section id="screen-board" class="screen win wide" data-back="boards">
@@ -178,7 +182,7 @@
       </div>
       <div class="menu row">
         <button id="btn-board-play">PLAY THIS SONG</button>
-        <button data-go="boards">BACK</button>
+        <button data-back-btn>BACK</button>
       </div>
     </section>
 
@@ -192,6 +196,7 @@
         <button id="btn-new-player">NEW PLAYER</button>
         <button id="btn-rename">RENAME</button>
         <button id="btn-delete-player">DELETE</button>
+        <button data-back-btn>BACK</button>
       </div>
       <p id="players-status" class="hint" aria-live="polite"></p>
     </section>
@@ -219,6 +224,7 @@
         <button id="btn-calibrate">AUTO-CALIBRATE TIMING</button>
       </div>
       <p class="hint" id="pad-status"></p>
+      <div class="menu row back-row"><button data-back-btn>BACK</button></div>
     </section>
 
     <!-- Save data -->
@@ -232,6 +238,7 @@
       </div>
       <input id="save-file" type="file" accept=".json,application/json" hidden />
       <p id="data-status" class="hint" aria-live="polite"></p>
+      <div class="menu row back-row"><button data-back-btn>BACK</button></div>
     </section>
 
     <!-- Calibration -->
@@ -250,6 +257,7 @@
       <div class="menu">
         <button id="btn-offer-calib" data-autofocus>CALIBRATE NOW</button>
         <button id="btn-offer-play">PLAY NOW</button>
+        <button data-back-btn>BACK</button>
       </div>
     </section>
   </main>

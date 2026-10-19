@@ -343,6 +343,7 @@
       }
       if (this.od >= 0.5 && !this.odActive && !this.odReadyAnnounced) {
         this.odReadyAnnounced = true;
+        this.odReadyAt = performance.now();
         Sfx.overdriveReady();
       }
     }
@@ -506,6 +507,7 @@
           rock: this.rock,
           od: this.od,
           odReady: this.od >= 0.5,
+          odReadyAt: this.odReadyAt || 0,
           odKey: Input.glyph('overdrive'),
           progress: Math.max(0, Math.min(1, t / this.duration)),
           intro: t < 1.5 && !this.resumeAt ? this.intro : null,

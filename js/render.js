@@ -596,7 +596,11 @@
         const filled = h.od * segs > i;
         this.rect(7 + i * segW, by + 3, segW - 1, bh - 6, filled ? (v.odActive || odBlink ? PAL.white : PAL.cyan) : '#101838');
       }
-      if (h.odReady && !v.odActive) this.text('TAP OD', 4 + bw / 2, by + 2, odBlink ? PAL.ink : PAL.white, 8, 'center');
+      if (h.odReady && !v.odActive) {
+        this.rect(4 + bw / 2 - h.odKey.length * 4 - 2, by + 1, h.odKey.length * 8 + 4, 9, PAL.ink);
+        this.text(h.odKey, 4 + bw / 2, by + 2, odBlink ? PAL.cyan : PAL.white, 8, 'center');
+        this.drawSwipeCue(v, h, nowMs);
+      }
       // Rock meter bar.
       const danger = h.rock < 0.25;
       this.window(W - 4 - bw, by, bw, bh);
@@ -610,6 +614,31 @@
         od: { x: 0, y: 30, w: bw + 14, h: HUD_TOP - 30 },
         pause: { x: W / 2 - 22, y: 0, w: 44, h: 30 },
       };
+    }
+
+    /** Overdrive is ready: rising chevrons beside the frets, where the thumbs are. */
+    drawSwipeCue(v, h, nowMs) {
+      const geo = this.geometry(v.lanes);
+      const step = (nowMs / 90) % 3; // which chevron is lit, rising
+      for (const side of [-1, 1]) {
+        const x = Math.round(Math.max(10, Math.min(W - 10, geo.cx + side * (geo.halfW + 11))));
+        for (let k = 0; k < 3; k++) {
+          const y = Math.round(HIT_Y + 4 - k * 9);
+          const color = Math.floor(step) === k ? PAL.white : PAL.cyan;
+          for (let i = 0; i < 7; i++) {
+            this.rect(x - i - 1, y + i, 3, 2, PAL.ink);
+            this.rect(x + i - 1, y + i, 3, 2, PAL.ink);
+          }
+          for (let i = 0; i < 6; i++) {
+            this.rect(x - i, y + i, 2, 2, color);
+            this.rect(x + i - 1, y + i, 2, 2, color);
+          }
+        }
+      }
+      // Spell it out for the first few seconds.
+      if (nowMs - h.odReadyAt < 3000 && Math.floor(nowMs / 300) % 2 === 0) {
+        this.text('SWIPE UP: OVERDRIVE', W / 2, Math.min(H - 10, HIT_Y + 21), PAL.cyan, 8, 'center');
+      }
     }
 
     drawDesktopHud(v, h, nowMs) {
