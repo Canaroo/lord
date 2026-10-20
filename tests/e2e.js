@@ -108,7 +108,15 @@ const TOUCH_BOT = () => {
     while (i < g.notes.length && g.notes[i].t <= t) {
       const n = g.notes[i++], id = pid++;
       send('pointerdown', n.lane, id);
-      setTimeout(() => send('pointerup', n.lane, id), Math.max(40, (n.len || 0) * 1000 + 30));
+      if (n.slide) {
+        // Follow the slide with the thumb.
+        const follow = () => {
+          if (!g.running || g.now() > n.t + n.len) { send('pointerup', ChartGen.slideLaneAt(n, n.t + n.len), id); return; }
+          send('pointermove', ChartGen.slideLaneAt(n, g.now()), id);
+          requestAnimationFrame(follow);
+        };
+        requestAnimationFrame(follow);
+      } else setTimeout(() => send('pointerup', n.lane, id), Math.max(40, (n.len || 0) * 1000 + 30));
     }
     requestAnimationFrame(loop);
   };
@@ -316,7 +324,23 @@ async function touchTests(browser) {
           window.__assisted++;
         }
         send('pointerdown', id, x, c.y);
-        if (n.len) {
+        if (n.slide) {
+          window.__slides = (window.__slides || 0) + 1;
+          const startX = c.x;
+          const follow = () => {
+            const now = g.now();
+            const p = st.laneCenterClient(g.lanes, ChartGen.slideLaneAt(n, Math.min(now, n.t + n.len)));
+            // Staying put would not count once the slide has moved over.
+            const k = (now - n.t) / n.len;
+            if (k > 0.75 && k < 0.95 && n.slide.length === 4) {
+              window.__stayWouldFail = Math.abs(st.lanePosAt(startX, p.y, g.lanes) - (ChartGen.slideLaneAt(n, now) + 0.5)) > 0.95;
+            }
+            if (!g.running || now > n.t + n.len) { send('pointerup', id, p.x, p.y); return; }
+            send('pointermove', id, p.x, p.y);
+            requestAnimationFrame(follow);
+          };
+          requestAnimationFrame(follow);
+        } else if (n.len) {
           setTimeout(() => send('pointermove', id, 8, innerHeight - 8), 60);
           setTimeout(() => send('pointerup', id, 8, innerHeight - 8), n.len * 1000 + 40);
         } else setTimeout(() => send('pointerup', id, x, c.y), 40);
@@ -328,16 +352,19 @@ async function touchTests(browser) {
   await page.waitForFunction(() => window.__touchGame.holds.length && BeatFrets.Input.touchPoints().some((f) => f.x < 20), null, { timeout: 20000 });
   await page.waitForTimeout(120);
   await page.screenshot({ path: path.join(outDir, 'e2e-touch-grab.png') });
-  await page.waitForTimeout(12000);
+  await page.waitForFunction(() => window.__touchGame.holds.some((h) => h.slide && window.__touchGame.now() > h.t + h.len * 0.55), null, { timeout: 40000 });
+  await page.screenshot({ path: path.join(outDir, 'e2e-touch-slide.png') });
+  await page.waitForTimeout(2500);
   await page.screenshot({ path: path.join(outDir, 'e2e-touch-hold.png') });
   const hold = await page.evaluate(() => {
     const g = window.__touchGame;
     const done = g.notes.filter((n) => n.judged);
     const now = g.now();
     const due = g.notes.filter((n) => n.len && n.judged).reduce((sum, n) => sum + Math.min(n.len, Math.max(0, now - n.t)), 0);
-    return { counts: g.counts, held: +g.holdHeld.toFixed(2), due: +due.toFixed(2), started: g.holdsStarted, assisted: window.__assisted, judged: done.length };
+    return { counts: g.counts, held: +g.holdHeld.toFixed(2), due: +due.toFixed(2), started: g.holdsStarted, slides: g.slidesStarted || 0, stayWouldFail: window.__stayWouldFail, assisted: window.__assisted, judged: done.length };
   });
   check(hold.started > 0 && hold.counts.miss === 0 && hold.held > 0.85 * hold.due, `long notes keep holding while the thumb slides away (${JSON.stringify(hold)})`);
+  check(hold.slides > 0 && hold.stayWouldFail === true, `slides are held by following them; staying put would drop them (${hold.slides} slides)`);
   check(hold.assisted > 3 && hold.counts.miss === 0, 'taps just inside the next lane count for its note (tap assist)');
   await touchZone(page, 'pause');
   await page.waitForTimeout(200);

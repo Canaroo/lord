@@ -71,7 +71,7 @@
       this.buffer = o.buffer;
       this.stage = o.stage;
       this.lanes = o.chart.lanes;
-      this.notes = o.chart.notes.map((n) => ({ t: n.t, lane: n.lane, len: n.len || 0, judged: null }));
+      this.notes = o.chart.notes.map((n) => ({ t: n.t, lane: n.lane, len: n.len || 0, slide: n.slide || null, judged: null }));
       this.beats = o.beats;
       this.lookahead = o.lookahead;
       this.calibration = o.calibration || 0;
@@ -338,7 +338,8 @@
       const kind = bestD <= this.win.perfect ? 'perfect' : bestD <= this.win.good ? 'good' : 'ok';
       best.judged = kind;
       if (best.len > 0) {
-        this.holdsStarted = (this.holdsStarted || 0) + 1;
+        if (best.slide) this.slidesStarted = (this.slidesStarted || 0) + 1;
+        else this.holdsStarted = (this.holdsStarted || 0) + 1;
         best.holdEnd = best.t + best.len;
         this.holds.push(best);
         this.holdTotal += best.len;
@@ -441,7 +442,9 @@
       for (const h of this.holds) {
         const seg = Math.max(0, Math.min(to, h.holdEnd) - Math.max(from, h.t));
         if (!seg) continue;
-        if (this.held[h.lane] || now - this.releasedAt[h.lane] < this.holdGrace * 1000) {
+        const on = h.slide ? this._onSlide(h, Math.min(to, h.holdEnd), now)
+          : this.held[h.lane] || now - this.releasedAt[h.lane] < this.holdGrace * 1000;
+        if (on) {
           this.score += HOLD_POINTS_PER_SEC * this.multiplier * seg;
           this.holdHeld += seg;
           if (!h.sparkAt || now - h.sparkAt > 70) {
@@ -455,6 +458,18 @@
         }
       }
       this.holds = this.holds.filter((h) => h.holdEnd > to);
+    }
+
+    /**
+     * A slide counts as held while some finger is within about a lane of where the
+     * slide is right now (lenient, like CHUNITHM), with the same short grace for a
+     * thumb that loses contact for a moment.
+     */
+    _onSlide(h, t, now) {
+      const at = ChartGen.slideLaneAt(h, t) + 0.5; // centre of the lane it's in
+      const near = Input.touchPoints().some((f) => Math.abs(this.stage.lanePosAt(f.x, f.y, this.lanes) - at) <= 0.95);
+      if (near) h.onAt = now;
+      return near || now - (h.onAt || -Infinity) < this.holdGrace * 1000;
     }
 
     /** Where the personal best stood at song time t (linear between samples). */
@@ -523,6 +538,7 @@
         holds: this.holds,
         fingers: this.stage.layout !== 'keys' ? Input.touchPoints() : null,
         holdTip: this.stage.layout !== 'keys' && this.holdsStarted <= 3,
+        slideTip: this.slidesStarted <= 3,
         nextIdx: this.nextIdx,
         lookahead: this.lookahead,
         held: this.held,

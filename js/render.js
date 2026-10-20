@@ -484,7 +484,7 @@
     }
 
     /** A long note's tail, from zFrom (nearer) to zTo (further), drawn scanline by scanline. */
-    drawTail(geo, lane, zFrom, zTo, body, core, alpha) {
+    drawTail(geo, lane, zFrom, zTo, body, core, alpha, laneAtZ = null) {
       const a = Math.max(-0.08, zFrom);
       const b = Math.min(1.15, zTo);
       if (b <= a) return;
@@ -494,6 +494,21 @@
       g.globalAlpha = alpha;
       for (let y = yFar; y <= yNear; y++) {
         const s = (y - HORIZON) / (HIT_Y - HORIZON);
+        if (laneAtZ) {
+          // Slide: the tail follows its path, edged in white with stripes running down it.
+          const z = (1 / s - 1) / PERSPECTIVE;
+          const x = geo.cx + geo.laneX(laneAtZ(z)) * s;
+          const w = Math.max(1, geo.laneW * 0.3 * s);
+          g.fillStyle = PAL.white;
+          g.fillRect(Math.round(x - w) - 1, y, Math.round(w * 2) + 2, 1);
+          g.fillStyle = body;
+          g.fillRect(Math.round(x - w), y, Math.round(w * 2) || 1, 1);
+          if (w > 2 && (y + Math.floor(performance.now() / 40)) % 9 < 3) {
+            g.fillStyle = core;
+            g.fillRect(Math.round(x - w * 0.6), y, Math.max(1, Math.round(w * 1.2)), 1);
+          }
+          continue;
+        }
         const x = geo.cx + geo.laneX(lane) * s;
         const w = Math.max(1, geo.laneW * (LAYOUT === 'keys' ? 0.15 : 0.22) * s);
         g.fillStyle = body;
@@ -508,10 +523,22 @@
 
     drawTails(v, geo) {
       const zOf = (time) => (time - v.t) / v.lookahead;
+      const path = (n) => (n.slide ? (z) => ChartGen.slideLaneAt(n, v.t + z * v.lookahead) : null);
       // Tails being held (or let go) right now run from the strike line.
       for (const h of v.holds || []) {
         const down = v.held && v.held[h.lane];
-        this.drawTail(geo, h.lane, 0, zOf(h.holdEnd), down ? LANES_LIGHT[h.lane] : LANES_DARK[h.lane], down ? PAL.white : LANES[h.lane], down ? 1 : 0.55);
+        this.drawTail(geo, h.lane, 0, zOf(h.holdEnd), down ? LANES_LIGHT[h.lane] : LANES_DARK[h.lane], down ? PAL.white : LANES[h.lane], down ? 1 : 0.55, path(h));
+        if (h.slide) {
+          // Where the thumb should be right now: a bracket on the strike line.
+          const x = geo.cx + geo.laneX(ChartGen.slideLaneAt(h, v.t));
+          const hy = Math.round(geo.yAt(0));
+          const hw = Math.round(geo.laneW * 0.48);
+          const c = Math.floor(performance.now() / 120) % 2 ? PAL.white : LANES_LIGHT[h.lane];
+          this.rect(x - hw, hy - 9, hw * 2, 2, c);
+          this.rect(x - hw, hy + 7, hw * 2, 2, c);
+          this.rect(x - hw, hy - 9, 2, 18, c);
+          this.rect(x + hw - 2, hy - 9, 2, 18, c);
+        }
         if (down && LAYOUT === 'keys') {
           const y = geo.yAt(0);
           const x = geo.cx + geo.laneX(h.lane);
@@ -526,8 +553,8 @@
         const z = zOf(n.t);
         if (z > 1.15) break;
         if (!n.len) continue;
-        if (n.judged === 'miss') this.drawTail(geo, n.lane, z, zOf(n.t + n.len), '#3a3a50', '#4a4a60', 0.6);
-        else if (!n.judged) this.drawTail(geo, n.lane, z, zOf(n.t + n.len), LANES_DARK[n.lane], LANES[n.lane], 0.95);
+        if (n.judged === 'miss') this.drawTail(geo, n.lane, z, zOf(n.t + n.len), '#3a3a50', '#4a4a60', 0.6, path(n));
+        else if (!n.judged) this.drawTail(geo, n.lane, z, zOf(n.t + n.len), LANES_DARK[n.lane], LANES[n.lane], 0.95, path(n));
       }
     }
 
@@ -863,12 +890,12 @@
         this.ellipse(p.x, p.y, r, r * 0.6, color);
         this.ellipse(p.x, p.y, r - 3, r * 0.6 - 3, PAL.white);
       }
-      if (v.holdTip && v.holds.length) {
-        const h = v.holds[0];
+      const h = v.holds[0];
+      if (h && (h.slide ? v.slideTip : v.holdTip)) {
         const fret = this.fretPos(v.lanes, h.lane);
         const x = Math.max(44, Math.min(W - 44, fret.x));
-        this.text('KEEP HOLDING', x, fret.y - 34, PAL.white, 8, 'center');
-        this.text('SLIDE AWAY OK', x, fret.y - 24, PAL.cyan, 8, 'center');
+        this.text(h.slide ? 'SLIDE!' : 'KEEP HOLDING', x, fret.y - 34, PAL.white, 8, 'center');
+        this.text(h.slide ? 'FOLLOW IT' : 'SLIDE AWAY OK', x, fret.y - 24, PAL.cyan, 8, 'center');
       }
     }
 
@@ -1204,11 +1231,20 @@
       if (inside(zones.pause)) return { type: 'pause' };
       if (p.y < HUD_TOP) return null;
       const geo = this.geometry(lanes);
-      // Lanes follow the highway's perspective: narrower up the screen, wider on
-      // the pads below the line.
-      const sc = Math.max(0.55, (p.y - HORIZON) / (HIT_Y - HORIZON));
-      const pos = (p.x - (geo.cx - geo.halfW * sc)) / (geo.laneW * sc); // 1.8 = lane 1, near lane 2
+      const pos = this.lanePosAt(clientX, clientY, lanes);
       return { type: 'lane', lane: Math.max(0, Math.min(lanes - 1, Math.floor(pos))), pos };
+    }
+
+    /**
+     * Where a point on screen is across the lanes: 1.8 = lane 1, near lane 2.
+     * Lanes follow the highway's perspective: narrower up the screen, wider on the
+     * pads below the line.
+     */
+    lanePosAt(clientX, clientY, lanes) {
+      const p = this.toBuffer(clientX, clientY);
+      const geo = this.geometry(lanes);
+      const sc = Math.max(0.55, (p.y - HORIZON) / (HIT_Y - HORIZON));
+      return (p.x - (geo.cx - geo.halfW * sc)) / (geo.laneW * sc);
     }
 
     /** Centre of a lane's touch column on screen (for tests and hints). */

@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.3';
+  const VERSION = '1.4';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -456,7 +456,7 @@
         let charts;
         // A chart file from an older version of the game lacks newer tiers or long
         // notes; rebuild in the browser rather than play an incomplete set.
-        const upToDate = chart && chart.charts && chart.analyzer === BeatAnalyzer.VERSION && ChartGen.ALL_IDS.every((id) => chart.charts[id]);
+        const upToDate = chart && chart.charts && chart.analyzer === BeatAnalyzer.VERSION && chart.chartgen === ChartGen.VERSION && ChartGen.ALL_IDS.every((id) => chart.charts[id]);
         if (upToDate) {
           setProgress(0.75, 'Lining the chart up with the audio…');
           const n = Math.min(buffer.length, Math.floor(BonusPack.ALIGN_SECONDS * buffer.sampleRate));

@@ -178,7 +178,10 @@
     const reservedUntil = new Array(cfg.lanes).fill(-Infinity);
     const holdBudget = cfg.holds ? Math.floor(chosen.length * cfg.holds.share) : 0;
     let reservations = 0;
+    let slideRoom = 0; // touch: every other long hold leaves room for it to become a slide
+    let roomUntil = -Infinity; // upright: both thumbs' lanes kept clear for a slide until then
     for (const c of chosen) {
+      if (c.t < roomUntil) continue;
       // Gently discourage lanes that dominate the last dozen notes, so close
       // calls spread across the frets instead of piling onto one.
       const scores = laneScores(c.b, cfg.lanes).map((v, l) => {
@@ -211,11 +214,15 @@
         const until = c.t + Math.min(c.d, cfg.holds.maxLen) + HOLD_GAP;
         // On touch the whole thumb is busy holding, not just the lane, and on
         // 4 lanes the lane right beside it stays clear so thumbs don't collide.
+        // Every other long hold keeps the lanes a slide would move through clear too.
+        const outer = cfg.lanes === 2 || lane === 0 || lane === cfg.lanes - 1;
+        const room = touch && outer && Math.min(c.d, cfg.holds.maxLen) >= SLIDE_MIN_LEN && slideRoom++ % 2 === 0;
         for (let l = 0; l < cfg.lanes; l++) {
           const sameHand = touch && hand(l, cfg.lanes) === hand(lane, cfg.lanes);
-          const beside = touch && cfg.lanes === 4 && Math.abs(l - lane) === 1;
-          if (l === lane || sameHand || beside) reservedUntil[l] = until;
+          const beside = touch && cfg.lanes === 4 && Math.abs(l - lane) <= (room ? 2 : 1);
+          if (l === lane || sameHand || beside || (room && cfg.lanes === 2)) reservedUntil[l] = until;
         }
+        if (room && cfg.lanes === 2) roomUntil = until;
         reservations++;
       }
 
@@ -230,7 +237,12 @@
     }
     notes.sort((a, b) => a.t - b.t || a.lane - b.lane);
     if (cfg.holds) addHolds(notes, cfg.holds, beatPeriod(analysis.beats), touch ? cfg.lanes : 0);
-    return { difficulty, lanes: cfg.lanes, notes: notes.map(({ t, lane, len }) => (len ? { t, lane, len } : { t, lane })) };
+    if (touch && cfg.holds) addSlides(notes, cfg.lanes);
+    return {
+      difficulty,
+      lanes: cfg.lanes,
+      notes: notes.map(({ t, lane, len, slide }) => (slide ? { t, lane, len, slide } : len ? { t, lane, len } : { t, lane })),
+    };
   }
 
   /** Which thumb plays a lane: left half of the lanes or right half. */
@@ -313,7 +325,66 @@
       (hand(o.lane, lanes) === hand(n.lane, lanes) || (lanes === 4 && Math.abs(o.lane - n.lane) === 1)));
   }
 
+  // ---- slides (touch) ----------------------------------------------------------------------
+  //
+  // A slide is a long note whose tail curves into the neighbouring lane (and
+  // sometimes back): the thumb follows it, CHUNITHM/Arcaea style. Its path is a
+  // list of [fraction of the hold, lane] points, eased between.
+
+  const SLIDE_MIN_LEN = 0.6; // seconds
+  const SLIDE_SHAPES = {
+    move: [[0, 0], [0.25, 0], [0.7, 1], [1, 1]], // 0 = start lane, 1 = target lane
+    wave: [[0, 0], [0.2, 0], [0.5, 1], [0.8, 0], [1, 0]],
+  };
+
+  /** Lane a slide is in at time t (fractional while it moves). */
+  function slideLaneAt(n, t) {
+    const k = Math.max(0, Math.min(1, (t - n.t) / n.len));
+    const p = n.slide;
+    for (let i = 1; i < p.length; i++) {
+      if (k <= p[i][0]) {
+        const [a0, l0] = p[i - 1];
+        const [a1, l1] = p[i];
+        const u = a1 > a0 ? (k - a0) / (a1 - a0) : 1;
+        return l0 + (l1 - l0) * u * u * (3 - 2 * u);
+      }
+    }
+    return p[p.length - 1][1];
+  }
+
+  /**
+   * Turn some long notes into slides. Sideways (4 lanes) a slide stays in its
+   * thumb's half: outer lane → inner lane. Upright (2 lanes) it crosses to the
+   * other lane, so that thumb must be free. Either way, the lanes the slide moves
+   * into (and, sideways, the other thumb's lane right beside it) stay clear while
+   * it's there.
+   */
+  function addSlides(notes, lanes) {
+    let count = 0;
+    for (const h of notes) {
+      if (!h.len || h.len < SLIDE_MIN_LEN) continue;
+      const target = lanes === 4 ? (h.lane === 0 ? 1 : h.lane === 3 ? 2 : null) : 1 - h.lane;
+      if (target == null) continue;
+      const guard = lanes === 4 ? [target, target === 1 ? 2 : 1] : [target];
+      const tries = h.len >= 1 && count % 2 === 1 ? ['wave', 'move'] : ['move'];
+      for (const shape of tries) {
+        const pts = SLIDE_SHAPES[shape];
+        const away = pts.filter(([, l]) => l > 0).map(([a]) => a);
+        // From when it starts leaving the lane to when it's back (or the end).
+        const from = h.t + pts[pts.findIndex(([, l]) => l > 0) - 1][0] * h.len - 0.05;
+        const to = h.t + Math.max(...away, shape === 'move' ? 1 : 0) * h.len + HOLD_GAP;
+        if (notes.some((o) => o !== h && guard.includes(o.lane) && o.t > from && o.t < to)) continue;
+        h.slide = pts.map(([a, l]) => [a, l ? target : h.lane]);
+        count++;
+        break;
+      }
+    }
+  }
+
   const ALL_IDS = [...Object.keys(DIFFICULTIES), ...TOUCH_TIERS.map((d) => 'touch4:' + d), ...TOUCH_TIERS.map((d) => 'touch2:' + d)];
 
-  return { generate, generateId, parseId, DIFFICULTIES, TOUCH_TIERS, ALL_IDS };
+  // Bump when charts change shape, so pre-built bonus charts get rebuilt.
+  const VERSION = 2; // 2: slides on touch charts
+
+  return { generate, generateId, parseId, slideLaneAt, DIFFICULTIES, TOUCH_TIERS, ALL_IDS, VERSION };
 });

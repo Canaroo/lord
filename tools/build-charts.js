@@ -58,6 +58,7 @@ async function build(file, index) {
   fs.writeFileSync(path.join(SONGS_DIR, chartFile), JSON.stringify({
     version: 1,
     analyzer: BeatAnalyzer.VERSION,
+    chartgen: ChartGen.VERSION,
     duration: analysis.duration,
     bpm: analysis.bpm,
     beats: analysis.beats,

@@ -62,6 +62,12 @@ press a key or a controller button.
   that loses contact for a split second doesn't drop it. Phone charts put long notes on the outer
   lanes and keep the lane beside them clear, so the other thumb never has to squeeze in next to
   the held one.
+- **Slides:** some phone long notes have a striped, white-edged tail that curves into the next
+  lane, and sometimes back again (CHUNITHM / Arcaea style). Hit the start, then slide your thumb
+  along with it. A bracket on the strike line shows where your thumb should be. It's forgiving:
+  being within about a lane of the path counts, and a quick wobble doesn't drop it. Sideways, a
+  slide stays on its own thumb's half; upright, the other thumb gets a rest while it crosses.
+  Keyboard and controller charts don't have slides.
 - **Tap assist:** hit areas are a little wider than they look. A tap that lands just inside the
   lane next to a note (or on a lane your other thumb is holding) counts for the note.
 - **Nothing covers the notes.** The multiplier and streak sit to the left of the far end of the
@@ -195,6 +201,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.4**: slide notes on phones: long notes whose tail curves into the next lane (and sometimes
+  back), followed with your thumb.
 - **1.3**: choose your strike line height (drag it before your first phone game, or in Options);
   a bar joins notes that arrive together.
 - **1.2**: thicker note bars on phones (15 px at the strike line); version number on screen.

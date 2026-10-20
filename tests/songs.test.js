@@ -95,3 +95,32 @@ test('touch: a held long note never has notes for the same thumb, or right besid
   }
   assert.ok(holdsTotal > 0);
 });
+
+test('touch slides: only on phone charts, and the lanes they move through stay clear', () => {
+  let slides = 0, waves = 0;
+  for (const song of SongPack.SONGS) {
+    const a = SongPack.toAnalysis(SongPack.build(song));
+    for (const id of ChartGen.ALL_IDS) {
+      const c = ChartGen.generateId(a, id);
+      if (!id.startsWith('touch')) {
+        assert.ok(!c.notes.some((n) => n.slide), `${id} must not have slides`);
+        continue;
+      }
+      for (const h of c.notes.filter((n) => n.slide)) {
+        slides++;
+        if (h.slide.length === 5) waves++;
+        assert.ok(h.len >= 0.6, 'slides are long enough to follow');
+        const target = h.slide.find(([, l]) => l !== h.lane)[1];
+        assert.strictEqual(Math.abs(target - h.lane), 1, 'a slide moves one lane');
+        assert.strictEqual(ChartGen.slideLaneAt(h, h.t), h.lane, 'starts in its lane');
+        // Wherever the slide is, nothing else comes in that lane or (sideways) right beside it.
+        for (const o of c.notes) {
+          if (o === h || o.t <= h.t + 0.01 || o.t >= h.t + h.len) continue;
+          const at = ChartGen.slideLaneAt(h, o.t);
+          assert.ok(Math.abs(o.lane - at) >= (c.lanes === 4 ? 1.5 : 1), `${song.id} ${id}: note in lane ${o.lane} at ${o.t} collides with a slide at lane ${at.toFixed(2)}`);
+        }
+      }
+    }
+  }
+  assert.ok(slides > 20 && waves > 3, `slides ${slides}, waves ${waves}`);
+});
