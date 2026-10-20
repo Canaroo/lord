@@ -214,6 +214,10 @@
         <input id="opt-music" type="range" min="0" max="1" step="0.05" />
         <label for="opt-sfx">EFFECTS VOLUME <output id="opt-sfx-out"></output></label>
         <input id="opt-sfx" type="range" min="0" max="1" step="0.05" />
+        <label for="opt-strike4" class="touch-only">STRIKE LINE, SIDEWAYS <output id="opt-strike4-out"></output></label>
+        <input id="opt-strike4" class="touch-only" type="range" min="16" max="40" step="1" />
+        <label for="opt-strike2" class="touch-only">STRIKE LINE, UPRIGHT <output id="opt-strike2-out"></output></label>
+        <input id="opt-strike2" class="touch-only" type="range" min="10" max="32" step="1" />
       </div>
       <div class="menu">
         <button id="opt-crt" class="toggle">CRT SCANLINES <span></span></button>
@@ -222,6 +226,7 @@
         <button id="opt-overhit" class="toggle">OVERHIT PENALTY <span></span> <small>Stray presses break your streak (Medium and up)</small></button>
         <button id="opt-vibrate" class="toggle" hidden>VIBRATION <span></span> <small>Short buzzes on misses and level-ups (touch)</small></button>
         <button id="opt-hits" class="toggle">HIT SOUNDS <span></span> <small>A soft tick on every note you hit</small></button>
+        <button id="btn-strike" class="touch-only">MOVE STRIKE LINE <small>Drag it to where your thumbs rest</small></button>
         <button id="btn-calibrate">AUTO-CALIBRATE TIMING</button>
       </div>
       <p class="hint" id="pad-status"></p>
@@ -250,6 +255,17 @@
       <div id="calib-dots" class="dots"></div>
       <p id="calib-status" class="hint" aria-live="polite"></p>
       <div class="menu row"><button id="btn-calib-done">DONE</button></div>
+    </section>
+
+    <!-- Phones: where should the strike line sit? -->
+    <section id="screen-strike-setup" class="screen win" data-back="song">
+      <h2 class="small">WHERE DO YOUR THUMBS GO?</h2>
+      <p class="hint">Drag the glowing line up or down to where your thumbs feel comfortable. Notes are hit on the line, and you can tap anywhere in a lane below it.</p>
+      <div class="menu row">
+        <button id="btn-strike-done" data-autofocus>DONE</button>
+        <button id="btn-strike-reset">RESET</button>
+        <button data-back-btn>BACK</button>
+      </div>
     </section>
 
     <!-- First touch game: calibrate? -->

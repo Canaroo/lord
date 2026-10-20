@@ -193,6 +193,23 @@ async function touchTests(browser) {
 
   // The first touch game offers a quick timing check first.
   await page.tap('[data-diff="touch4:medium"]');
+  // First, put the strike line where your thumbs rest: drag it on the stage.
+  await screenIs(page, 'strike-setup');
+  const before = await page.evaluate(() => BeatFrets.save.settings.strikeUp4);
+  await page.evaluate(() => {
+    const cv = document.getElementById('stage');
+    const ev = (type, y) => cv.dispatchEvent(new PointerEvent(type, { pointerId: 77, pointerType: 'touch', clientX: innerWidth / 2, clientY: y, bubbles: true }));
+    ev('pointerdown', innerHeight * 0.75);
+    ev('pointermove', innerHeight * 0.65);
+    ev('pointerup', innerHeight * 0.65);
+  });
+  const after = await page.evaluate(() => BeatFrets.save.settings.strikeUp4);
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(outDir, 'e2e-touch-strike.png') });
+  check(before === 28 && after >= 33 && after <= 37, `dragging moves the strike line up (${before}% → ${after}%)`);
+  await page.tap('#btn-strike-reset');
+  check(await page.evaluate(() => BeatFrets.save.settings.strikeUp4 === 28), 'RESET puts the strike line back');
+  await page.tap('#btn-strike-done');
   await screenIs(page, 'calib-offer');
   check(true, 'first touch game offers timing calibration');
   await page.tap('#btn-offer-play');

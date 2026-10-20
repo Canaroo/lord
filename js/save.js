@@ -32,6 +32,10 @@
     calibrationTouchMs: 0, // touch screens have their own delay
     vibrate: false,
     touchCalibOffered: false,
+    // Phones: strike line height, in % of the screen above the bottom edge.
+    strikeUp4: 28, // sideways (4 lanes)
+    strikeUp2: 20, // upright (2 lanes)
+    strikeOffered: false,
   };
 
   function emptySave() {

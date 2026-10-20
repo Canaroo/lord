@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.2';
+  const VERSION = '1.3';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -101,6 +101,7 @@
   function show(name, { focus } = {}) {
     if (updateWaiting && !game && (name === 'title' || name === 'main')) { location.reload(); return; }
     stopPreview();
+    stage.setupMode = name === 'strike-setup';
     screen = name;
     $('#panel').classList.toggle('hidden', !name);
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
@@ -170,6 +171,12 @@
     if (!$('#pause').hidden) { if (game) game.resume(); return; }
     if (screen === 'initials') { initials.cancel(); return; }
     if (screen === 'calib') { leaveCalib(); return; }
+    if (screen === 'strike-setup') {
+      pendingPlay = null;
+      Sfx.back();
+      if (strikeReturn === 'options') { renderOptions(); show('options'); } else showSong();
+      return;
+    }
     if (screen === 'song') { Sfx.back(); show(songOrigin); return; }
     const el = screen && $('#screen-' + screen);
     const target = el && el.dataset.back;
@@ -778,7 +785,14 @@
   async function play(difficulty) {
     if (!current) return;
     const tier = parseId(difficulty);
-    // First touch game: offer a quick timing check, since phone audio delay varies a lot.
+    // First touch game: let the player put the strike line where their thumbs rest...
+    if (tier.touch && !settings.strikeOffered) {
+      save.setSetting('strikeOffered', true);
+      pendingPlay = difficulty;
+      openStrikeSetup('play');
+      return;
+    }
+    // ...then offer a quick timing check, since phone audio delay varies a lot.
     if (tier.touch && !settings.touchCalibOffered) {
       save.setSetting('touchCalibOffered', true);
       pendingPlay = difficulty;
@@ -1307,6 +1321,12 @@
     $('#opt-nofail span').textContent = settings.noFail ? 'ON' : 'OFF';
     $('#opt-hits span').textContent = settings.hitSounds ? 'ON' : 'OFF';
     $('#opt-overhit span').textContent = settings.overhit ? 'ON' : 'OFF';
+    for (const n of [4, 2]) {
+      const up = settings['strikeUp' + n];
+      const [lo, hi] = n === 4 ? [22, 34] : [16, 26];
+      $(`#opt-strike${n}`).value = up;
+      $(`#opt-strike${n}-out`).textContent = (up <= lo ? 'LOW' : up >= hi ? 'HIGH' : 'MIDDLE') + ` (${up}%)`;
+    }
     document.body.classList.toggle('crt', settings.crt);
     updateDeviceUI();
   }
@@ -1320,6 +1340,14 @@
   $('#opt-calib').addEventListener('input', (e) => { save.setSetting(calKey(), parseInt(e.target.value, 10)); renderOptions(); });
   bindRange('#opt-music', 'music', parseFloat);
   bindRange('#opt-sfx', 'sfx', parseFloat);
+  for (const n of [4, 2]) {
+    $(`#opt-strike${n}`).addEventListener('input', (e) => {
+      save.setSetting('strikeUp' + n, parseInt(e.target.value, 10));
+      applyStrike();
+      renderOptions();
+    });
+  }
+  $('#btn-strike').addEventListener('click', () => openStrikeSetup('options'));
   for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-overhit', 'overhit'], ['#opt-vibrate', 'vibrate']]) {
     $(id).addEventListener('click', () => { save.setSetting(key, !settings[key]); renderOptions(); });
   }
@@ -1526,6 +1554,53 @@
     const hit = stage.hitTest(x, y, game.lanes);
     if (hit && hit.type === 'lane') hit.lane = game.assistLane(hit.lane, hit.pos);
     return hit;
+  });
+
+  // ---- strike line height (phones) -------------------------------------------------------------------------
+  // Stored as % of the screen above the bottom edge, so "higher" means a bigger number.
+
+  const STRIKE_UP = { 4: [16, 40, 28], 2: [10, 32, 20] }; // min, max, default
+  function applyStrike() {
+    stage.setStrike('touch4', 1 - settings.strikeUp4 / 100);
+    stage.setStrike('touch2', 1 - settings.strikeUp2 / 100);
+  }
+  applyStrike();
+
+  let strikeReturn = 'play';
+  function openStrikeSetup(ret) {
+    strikeReturn = ret;
+    applyLayout();
+    show('strike-setup');
+  }
+  function setStrikeFromScreen(clientY) {
+    const mode = stage.layout;
+    if (mode === 'keys') return;
+    const n = mode === 'touch4' ? 4 : 2;
+    const [lo, hi] = STRIKE_UP[n];
+    const y = stage.toBuffer(0, clientY).y;
+    const up = Math.round((1 - y / stage.height) * 100);
+    save.setSetting('strikeUp' + n, Math.max(lo, Math.min(hi, up)));
+    applyStrike();
+  }
+  let strikeDrag = null;
+  $('#stage').addEventListener('pointerdown', (e) => {
+    if (screen !== 'strike-setup' || game) return;
+    strikeDrag = e.pointerId;
+    setStrikeFromScreen(e.clientY);
+  });
+  $('#stage').addEventListener('pointermove', (e) => { if (strikeDrag === e.pointerId) setStrikeFromScreen(e.clientY); });
+  window.addEventListener('pointerup', () => { strikeDrag = null; });
+  window.addEventListener('pointercancel', () => { strikeDrag = null; });
+  $('#btn-strike-reset').addEventListener('click', () => {
+    const n = stage.layout === 'touch2' ? 2 : 4;
+    save.setSetting('strikeUp' + n, STRIKE_UP[n][2]);
+    applyStrike();
+  });
+  $('#btn-strike-done').addEventListener('click', () => {
+    if (strikeReturn === 'options') { renderOptions(); show('options'); return; }
+    const id = pendingPlay;
+    pendingPlay = null;
+    if (id) play(id); else showSong();
   });
 
   // First touch game: calibrate now or play.

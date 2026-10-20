@@ -17,6 +17,8 @@
   let HORIZON = 64;
   let HIT_Y = 192;
   let LAYOUT = 'keys';
+  // Strike line limits per phone layout (fraction of height from the top).
+  const STRIKE_RANGE = { touch4: [0.6, 0.84], touch2: [0.68, 0.9] };
   const HUD_TOP = 26; // touch: taps above this line are the top strip (pause), below are lanes
   const PERSPECTIVE = 3;
   const FONT = '"Press Start 2P", monospace';
@@ -91,6 +93,8 @@
 
   class Stage {
     constructor(canvas) {
+      this.strike = { touch4: 0.72, touch2: 0.8 };
+      this.setupMode = false;
       this.canvas = canvas;
       this.out = canvas.getContext('2d');
       this.buf = document.createElement('canvas');
@@ -179,21 +183,32 @@
      * Switch layout. `aspect` is the screen's width / height, so phone layouts
      * fill the screen instead of letterboxing. Returns true if anything changed.
      */
+    /**
+     * Phones: where the strike line sits, as a fraction of the screen height from
+     * the top. Players can move it to suit how they hold the phone.
+     */
+    setStrike(mode, frac) {
+      const [lo, hi] = STRIKE_RANGE[mode];
+      this.strike[mode] = Math.max(lo, Math.min(hi, frac));
+      if (LAYOUT === mode) this.setLayout(mode, this.aspect);
+    }
+
     setLayout(mode, aspect = 16 / 9) {
+      this.aspect = aspect;
       let w = 400, h = 225, hz = 64, hit = 192;
       if (mode === 'touch4') {
         w = Math.max(400, Math.min(488, Math.round(225 * aspect)));
         hz = 58;
         // The strike line sits at ~72% height; the lanes carry on below it as big
         // tap pads, so thumbs rest under the line and never hide incoming notes.
-        hit = Math.round(h * 0.72);
+        hit = Math.round(h * this.strike.touch4);
       } else if (mode === 'touch2') {
         w = 225;
         h = Math.max(360, Math.min(500, Math.round(225 / Math.min(1, aspect))));
         hz = Math.round(h * 0.32);
-        hit = Math.round(h * 0.8);
+        hit = Math.round(h * this.strike.touch2);
       }
-      if (mode === LAYOUT && w === W && h === H) return false;
+      if (mode === LAYOUT && w === W && h === H && hit === HIT_Y) return false;
       LAYOUT = mode;
       W = w; H = h; HORIZON = hz; HIT_Y = hit;
       this.buf.width = W;
@@ -204,6 +219,7 @@
     }
 
     get layout() { return LAYOUT; }
+    get height() { return H; }
 
     geometry(lanes) {
       const halfW = LAYOUT === 'touch4' ? Math.min(W * 0.36, 150)
@@ -258,6 +274,7 @@
       }
       this.drawEdges(v, pulse, level, energy);
       if (v.hud) this.drawHud(v, nowMs);
+      if (this.setupMode && LAYOUT !== 'keys') this.drawStrikeHandle(geo, nowMs);
       this.blit(dt);
     }
 
@@ -526,6 +543,26 @@
         if (n.judged && n.judged !== 'miss') continue;
         vis.push([n, z]);
       }
+      // Notes that arrive together are joined by a bar, so chords read at a glance.
+      const together = new Map();
+      for (const [n, z] of vis) {
+        if (n.judged) continue;
+        if (!together.has(n.t)) together.set(n.t, []);
+        together.get(n.t).push([n, z]);
+      }
+      for (const group of together.values()) {
+        if (group.length < 2) continue;
+        const z = group[0][1];
+        const s = geo.scale(z);
+        const y = Math.round(geo.yAt(z));
+        const xs = group.map(([n]) => geo.cx + geo.laneX(n.lane) * s);
+        const x0 = Math.round(Math.min(...xs)), x1 = Math.round(Math.max(...xs));
+        const t = Math.max(1, Math.round(3 * s));
+        this.g.globalAlpha = z > 0.95 ? Math.max(0, (1.15 - z) / 0.2) * 0.8 : 0.8;
+        this.rect(x0, y - Math.ceil(t / 2) - 1, x1 - x0, t + 2, PAL.ink);
+        this.rect(x0, y - Math.ceil(t / 2), x1 - x0, t, v.odActive ? PAL.cyan : PAL.white);
+        this.g.globalAlpha = 1;
+      }
       for (let i = vis.length - 1; i >= 0; i--) {
         const [n, z] = vis[i];
         const s = geo.scale(z);
@@ -548,6 +585,25 @@
         this.ellipse(x - rx * 0.25, y - ry * 0.45, rx * 0.35, ry * 0.25, v.odActive ? PAL.cyan : PAL.white);
         this.g.globalAlpha = 1;
       }
+    }
+
+    /** Strike line setup: a grab handle on the line, so it's obvious you can drag it. */
+    drawStrikeHandle(geo, nowMs) {
+      const hy = Math.round(geo.yAt(0));
+      const bob = Math.round(Math.sin(nowMs / 180) * 2);
+      const glow = 0.5 + 0.5 * Math.sin(nowMs / 140);
+      this.g.globalAlpha = 0.35 + 0.4 * glow;
+      this.rect(0, hy - 1, W, 3, PAL.cyan);
+      this.g.globalAlpha = 1;
+      for (const x of [14, W - 14]) {
+        this.window(x - 10, hy - 16, 20, 32);
+        for (let i = 0; i < 4; i++) {
+          this.rect(x - i, hy - 10 + i - bob, 1 + i * 2, 1, PAL.cyan);
+          this.rect(x - i, hy + 10 - i + bob, 1 + i * 2, 1, PAL.cyan);
+        }
+        this.rect(x - 5, hy - 1, 11, 3, PAL.white);
+      }
+      this.text('DRAG THE LINE', W / 2, Math.min(H - 10, hy + 14), PAL.white, 8, 'center');
     }
 
     /** Phones: a note is a flat bar almost as wide as its lane, like the pad it's aimed at. */

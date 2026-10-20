@@ -53,6 +53,9 @@ press a key or a controller button.
   upright), and each lane carries on below it as a big pad down to the bottom edge. Rest your
   thumbs on the pads, below the line, and tap anywhere in a lane's column, so your thumbs never
   cover the notes coming in. A pressed pad lights up.
+- **Your strike line height:** before your first phone game you can drag the line to where your
+  thumbs rest. Change it any time in **Options** (*Strike line, sideways / upright* or *Move
+  strike line*). Sideways and upright are saved separately.
 - **Long notes on a phone:** once you've grabbed one, that thumb can **slide anywhere**, off to
   the side or down off the frets, and it keeps holding. A glowing ring under your thumb, tied to
   its fret, shows it's still held, and the first few long notes in a song say so. A quick wobble
@@ -103,6 +106,8 @@ Hit each note as it crosses the line.
 Bluetooth headphones usually need this.
 
 ## Feel and feedback
+
+- **Notes that arrive together** are joined by a bar, so chords read at a glance.
 
 - **The stage follows your streak.** At ×1 it's calm and dim. At ×2 the lights pulse and the
   crowd bobs. At ×3 the rails glow and the crowd raises its arms. At ×4 and in overdrive, lasers
@@ -190,6 +195,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.3**: choose your strike line height (drag it before your first phone game, or in Options);
+  a bar joins notes that arrive together.
 - **1.2**: thicker note bars on phones (15 px at the strike line); version number on screen.
 - **1.1**: phone play: big lane pads below a raised strike line, flat bar notes, slide-away long
   notes, tap assist, side HUD, swipe-up overdrive, installable app.

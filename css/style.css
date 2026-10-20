@@ -404,3 +404,7 @@ body.touch .kbd-only { display: none; }
 
 /* Version number: small, but always there. */
 .version { color: var(--muted); letter-spacing: 1px; }
+
+/* Strike line setup: keep the window at the top so the line stays visible to drag. */
+#screen-strike-setup { align-self: start; width: min(460px, 100%); }
+#screen-strike-setup .hint { margin: 6px 0; }
