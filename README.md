@@ -44,11 +44,15 @@ menu, or the **TILES** switch on any song's screen.
 
 - **Hold the phone upright.** Four columns fill the screen and dark tiles fall straight down.
   Tap a tile's column as its coloured edge reaches the line near the bottom (a little early is
-  fine). Hold long tiles until they've filled up.
-- **One heart.** A tile that slips past, or a tap on an empty column, ends the run.
+  fine). A tapped tile floods with colour from its border inward.
+- **Long tiles** have coloured side rails, a dashed track and a start pad with an arrow. Press and
+  hold: the tile fills with colour as you hold it, and bursts when you reach the end. Let go
+  early and the colour drains away.
+- **Two hearts.** A tile that slips past, or a tap on an empty column, costs one; lose both and
+  the run ends. Each new lap gives one back.
 - **It keeps going.** When the song ends it loops, 22% faster every lap (up to 2.5x speed).
 - **Every tap counts:** each tile plays a chime (its column's note, with a sparkle on PERFECT),
-  flashes and bursts, and sends a beam of light up its column. The board pulses to the beat and
+  fills with colour, presses down a touch, and sends a beam of light up its column. The board pulses to the beat and
   flashes every 25 tiles in a row.
 - **Stars and crowns:** three stars through the first lap, then a crown for every lap after.
 - **Easy, Medium and Hard** use the same note charts as the phone game. Tiles scores have their
@@ -218,6 +222,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.7**: Tiles mode: two hearts (one back each lap); tapped tiles fill with colour; long tiles
+  look different and fill while held.
 - **1.6**: Tiles mode: one heart, 22% faster every lap, and much juicier taps (chimes, light
   beams, rings, sparkles, glossy tiles, a board that pulses to the beat).
 - **1.5**: Tiles mode: a Magic Tiles–style way to play any song (upright board, 3 lives,

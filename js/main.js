@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.6';
+  const VERSION = '1.7';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -765,7 +765,7 @@
         ? '4 lanes. Turn your phone upright for 2.'
         : '2 lanes. Turn your phone sideways for 4.');
     }
-    if (tilesMode()) $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · Tap each tile as it reaches the line. One heart, and every lap gets faster.`;
+    if (tilesMode()) $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · Tap each tile as it reaches the line. Two hearts, and every lap gets faster.`;
     $('#mode-tabs').innerHTML = [['frets', 'BEAT FRETS'], ['tiles', 'TILES']]
       .map(([m, label]) => `<button data-mode="${m}" class="${settings.playMode === m ? 'on' : ''}">${label}</button>`).join('');
     $('#song-match').hidden = !current.matchNote;

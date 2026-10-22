@@ -3,9 +3,10 @@
  *
  * A flat board of four columns, played upright. Tiles fall straight down; tap a
  * tile's column as it reaches the line near the bottom (early is fine). Long
- * tiles are held. One heart: a tile that slips past, or a tap on an empty
- * column, ends the run. The song loops, faster every lap. Stars come during the
- * first lap, crowns for every lap after that.
+ * tiles are held, and fill with colour while you hold them. Two hearts: a tile
+ * that slips past, or a tap on an empty column, costs one, and each new lap
+ * gives one back. The song loops, faster every lap. Stars come during the first
+ * lap, crowns for every lap after that.
  *
  * It reuses the 4-lane phone chart for the chosen tier, the Stage's pixel buffer
  * for drawing, and the shared sound effects.
@@ -15,7 +16,7 @@
   const COUNT_IN = 3;
   const RESUME_LEAD = 2.4;
   const RESUME_REWIND = 1; // song seconds
-  const LIVES = 1;
+  const LIVES = 2;
   const SPEED_STEP = 0.22; // each lap plays 22% faster
   const SPEED_MAX = 2.5;
   // Real-time windows (seconds): tap up to EARLY before a tile's moment, LATE after.
@@ -336,15 +337,30 @@
         if (n.t > P) break;
         if (!n.judged && (P - n.t) / this.rate > LATE) { this._miss(n); if (this.over) return; }
       }
-      // Long tiles being held score while held; letting go just ends them.
+      // Long tiles score while held and fill with colour; letting go ends them
+      // (the colour drains away), holding to the end makes them burst.
+      const nowMs = performance.now();
       for (const h of this.holding) {
-        if (this.held[h.lane] && P < h.holdEnd) {
-          const seg = Math.min(P, h.holdEnd) - Math.max(h.heldTo || h.t, h.t);
+        if (this.held[h.lane]) {
+          const to = Math.min(P, h.holdEnd);
+          const seg = to - Math.max(h.heldTo || h.t, h.t);
           if (seg > 0) this.score += HOLD_POINTS * seg * (h.lap + 1);
-          h.heldTo = Math.min(P, h.holdEnd);
-        } else if (!this.held[h.lane]) h.released = true;
+          h.heldTo = to;
+          if (P >= h.holdEnd) {
+            h.doneAt = nowMs;
+            this.scoreBumpAt = nowMs;
+            this.effects.push({ lane: h.lane, at: nowMs, kind: 'perfect' });
+            Sfx.tileTap(h.lane, true);
+            const cx = (h.lane + 0.5) * (this.stage.width / 4);
+            this.stage.burst(cx, this.lineY() - 10, COLORS[h.lane], 18, 130);
+            this.stage.burst(cx, this.lineY() - 10, '#ffffff', 8, 150);
+          }
+        } else {
+          h.released = true;
+          h.releasedAt = nowMs;
+        }
       }
-      this.holding = this.holding.filter((h) => !h.released && h.holdEnd > P);
+      this.holding = this.holding.filter((h) => !h.released && !h.doneAt);
       // Drop tiles well behind us.
       if (this.notes.length > 400) {
         const cut = this.notes.findIndex((n) => n.t > P - 3);
@@ -415,69 +431,91 @@
         if (yBot < -10) break;
         const x = Math.round(n.lane * colW) + 2;
         const w = Math.ceil(colW) - 4;
-        if (n.judged && n.judged !== 'miss' && !n.len) {
-          // Tapped: flashes white, lights up in its colour and bulges as it fades.
-          const k = (nowMs - n.hitAt) / 260;
-          if (k >= 1) continue;
-          const grow = 1 + 0.18 * Math.sin(Math.min(1, k * 1.6) * Math.PI);
-          const gw = w * grow, gh = h * (2 - grow);
-          const gx = x + (w - gw) / 2, gy = yTop + (h - gh) / 2;
-          g.globalAlpha = 1 - k * k;
-          st.rect(gx, gy, gw, gh, k < 0.25 ? '#ffffff' : COLORS[n.lane]);
-          st.rect(gx + 3, gy + 3, gw - 6, Math.max(2, gh * 0.25), '#ffffff');
+        const yb = Math.round(yBot), yt = Math.round(yTop), hh = Math.round(h);
+        const color = COLORS[n.lane];
+        const missed = n.judged === 'miss';
+        const hit = n.judged && !missed;
+        if (hit && !n.len) {
+          // Tapped: colour floods in from the border to the middle, the tile presses
+          // down a touch, then fades.
+          const ms = nowMs - n.hitAt;
+          if (ms > 320) continue;
+          const k = Math.min(1, ms / 90);
+          const inset = 2 + (Math.min(w, hh) / 2) * (1 - (1 - k) * (1 - k));
+          const dy = ms < 120 ? 2 : 0;
+          g.globalAlpha = ms < 140 ? 1 : Math.max(0, 1 - (ms - 140) / 180);
+          st.rect(x - 1, yt - 1 + dy, w + 2, hh + 2, PAL.ink);
+          st.rect(x, yt + dy, w, hh, ms < 50 ? '#ffffff' : color);
+          if (inset * 2 < Math.min(w, hh)) st.rect(x + inset, yt + inset + dy, w - inset * 2, hh - inset * 2, '#0a0a1c');
+          if (k >= 1) {
+            g.globalAlpha *= 0.6;
+            st.rect(x + 3, yt + 3 + dy, w - 6, Math.max(3, hh * 0.22), '#ffffff');
+          }
           g.globalAlpha = 1;
           continue;
         }
-        const missed = n.judged === 'miss';
-        const blink = missed && Math.floor((nowMs - n.missAt) / 120) % 2 === 0;
-        // A near-black tile with a bright outline in its column's colour.
-        const edge = missed ? PAL.red : COLORS[n.lane];
-        st.rect(x - 1, Math.round(yTop) - 1, w + 2, Math.round(h) + 2, PAL.ink);
-        st.rect(x, Math.round(yTop), w, Math.round(h), edge);
-        st.rect(x + 2, Math.round(yTop) + 2, w - 4, Math.round(h) - 4, missed ? (blink ? PAL.red : '#601020') : '#0a0a1c');
-        if (!missed) {
-          // Glossy body: a soft lift toward the bottom, a highlight band across the
-          // top, and a shine that sweeps across every tile now and then.
-          const yt = Math.round(yTop) + 2, hh = Math.round(h) - 4;
-          g.globalAlpha = 0.35;
-          st.rect(x + 2, yt + hh * 0.55, w - 4, hh * 0.45, '#20204a');
-          g.globalAlpha = 0.22;
-          st.rect(x + 4, yt + 2, w - 8, Math.max(3, hh * 0.18), '#9aa8ff');
-          g.globalAlpha = 0.5;
-          st.rect(x + 2, yt, 1, hh, edge);
+        if (hit && n.len && n.doneAt) {
+          // Held all the way: the full tile flashes and fades out.
+          const ms = nowMs - n.doneAt;
+          if (ms > 320) continue;
+          g.globalAlpha = Math.max(0, 1 - ms / 320);
+          st.rect(x, yt, w, hh, ms < 70 ? '#ffffff' : color);
           g.globalAlpha = 1;
-          const sweep = ((nowMs / 1400 + n.lane * 0.17 + n.t * 0.37) % 1.6) - 0.3; // -0.3..1.3 across the tile
-          if (sweep > -0.2 && sweep < 1.2) {
-            g.globalAlpha = 0.28;
-            g.fillStyle = '#ffffff';
-            for (let r = 0; r < hh; r++) {
-              const sx = x + 2 + (w - 4) * sweep + r * 0.45 - hh * 0.2;
-              const a = Math.max(x + 2, sx), b = Math.min(x + w - 2, sx + 5);
-              if (b > a) g.fillRect(Math.round(a), yt + r, Math.round(b - a), 1);
-            }
+          continue;
+        }
+        const blink = missed && Math.floor((nowMs - n.missAt) / 120) % 2 === 0;
+        // A near-black tile with a bright border in its column's colour.
+        const edge = missed ? PAL.red : color;
+        st.rect(x - 1, yt - 1, w + 2, hh + 2, PAL.ink);
+        st.rect(x, yt, w, hh, edge);
+        st.rect(x + 2, yt + 2, w - 4, hh - 4, missed ? (blink ? PAL.red : '#601020') : '#0a0a1c');
+        if (!n.len) {
+          // Single tile: a soft highlight across the top and a solid colour base.
+          if (!missed) {
+            g.globalAlpha = 0.2;
+            st.rect(x + 4, yt + 4, w - 8, Math.max(3, hh * 0.16), '#9aa8ff');
             g.globalAlpha = 1;
           }
+          st.rect(x, yb - 6, w, 6, edge);
+          st.rect(x, yb - 6, w, 1, '#ffffff');
+          continue;
         }
-        st.rect(x, Math.round(yBot) - 6, w, 6, edge);
-        st.rect(x, Math.round(yBot) - 6, w, 1, '#ffffff');
-        if (n.len) {
-          // Long tile: a bar up the middle that fills as you hold.
-          const cx = x + w / 2;
-          st.rect(cx - 2, Math.round(yTop) + 10, 4, Math.round(h) - 18, '#2a2f6a');
-          if (n.judged && n.judged !== 'miss') {
-            const filled = Math.min(1, ((n.heldTo || n.t) - n.t) / n.len);
-            const fh = (Math.round(h) - 14) * filled;
-            st.rect(cx - 3, Math.round(yBot) - 6 - fh, 6, fh, COLORS[n.lane]);
-            if (this.held[n.lane] && !n.released && fh > 0) {
-              // Held: the fill glows and sparkles at its tip.
-              g.globalAlpha = 0.3 + 0.2 * Math.sin(nowMs / 60);
-              st.rect(x + 2, Math.round(yBot) - 6 - fh, w - 4, fh, COLORS[n.lane]);
-              g.globalAlpha = 1;
-              if (Math.random() < 0.4) st.burst(cx, Math.round(yBot) - 6 - fh, '#ffffff', 1, 40);
-            }
+        // Long tile: looks different before you touch it, with coloured side rails,
+        // a dashed track up the middle, a glowing start pad and an end cap.
+        const cx = Math.round(x + w / 2);
+        g.globalAlpha = 0.55;
+        st.rect(x + 5, yt + 8, 2, hh - 24, edge);
+        st.rect(x + w - 7, yt + 8, 2, hh - 24, edge);
+        for (let y = yb - 22; y > yt + 10; y -= 8) st.rect(cx - 1, y - 4, 2, 4, edge);
+        g.globalAlpha = 1;
+        st.rect(x + 2, yt + 2, w - 4, 4, edge); // end cap
+        // While held (or draining after a let-go), the tile fills with colour.
+        let fill = 0;
+        if (hit) {
+          fill = Math.max(0, ((n.heldTo || n.t) - n.t) * px);
+          if (n.released) fill *= Math.max(0, 1 - (nowMs - n.releasedAt) / 280);
+          fill = Math.min(fill, hh - 2);
+        }
+        if (fill > 0) {
+          const top = yb - fill;
+          st.rect(x + 2, top, w - 4, fill, color);
+          g.globalAlpha = 0.3;
+          st.rect(x + Math.round(w * 0.22), top, Math.round(w * 0.14), fill, '#ffffff');
+          g.globalAlpha = 1;
+          if (!n.released) {
+            // The leading edge glows and throws sparks.
+            const glow = 0.6 + 0.4 * Math.sin(nowMs / 50);
+            g.globalAlpha = glow;
+            st.rect(x, top - 2, w, 3, '#ffffff');
+            g.globalAlpha = 1;
+            if (Math.random() < 0.5) st.burst(x + 4 + Math.random() * (w - 8), top, '#ffffff', 1, 50);
           }
-          st.rect(cx - 5, Math.round(yTop) + 4, 10, 4, COLORS[n.lane]);
         }
+        // Start pad: a solid block with an up-arrow, so you know to press and hold.
+        const padTop = yb - 14;
+        st.rect(x, padTop, w, 14, edge);
+        st.rect(x, padTop, w, 1, '#ffffff');
+        for (let i = 0; i < 4; i++) st.rect(cx - i, padTop + 4 + i, 1 + i * 2, 1, PAL.ink);
       }
 
       // Tap flourishes: a light beam up the column and a ring bursting from the line.
