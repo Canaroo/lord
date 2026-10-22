@@ -50,6 +50,7 @@
       <h2 class="small">MAIN MENU</h2>
       <div class="menu">
         <button data-go="pack" data-autofocus>SONG PACK <small>Same charts for everyone</small></button>
+        <button id="btn-tiles-mode">TILES MODE <small>Tap the falling tiles · 3 lives</small></button>
         <button data-go="import">YOUR MUSIC <small>Import an MP3</small></button>
         <button data-go="boards">LEADERBOARDS</button>
         <button data-go="players">PLAYER <small id="main-player"></small></button>
@@ -98,6 +99,7 @@
       <p id="song-meta" class="hint"></p>
       <p id="song-match" class="match" hidden></p>
       <p id="song-credit" class="hint" hidden></p>
+      <div class="menu row tabs mode-tabs" id="mode-tabs"></div>
       <div class="diffs" id="diffs"></div>
       <p class="hint kbd-only">Hit each note as it crosses the line, and hold long notes until their tail ends. Hold <b>R</b> (or Back) to restart. Fill the OD meter, then press <b data-glyph="overdrive">SPACE</b> for double points. Don't let the rock meter run out.</p>
       <p class="hint touch-only">Tap each note as it crosses the line, and keep your finger down on long notes. When the OD meter flashes, <b>swipe up</b> with any finger for double points. <b>II</b> pauses.</p>
@@ -135,6 +137,28 @@
         <button id="btn-share">SHARE</button>
         <button id="btn-res-board">BOARD</button>
         <button id="btn-res-back">SONG</button>
+      </div>
+    </section>
+
+    <!-- Tiles mode results -->
+    <section id="screen-tiles-results" class="screen win" data-back="song">
+      <p class="eyebrow" id="tr-title"></p>
+      <div id="tr-score" class="big"></div>
+      <p id="tr-stars" class="tr-stars"></p>
+      <p id="tr-flag" class="flag"></p>
+      <table class="res">
+        <tr><td>TILES</td><td id="tr-tiles"></td></tr>
+        <tr><td class="perfect">PERFECT</td><td id="tr-perfect"></td></tr>
+        <tr><td class="good">GREAT</td><td id="tr-great"></td></tr>
+        <tr><td class="ok">COOL</td><td id="tr-cool"></td></tr>
+        <tr><td class="miss">MISSED</td><td id="tr-miss"></td></tr>
+        <tr><td>BEST RUN</td><td id="tr-combo"></td></tr>
+        <tr><td>LAPS</td><td id="tr-laps"></td></tr>
+      </table>
+      <div class="menu row">
+        <button id="btn-tr-retry" data-autofocus>PLAY AGAIN</button>
+        <button id="btn-tr-board">BOARD</button>
+        <button data-back-btn>SONG</button>
       </div>
     </section>
 
@@ -306,6 +330,7 @@
   <script src="js/input.js"></script>
   <script src="js/render.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/tiles.js"></script>
   <script src="js/share.js"></script>
   <script src="js/main.js"></script>
 </body>

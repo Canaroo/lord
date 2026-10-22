@@ -15,7 +15,7 @@
   const KEY = 'beatfrets.save.v2';
   const DIFFICULTY_IDS = ['easy', 'medium', 'mediumplus', 'hard', 'duo'];
   // Touch runs are their own boards: 'touch4:hard' (sideways) and 'touch2:hard' (upright).
-  const validDifficulty = (d) => DIFFICULTY_IDS.includes(d) || /^touch[24]:(easy|medium|mediumplus|hard)$/.test(d);
+  const validDifficulty = (d) => DIFFICULTY_IDS.includes(d) || /^touch[24]:(easy|medium|mediumplus|hard)$/.test(d) || /^tiles:(easy|medium|hard)$/.test(d);
   const VERSION = 2;
   const MAX_RUNS = 2000;
   const PROFILE_COLORS = ['#58f8f8', '#f858c8', '#f8d830', '#38d838', '#f88820', '#a878f8', '#f84848', '#78a8f8'];
@@ -36,6 +36,7 @@
     strikeUp4: 28, // sideways (4 lanes)
     strikeUp2: 20, // upright (2 lanes)
     strikeOffered: false,
+    playMode: 'frets', // 'frets' (the highway) or 'tiles'
   };
 
   function emptySave() {
@@ -334,7 +335,8 @@
     totalStars(profileId) {
       const best = new Map();
       for (const r of this.data.runs) {
-        if (r.profileId !== profileId || r.failed) continue;
+        // Tiles mode has its own stars and crowns; these are the 5-star song ratings.
+        if (r.profileId !== profileId || r.failed || String(r.difficulty).startsWith('tiles:')) continue;
         const k = r.songKey + '|' + r.difficulty;
         best.set(k, Math.max(best.get(k) || 0, r.stars || 0));
       }

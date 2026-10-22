@@ -408,3 +408,9 @@ body.touch .kbd-only { display: none; }
 /* Strike line setup: keep the window at the top so the line stays visible to drag. */
 #screen-strike-setup { align-self: start; width: min(460px, 100%); }
 #screen-strike-setup .hint { margin: 6px 0; }
+
+/* Song screen: Beat Frets / Tiles switch. */
+.mode-tabs { justify-content: center; margin: 4px 0 10px; }
+.tr-stars { font-size: 28px; letter-spacing: 4px; color: #3a3a6a; margin: 4px 0; }
+.tr-stars b { color: var(--gold, #f8d830); font-weight: normal; }
+.tr-stars .hint { font-size: 16px; letter-spacing: 1px; }

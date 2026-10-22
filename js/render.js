@@ -202,6 +202,12 @@
         // The strike line sits at ~72% height; the lanes carry on below it as big
         // tap pads, so thumbs rest under the line and never hide incoming notes.
         hit = Math.round(h * this.strike.touch4);
+      } else if (mode === 'tiles') {
+        // Tiles mode: an upright board, whatever the screen.
+        w = 225;
+        h = Math.max(380, Math.min(500, Math.round(225 / Math.min(1, aspect))));
+        hz = 0;
+        hit = Math.round(h * 0.8);
       } else if (mode === 'touch2') {
         w = 225;
         h = Math.max(360, Math.min(500, Math.round(225 / Math.min(1, aspect))));
@@ -220,6 +226,7 @@
 
     get layout() { return LAYOUT; }
     get height() { return H; }
+    get width() { return W; }
 
     geometry(lanes) {
       const halfW = LAYOUT === 'touch4' ? Math.min(W * 0.36, 150)

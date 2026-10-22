@@ -8,34 +8,43 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.4';
+  const VERSION = '1.5';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
   const fmtDate = (iso) => (iso ? iso.slice(0, 10) : '');
   const DIFFS = Object.keys(ChartGen.DIFFICULTIES); // easy, medium, mediumplus, hard, duo
-  const parseId = ChartGen.parseId;
+  /** 'hard', 'touch4:hard', 'touch2:hard', or a Tiles mode tier 'tiles:hard'. */
+  const parseId = (id) => {
+    const m = /^tiles:(\w+)$/.exec(id);
+    return m ? { difficulty: m[1], lanes: 4, touch: false, tiles: true } : ChartGen.parseId(id);
+  };
+  const TILES_IDS = ['tiles:easy', 'tiles:medium', 'tiles:hard'];
+  /** The chart a tier plays: Tiles mode uses the 4-lane phone chart. */
+  const chartFor = (id) => (parseId(id).tiles ? current.charts['touch4:' + parseId(id).difficulty] : current.charts[id]);
   const BASE_LABEL = (d) => (ChartGen.DIFFICULTIES[d] ? ChartGen.DIFFICULTIES[d].label : d).toUpperCase();
   /** 'hard' → HARD; 'touch4:hard' → HARD · TOUCH 4 */
   const LABEL = (id) => {
     const p = parseId(id);
-    return BASE_LABEL(p.difficulty) + (p.touch ? ` · TOUCH ${p.lanes}` : '');
+    return BASE_LABEL(p.difficulty) + (p.tiles ? ' · TILES' : p.touch ? ` · TOUCH ${p.lanes}` : '');
   };
   const SHORT_BASE = { easy: 'E', medium: 'M', mediumplus: 'M+', hard: 'H', duo: 'DUO' };
-  const SHORT = new Proxy({}, { get: (_, id) => { const p = parseId(String(id)); return (SHORT_BASE[p.difficulty] || id) + (p.touch ? p.lanes : ''); } });
-  const FAMILIES = { keys: 'KEYS', touch4: 'TOUCH 4', touch2: 'TOUCH 2' };
-  const familyOf = (id) => { const p = parseId(id); return p.touch ? 'touch' + p.lanes : 'keys'; };
-  const idsFor = (family) => (family === 'keys' ? DIFFS : ChartGen.TOUCH_TIERS.map((d) => family + ':' + d));
+  const SHORT = new Proxy({}, { get: (_, id) => { const p = parseId(String(id)); return (p.tiles ? 'T' : '') + (SHORT_BASE[p.difficulty] || id) + (p.touch ? p.lanes : ''); } });
+  const FAMILIES = { keys: 'KEYS', touch4: 'TOUCH 4', touch2: 'TOUCH 2', tiles: 'TILES' };
+  const familyOf = (id) => { const p = parseId(id); return p.tiles ? 'tiles' : p.touch ? 'touch' + p.lanes : 'keys'; };
+  const idsFor = (family) => (family === 'keys' ? DIFFS : family === 'tiles' ? TILES_IDS : ChartGen.TOUCH_TIERS.map((d) => family + ':' + d));
 
   /** keys on desktop; on touch, 4 lanes sideways and 2 lanes upright. */
   function layoutMode() {
     if (!Input.touch) return 'keys';
     return window.innerHeight > window.innerWidth ? 'touch2' : 'touch4';
   }
-  const tierIds = () => idsFor(layoutMode());
+  const tilesMode = () => settings.playMode === 'tiles';
+  const tierIds = () => (tilesMode() ? TILES_IDS : idsFor(layoutMode()));
   /** The chart id for a tier in the current layout ('hard' → 'touch4:hard' when sideways). */
   function idFor(base) {
+    if (tilesMode()) return 'tiles:' + (base === 'easy' ? 'easy' : base === 'medium' ? 'medium' : 'hard');
     const m = layoutMode();
     return m === 'keys' ? base : m + ':' + (base === 'duo' ? 'hard' : base);
   }
@@ -51,6 +60,11 @@
     medium: 'Off-beats and long notes',
     mediumplus: 'Faster runs',
     hard: 'Everything, with two-thumb chords',
+  };
+  const WHAT_TILES = {
+    easy: 'Strong beats, gentle speed',
+    medium: 'More tiles, long tiles',
+    hard: 'Every tile, with doubles',
   };
   const LOOKAHEAD = { easy: 2.0, medium: 1.75, mediumplus: 1.55, hard: 1.5, duo: 1.5 };
 
@@ -751,10 +765,25 @@
         ? '4 lanes. Turn your phone upright for 2.'
         : '2 lanes. Turn your phone sideways for 4.');
     }
+    if (tilesMode()) $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · Tap each tile as it reaches the line. 3 lives, and every lap gets faster.`;
+    $('#mode-tabs').innerHTML = [['frets', 'BEAT FRETS'], ['tiles', 'TILES']]
+      .map(([m, label]) => `<button data-mode="${m}" class="${settings.playMode === m ? 'on' : ''}">${label}</button>`).join('');
     $('#song-match').hidden = !current.matchNote;
     $('#song-match').textContent = current.matchNote || '';
     $('#diffs').innerHTML = tierIds().map((d) => {
-      const c = current.charts[d];
+      const c = chartFor(d);
+      if (tilesMode()) {
+        const base = parseId(d).difficulty;
+        return `<div class="diff-col">
+          <button class="diff" data-diff="${d}"><strong>${BASE_LABEL(base)}</strong>
+            <span class="what">${esc(WHAT_TILES[base])}</span>
+            <span class="keys" data-keys="4">${Input.touch ? '<span class="lanes-tag">4 COLUMNS</span>' : ''}</span>
+            <span class="stats">${c.notes.length} tiles a lap</span>
+            ${tilesBest(d)}
+          </button>
+          <ol class="mini-board">${miniBoard(current.key, d)}</ol>
+        </div>`;
+      }
       const n = c.notes.length;
       const holds = c.notes.filter((x) => x.len).length;
       return `<div class="diff-col">
@@ -785,6 +814,7 @@
   async function play(difficulty) {
     if (!current) return;
     const tier = parseId(difficulty);
+    if (tier.tiles) { playTiles(difficulty); return; }
     // First touch game: let the player put the strike line where their thumbs rest...
     if (tier.touch && !settings.strikeOffered) {
       save.setSetting('strikeOffered', true);
@@ -849,6 +879,119 @@
     game.shakeEnabled = settings.shake;
     await game.start();
   }
+
+  // ---- Tiles mode ------------------------------------------------------------------------------------
+
+  async function playTiles(id) {
+    const tier = parseId(id);
+    lastDifficulty = id;
+    stopPreview();
+    restartHold.cancel();
+    resultsAnim = null;
+    if (game) game.stop();
+    ensureAudio();
+    await document.fonts.load('8px "Press Start 2P"').catch(() => {});
+    show(null);
+    $('#pause').hidden = true;
+    $('#pause-msg').textContent = '';
+    $('#btn-resume').disabled = false;
+    gameLayout = 'tiles';
+    stage.setLayout('tiles', window.innerWidth / window.innerHeight);
+    wakeLock.acquire();
+    Input.setGameplay(true, 4);
+    game = new TilesGame({
+      audioCtx,
+      buffer: current.buffer,
+      chart: chartFor(id),
+      stage,
+      tier: tier.difficulty,
+      speed: settings.speed,
+      duration: current.analysis.duration,
+      calibration: (Input.touch ? settings.calibrationTouchMs : settings.calibrationMs) / 1000,
+      vibrate: Input.touch && settings.vibrate,
+      intro: { title: current.title.toUpperCase().slice(0, 40), sub: LABEL(id) },
+      onEnd: (res) => {
+        game = null;
+        wakeLock.release();
+        Input.setGameplay(false);
+        applyLayout();
+        showTilesResults(id, res);
+      },
+      onPauseChange: (paused) => {
+        $('#pause').hidden = !paused;
+        Input.setGameplay(!paused, 4);
+        if (paused) requestAnimationFrame(() => $('#btn-resume').focus());
+      },
+    });
+    await game.start();
+  }
+
+  /** Best Tiles result on this song and tier: stars, or crowns once you've looped. */
+  function bestTiles(songKey, id) {
+    const p = save.active;
+    let best = null;
+    for (const r of save.data.runs) {
+      if (!p || r.profileId !== p.id || r.songKey !== songKey || r.difficulty !== id) continue;
+      if (!best || (r.crowns || 0) * 10 + (r.stars || 0) > (best.crowns || 0) * 10 + (best.stars || 0)) best = r;
+    }
+    return best;
+  }
+  function tilesBadge(stars, crowns) {
+    return crowns ? `<b>${'♛'.repeat(Math.min(5, crowns))}</b>` : `<b>${'★'.repeat(stars)}</b>${'★'.repeat(3 - stars)}`;
+  }
+  function tilesBest(id) {
+    const b = bestTiles(current.key, id);
+    return `<span class="card-stars">${tilesBadge(b ? b.stars || 0 : 0, b ? b.crowns || 0 : 0)}</span>`;
+  }
+
+  function showTilesResults(id, res) {
+    const p = save.active;
+    const before = bestTiles(current.key, id);
+    const run = {
+      profileId: p ? p.id : null,
+      initials: p ? p.initials : '---',
+      songKey: current.key,
+      title: current.title,
+      difficulty: id,
+      score: res.score,
+      grade: res.grade,
+      accuracy: res.accuracy,
+      maxCombo: res.maxCombo,
+      fullCombo: false,
+      hits: res.tiles,
+      failed: false,
+      stars: res.stars,
+      crowns: res.crowns,
+      fp: current.kind === 'mp3' ? current.fp : undefined,
+    };
+    const outcome = p ? save.addRun(run) : null;
+    lastRun = outcome ? outcome.entry : { ...run, date: new Date().toISOString() };
+    $('#tr-title').textContent = `${current.title.toUpperCase().slice(0, 40)} · ${LABEL(id)}`;
+    $('#tr-score').textContent = res.score.toLocaleString('en-US');
+    $('#tr-stars').innerHTML = tilesBadge(res.stars, res.crowns) + (res.crowns ? ` <span class="hint">${res.crowns} CROWN${res.crowns > 1 ? 'S' : ''}</span>` : '');
+    $('#tr-flag').textContent = outcome && outcome.personalBest ? (before ? 'NEW PERSONAL BEST!' : 'FIRST CLEAR!') : '';
+    $('#tr-tiles').textContent = res.tiles;
+    $('#tr-perfect').textContent = res.counts.perfect;
+    $('#tr-great').textContent = res.counts.great;
+    $('#tr-cool').textContent = res.counts.cool;
+    $('#tr-miss').textContent = res.counts.miss + res.counts.wrong;
+    $('#tr-combo').textContent = res.maxCombo;
+    $('#tr-laps').textContent = `${res.laps} · TOP SPEED x${res.topSpeed.toFixed(2)}`;
+    show('tiles-results');
+  }
+  $('#btn-tr-retry').addEventListener('click', () => play(lastDifficulty));
+  $('#btn-tr-board').addEventListener('click', () => openBoard(current.key, current.title, lastDifficulty, 'tiles-results'));
+  $('#mode-tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mode]');
+    if (!b || settings.playMode === b.dataset.mode) return;
+    save.setSetting('playMode', b.dataset.mode);
+    showSong();
+  });
+  $('#btn-tiles-mode').addEventListener('click', () => {
+    save.setSetting('playMode', 'tiles');
+    renderPack();
+    show('pack');
+  });
 
   $('#btn-resume').addEventListener('click', () => game && game.resume());
   $('#btn-restart').addEventListener('click', () => { $('#pause').hidden = true; play(lastDifficulty); });
@@ -1499,6 +1642,7 @@
   function onResize() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
+      if (game && gameLayout === 'tiles') { stage.setLayout('tiles', window.innerWidth / window.innerHeight); return; }
       if (game) {
         // Turning the phone mid-song would change the lanes: pause until it's turned back.
         if (gameLayout !== 'keys' && layoutMode() !== gameLayout) {
@@ -1551,6 +1695,7 @@
   // Fingers on the stage play the lanes (and the OD and pause buttons).
   Input.attachTouch($('#stage'), (x, y) => {
     if (!game) return null;
+    if (game instanceof TilesGame) return game.hitTest(x, y);
     const hit = stage.hitTest(x, y, game.lanes);
     if (hit && hit.type === 'lane') hit.lane = game.assistLane(hit.lane, hit.pos);
     return hit;

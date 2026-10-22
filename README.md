@@ -37,6 +37,22 @@ Controllers are detected automatically. Browsers only reveal a controller after 
 buttons is pressed, so press any button and the on-screen labels switch to that pad's buttons.
 The keyboard keeps working alongside it.
 
+## Tiles mode
+
+A second way to play every song, in the style of *Magic Tiles*. Pick **Tiles Mode** on the main
+menu, or the **TILES** switch on any song's screen.
+
+- **Hold the phone upright.** Four columns fill the screen and dark tiles fall straight down.
+  Tap a tile's column as its coloured edge reaches the line near the bottom (a little early is
+  fine). Hold long tiles until they've filled up.
+- **Three lives.** A tile that slips past, or a tap on an empty column, costs a heart. Lose all
+  three and the run ends.
+- **It keeps going.** When the song ends it loops, a little faster each lap (up to almost double
+  speed), and every new lap gives a heart back.
+- **Stars and crowns:** three stars through the first lap, then a crown for every lap after.
+- **Easy, Medium and Hard** use the same note charts as the phone game. Tiles scores have their
+  own leaderboard tab. On a keyboard, the columns are `A` `S` `D` `F`.
+
 ## Playing on a phone or tablet
 
 The game switches to touch controls on its own when you tap the screen, and back again if you
@@ -201,6 +217,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.5**: Tiles mode: a Magic Tiles–style way to play any song (upright board, 3 lives,
+  faster every lap).
 - **1.4**: slide notes on phones: long notes whose tail curves into the next lane (and sometimes
   back), followed with your thumb.
 - **1.3**: choose your strike line height (drag it before your first phone game, or in Options);
@@ -222,6 +240,7 @@ js/bonus.js      bonus tracks: lining pre-built charts up with the decoded audio
 tools/build-charts.js   builds bonus-track charts (needs ffmpeg)
 js/render.js     the 16-bit stage: highway, crowd, lights, HUD
 js/game.js       timing, judging, scoring, rock meter, overdrive
+js/tiles.js      Tiles mode: looping, speeding-up laps, lives, its own board
 js/input.js      keyboard, Gamepad API and touch input
 sw.js            service worker (offline play); manifest.webmanifest + icons/ make it installable
 js/sfx.js        chiptune sound effects, volume buses, reactive music filters

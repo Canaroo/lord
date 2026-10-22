@@ -369,6 +369,71 @@ async function touchTests(browser) {
   await touchZone(page, 'pause');
   await page.waitForTimeout(200);
 
+  // ---- Tiles mode: upright board, tap the tiles, 3 lives, faster laps ----
+  await page.tap('#btn-quit').catch(() => {});
+  await page.setViewportSize(PORT);
+  await page.waitForTimeout(400);
+  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  await screenIs(page, 'song');
+  await page.tap('[data-mode="tiles"]');
+  const tilesIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join(' '));
+  check(tilesIds === 'tiles:easy tiles:medium tiles:hard', `song screen switches to Tiles tiers (${tilesIds})`);
+  await page.tap('[data-diff="tiles:medium"]');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game instanceof TilesGame, null, { timeout: 30000 });
+  // A thumb that taps each tile's column as it reaches the line.
+  await page.evaluate(() => {
+    const g = window.__tiles = BeatFrets.game, cv = document.getElementById('stage');
+    let pid = 5000;
+    const at = (lane) => { const r = cv.getBoundingClientRect(); return { x: r.left + r.width * (lane + 0.5) / 4, y: r.top + r.height * 0.85 }; };
+    const send = (type, lane, id) => { const p = at(lane); cv.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', clientX: p.x, clientY: p.y, bubbles: true })); };
+    window.__tilesBot = true;
+    const loop = () => {
+      if (!g.running || !window.__tilesBot) return;
+      const P = g.now();
+      for (const n of g.notes) {
+        if (n.t > P) break;
+        if (n.judged || n.botted) continue;
+        n.botted = true;
+        const id = pid++;
+        send('pointerdown', n.lane, id);
+        setTimeout(() => send('pointerup', n.lane, id), n.len ? (n.len / g.rate) * 1000 : 50);
+      }
+      requestAnimationFrame(loop);
+    };
+    loop();
+  });
+  await page.waitForTimeout(10000);
+  await page.screenshot({ path: path.join(outDir, 'e2e-tiles.png') });
+  const t1 = await page.evaluate(() => ({ counts: window.__tiles.counts, lives: window.__tiles.lives, score: window.__tiles.score }));
+  check(t1.counts.perfect > 8 && t1.counts.miss === 0 && t1.counts.wrong === 0 && t1.lives === 3, `tapping tiles at the line scores (${JSON.stringify(t1)})`);
+  // Jump to the end of the lap: the song loops, faster, and gives a life back.
+  await page.evaluate(() => {
+    const g = window.__tiles;
+    g.lives = 2;
+    const jump = g.duration - 1.5 - g.now();
+    g.notes.forEach((n) => { if (n.t < g.now() + jump + 0.6) n.judged = n.judged || 'cool'; });
+    g.lapStartP += jump;
+  });
+  await page.waitForFunction(() => window.__tiles.lap === 1, null, { timeout: 8000 });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(outDir, 'e2e-tiles-lap.png') });
+  const lap = await page.evaluate(() => ({ lap: window.__tiles.lap, rate: window.__tiles.rate, lives: window.__tiles.lives, prog: window.__tiles.progress() }));
+  check(lap.rate > 1.1 && lap.lives === 3 && lap.prog.stars === 3, `each lap is faster and gives a life back (${JSON.stringify(lap)})`);
+  // Stop tapping: three slipped tiles end the run.
+  await page.evaluate(() => { window.__tilesBot = false; });
+  await screenIs(page, 'tiles-results');
+  const tr = await page.evaluate(() => ({ score: document.getElementById('tr-score').textContent, run: BeatFrets.save.leaderboard(BeatFrets.current.key, 'tiles:medium', 5).length }));
+  check(tr.run === 1 && tr.score !== '0', `losing all lives ends the run and saves the score (${JSON.stringify(tr)})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-tiles-results.png') });
+  await page.tap('#btn-tr-board');
+  await screenIs(page, 'board');
+  check(/TILES/.test(await page.textContent('#board-tabs')), 'Tiles scores have their own leaderboard tab');
+  await page.goBack();
+  await screenIs(page, 'tiles-results');
+  await page.tap('#screen-tiles-results [data-back-btn]');
+  await screenIs(page, 'song');
+  await page.tap('[data-mode="frets"]');
+
   // The keyboard takes over as soon as it's used.
   await page.keyboard.press('ArrowDown');
   check(await page.evaluate(() => BeatFrets.Input.device.type === 'keyboard'), 'using the keyboard switches to key controls');
