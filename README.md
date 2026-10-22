@@ -48,8 +48,15 @@ menu, or the **TILES** switch on any song's screen.
 - **Long tiles** have coloured side rails, a dashed track and a start pad with an arrow. Press and
   hold: the tile stops at the line and fills with colour from the bottom to the top, with a rising
   note at each quarter, and explodes when it's full. Let go early and the colour drains away.
-- **Two hearts.** A tile that slips past, or a tap on an empty column, costs one; lose both and
-  the run ends. Each new lap gives one back.
+- **Tap START to begin.** The song starts the moment you tap the big START tile.
+- **Two hearts.** A tile that slips past, or a tap on an empty column, costs one. Each new lap
+  gives one back.
+- **One second chance.** The first time you lose your last heart, the song rewinds three seconds
+  (the tile you missed comes back) and counts you in. The gold **+1** by the hearts shows it's
+  still available. Lose your last heart again and the run ends.
+- **Tiles you tap together** are joined by a glowing bridge, with a flashing outline and "x2".
+- **Quick repeats in one column** are shortened so they never overlap, and dots count down the
+  taps left in the run.
 - **It keeps going.** When the song ends it loops, 22% faster every lap (up to 2.5x speed).
 - **Every tap counts:** each tile plays a chime (its column's note, with a sparkle on PERFECT),
   fills with colour, presses down a touch, and sends a beam of light up its column. The board pulses to the beat and
@@ -222,6 +229,9 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.9**: Tiles mode: tap a START tile to begin; tiles you tap together are linked with a bridge
+  and "x2"; quick repeats in one column are sized to fit and counted down with dots; one second
+  chance per run.
 - **1.8**: Tiles mode: a long tile you grab stops at the line and fills from bottom to top while
   you hold it, with a rising chime at each quarter, then explodes when you finish.
 - **1.7**: Tiles mode: two hearts (one back each lap); tapped tiles fill with colour; long tiles

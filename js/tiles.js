@@ -13,7 +13,6 @@
  */
 'use strict';
 (function (root) {
-  const COUNT_IN = 3;
   const RESUME_LEAD = 2.4;
   const RESUME_REWIND = 1; // song seconds
   const LIVES = 2;
@@ -22,6 +21,9 @@
   // Real-time windows (seconds): tap up to EARLY before a tile's moment, LATE after.
   const EARLY = 0.5;
   const LATE = 0.2;
+  const START_LEAD = 1.2; // song-seconds between tapping START and the music starting
+  const RUN_GAP = 0.32; // tiles closer than this in one column form a run (shown with dots)
+  const SECOND_CHANCE_REWIND = 3; // song seconds
   const PERFECT = 0.07;
   const GREAT = 0.14;
   const POINTS = { perfect: 3, great: 2, cool: 1 };
@@ -85,6 +87,8 @@
       this.pops = []; // judgement words
       this.banner = null;
       this.restartProgress = 0;
+      this.secondChance = true; // one rewind per run when the last heart goes
+      this.secondChanceUsed = false;
       this.running = false;
       this.paused = false;
       this.failed = false;
@@ -100,6 +104,7 @@
 
     /** Timeline position the player is hearing right now. */
     now() {
+      if (this.waiting) return -START_LEAD;
       if (this.paused) return this.pausedP;
       const latency = this.ctx.outputLatency || this.ctx.baseLatency || 0;
       return this.lapStartP + (this.ctx.currentTime - latency - this.lapStartCtx) * this.rate - this.calibration * this.rate;
@@ -112,7 +117,27 @@
 
     _loadLap(k) {
       const off = k * this.duration;
-      for (const n of this.chart) this.notes.push({ t: n.t + off, lane: n.lane, len: n.len, lap: k, judged: null });
+      const lap = this.chart.map((n) => ({ t: n.t + off, lane: n.lane, len: n.len, lap: k, judged: null }));
+      // Tiles that arrive together are a linked pair (or more): tap them at once.
+      for (let i = 0; i < lap.length; i++) {
+        let j = i;
+        while (j + 1 < lap.length && Math.abs(lap[j + 1].t - lap[i].t) < 0.005) j++;
+        if (j > i) for (let m = i; m <= j; m++) lap[m].group = lap.slice(i, j + 1);
+        i = j;
+      }
+      // Per column: how long until the next tile (so quick repeats fit without
+      // overlapping) and runs of quick repeats, counted down with dots.
+      for (let lane = 0; lane < 4; lane++) {
+        const col = lap.filter((n) => n.lane === lane);
+        for (let i = 0; i < col.length; i++) col[i].gapNext = i + 1 < col.length ? col[i + 1].t - col[i].t : Infinity;
+        for (let i = 0; i < col.length;) {
+          let j = i;
+          while (j + 1 < col.length && !col[j].len && col[j + 1].t - col[j].t < RUN_GAP) j++;
+          if (j - i >= 2) for (let m = i; m <= j; m++) col[m].runLeft = j - m + 1;
+          i = j + 1;
+        }
+      }
+      this.notes.push(...lap);
       this.lapsLoaded = k + 1;
     }
 
@@ -135,20 +160,30 @@
       this.sources = [];
     }
 
+    /** Show the board with a START tile; the song begins when it's tapped. */
     async start() {
       if (this.ctx.state !== 'running') await this.ctx.resume();
       if (root.Sfx) Sfx.resetMusicFx();
       this.sources = [];
-      const at = this.ctx.currentTime + COUNT_IN;
-      this._play(at, 0, 0);
-      for (let i = 3; i >= 1; i--) Sfx.countdown(at - i * 0.75 - 0.25);
-      Sfx.go(at - 0.25);
+      this.lapStartP = 0;
+      this.waiting = true;
       this.running = true;
       requestAnimationFrame(this._frame);
     }
 
+    _begin() {
+      this.waiting = false;
+      this.startedAt = performance.now();
+      this._play(this.ctx.currentTime + START_LEAD, 0, 0);
+      Sfx.go();
+      const W = this.stage.width;
+      this.stage.burst(W / 2, this.lineY() - 20, '#ffffff', 16, 140);
+      this.stage.burst(W / 2, this.lineY() - 20, COLORS[1], 12, 120);
+    }
+
     pause() {
       if (!this.running || this.paused || this.over) return;
+      if (this.waiting) { this.paused = true; this.onPauseChange(true); return; }
       this.pausedP = this.now();
       this._stopSources();
       this.paused = true;
@@ -158,6 +193,7 @@
 
     resume() {
       if (!this.running || !this.paused) return;
+      if (this.waiting) { this.paused = false; this.onPauseChange(false); return; }
       const k = Math.floor(this.pausedP / this.duration);
       const inLap = Math.max(0, this.pausedP - k * this.duration - RESUME_REWIND);
       this.resumeAt = this.ctx.currentTime + RESUME_LEAD;
@@ -188,6 +224,7 @@
 
     lane(lane, down, perfMs) {
       if (!this.running || this.paused || this.over || lane > 3) return;
+      if (this.waiting) { if (down) this._begin(); return; }
       this.held[lane] = down;
       if (!down) return;
       const P = this.timeAt(perfMs);
@@ -254,7 +291,32 @@
       this.stage.kick(3);
       this.stage.flashScreen(0.25);
       if (this.vibrate) { try { navigator.vibrate(this.lives > 0 ? 40 : 250); } catch (e) { /* not allowed */ } }
+      if (this.lives <= 0 && this.secondChance) { this._secondChance(); return; }
       if (this.lives <= 0) this._gameOver();
+    }
+
+    /**
+     * Once per run, losing the last heart rewinds a few seconds instead of ending
+     * the game: the tile you missed comes back, with a count-in.
+     */
+    _secondChance() {
+      this.secondChance = false;
+      this.secondChanceUsed = true;
+      this.lives = 1;
+      const P = this.now();
+      this._stopSources();
+      this.queued = null;
+      for (const h of this.holding) { h.released = true; h.releasedAt = performance.now(); }
+      this.holding = [];
+      this.held.fill(false);
+      for (const n of this.notes) {
+        if (n.judged === 'miss' && n.t > P - SECOND_CHANCE_REWIND - 1) { n.judged = null; n.missAt = undefined; }
+      }
+      // resume() rewinds RESUME_REWIND more and counts in.
+      this.pausedP = Math.max(this.lap * this.duration + RESUME_REWIND, P - (SECOND_CHANCE_REWIND - RESUME_REWIND));
+      this.paused = true;
+      this.banner = { text: 'SECOND CHANCE!', sub: 'ONE MORE TRY', at: performance.now() };
+      this.resume();
     }
 
     _gameOver() {
@@ -314,6 +376,7 @@
     }
 
     _update() {
+      if (this.waiting) return;
       const P = this.now();
       // Queue the next lap's music (and tiles) just before this lap ends, so it's seamless.
       const lapEnd = (this.lap + 1) * this.duration;
@@ -336,7 +399,11 @@
       // Tiles that slipped past.
       for (const n of this.notes) {
         if (n.t > P) break;
-        if (!n.judged && (P - n.t) / this.rate > LATE) { this._miss(n); if (this.over) return; }
+        if (!n.judged && (P - n.t) / this.rate > LATE) {
+          const chance = this.secondChance;
+          this._miss(n);
+          if (this.over || chance !== this.secondChance) return; // game over, or rewound
+        }
       }
       // Long tiles score while held and fill with colour; letting go ends them
       // (the colour drains away), holding to the end makes them burst.
@@ -430,10 +497,27 @@
         g.globalAlpha = 1;
       }
 
-      // Tiles: the tile's bottom edge reaches the line at its moment.
+      // Linked pairs: a glowing bridge between tiles you tap together (drawn first,
+      // so the tiles sit on top of it).
       for (const n of this.notes) {
         const yBot = line - (n.t - P) * px;
-        const h = Math.max(tileH, n.len * px);
+        if (yBot < -10) break;
+        if (yBot > H + 20 || !n.group || n.group[0] !== n || n.group.some((m) => m.judged)) continue;
+        const lanes = n.group.map((m) => m.lane);
+        const x0 = (Math.min(...lanes) + 0.5) * colW, x1 = (Math.max(...lanes) + 0.5) * colW;
+        const yb = Math.round(yBot) - 12;
+        st.rect(x0, yb - 3, x1 - x0, 8, PAL.ink);
+        g.globalAlpha = 0.75 + 0.25 * Math.sin(nowMs / 90);
+        st.rect(x0, yb - 2, x1 - x0, 6, '#ffffff');
+        g.globalAlpha = 1;
+        for (let x = x0 + 6; x < x1 - 4; x += 10) st.rect(x, yb, 4, 2, PAL.cyan);
+      }
+
+      // Tiles: the tile's bottom edge reaches the line at its moment. Quick repeats
+      // in one column are shortened to fit, so they never overlap.
+      for (const n of this.notes) {
+        const yBot = line - (n.t - P) * px;
+        const h = n.len ? Math.max(tileH, n.len * px) : Math.max(12, Math.min(tileH, (n.gapNext || Infinity) * px - 4));
         const yTop = yBot - h;
         const grabbed = n.len && n.judged && n.judged !== 'miss'; // pinned at the line
         if (yTop > H && !grabbed) continue;
@@ -479,6 +563,20 @@
           }
           st.rect(x, yb - 6, w, 6, edge);
           st.rect(x, yb - 6, w, 1, '#ffffff');
+          if (n.group && !missed) {
+            // Part of a pair: a white outline and "x2" so both read as one tap.
+            const c = Math.floor(nowMs / 160) % 2 ? '#ffffff' : edge;
+            st.rect(x + 2, yt + 2, w - 4, 1, c);
+            st.rect(x + 2, yt + 2, 1, hh - 8, c);
+            st.rect(x + w - 3, yt + 2, 1, hh - 8, c);
+            if (hh >= 26) st.text('x' + n.group.length, x + w / 2, yt + hh / 2 - 6, '#ffffff', 8, 'center');
+          }
+          if (n.runLeft && !missed && hh >= 14) {
+            // A quick run in this column: dots count the taps left in it.
+            const dots = Math.min(5, n.runLeft);
+            const dy = yt + Math.max(4, hh / 2 - 4);
+            for (let d = 0; d < dots; d++) st.rect(x + w / 2 - (dots * 6) / 2 + d * 6 + 1, dy, 4, 4, '#ffffff');
+          }
           continue;
         }
         // Long tile: looks different before you touch it, with coloured side rails,
@@ -560,6 +658,25 @@
 
       // HUD: lives, score, stars / crowns, lap, pause.
       for (let i = 0; i < LIVES; i++) this._heart(6 + i * 18, 6, i < this.lives, nowMs);
+      if (this.secondChance) st.text('+1', 6 + LIVES * 18 + 2, 8, PAL.gold, 8, 'left'); // a second chance left
+
+      // Before the song: a big START tile across the middle columns.
+      if (this.waiting || (this.startedAt && nowMs - this.startedAt < 300)) {
+        const k = this.waiting ? 0 : (nowMs - this.startedAt) / 300;
+        const sx = Math.round(colW) + 2, sw = Math.round(colW * 2) - 4, sh = Math.round(tileH * 1.2);
+        const sy = line - sh - Math.round(k * 20);
+        const pulse = 0.5 + 0.5 * Math.sin(nowMs / 180);
+        g.globalAlpha = 1 - k;
+        st.rect(sx - 1, sy - 1, sw + 2, sh + 2, PAL.ink);
+        st.rect(sx, sy, sw, sh, k > 0 ? '#ffffff' : PAL.cyan);
+        st.rect(sx + 3, sy + 3, sw - 6, sh - 6, '#0a0a1c');
+        g.globalAlpha = (1 - k) * (0.25 + 0.25 * pulse);
+        st.rect(sx + 3, sy + 3, sw - 6, sh - 6, PAL.cyan);
+        g.globalAlpha = 1 - k;
+        st.text('START', W / 2, sy + sh / 2 - 12, '#ffffff', 16, 'center');
+        st.text('TAP TO PLAY', W / 2, sy + sh / 2 + 10, PAL.cyan, 8, 'center');
+        g.globalAlpha = 1;
+      }
       const prog = this.progress(P);
       const bump = Math.max(0, 1 - (nowMs - this.scoreBumpAt) / 140);
       st.text(Math.round(this.score).toLocaleString('en-US'), W / 2, 22 - Math.round(bump * 3), bump > 0.5 ? PAL.gold : PAL.white, 24, 'center');
@@ -592,8 +709,8 @@
         }
       }
       // Count-in.
-      const lead = this.ctx.currentTime - (this.resumeAt || this.lapStartCtx);
-      if (!this.paused && lead < 0 && lead > -3) st.text(String(Math.ceil(-lead / (this.resumeAt ? 0.6 : 0.75))), W / 2, H * 0.45, PAL.white, 24, 'center');
+      const lead = this.resumeAt ? this.ctx.currentTime - this.resumeAt : 0;
+      if (!this.paused && !this.waiting && lead < 0 && lead > -3) st.text(String(Math.ceil(-lead / 0.6)), W / 2, H * 0.45, PAL.white, 24, 'center');
       if (this.intro && P < 1.5 && P > -3) {
         st.text(this.intro.title.slice(0, 24), W / 2, H * 0.3, PAL.white, 8, 'center');
         st.text(this.intro.sub, W / 2, H * 0.3 + 12, PAL.cyan, 8, 'center');

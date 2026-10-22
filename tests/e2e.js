@@ -378,8 +378,18 @@ async function touchTests(browser) {
   await page.tap('[data-mode="tiles"]');
   const tilesIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join(' '));
   check(tilesIds === 'tiles:easy tiles:medium tiles:hard', `song screen switches to Tiles tiers (${tilesIds})`);
-  await page.tap('[data-diff="tiles:medium"]');
+  await page.tap('[data-diff="tiles:hard"]');
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game instanceof TilesGame, null, { timeout: 30000 });
+  // The song waits on a START tile until it's tapped.
+  await page.waitForTimeout(600);
+  const waiting = await page.evaluate(() => ({ waiting: BeatFrets.game.waiting, P: BeatFrets.game.now() }));
+  await page.screenshot({ path: path.join(outDir, 'e2e-tiles-start.png') });
+  await page.evaluate(() => {
+    const cv = document.getElementById('stage'), r = cv.getBoundingClientRect();
+    for (const type of ['pointerdown', 'pointerup']) cv.dispatchEvent(new PointerEvent(type, { pointerId: 4999, pointerType: 'touch', clientX: r.left + r.width / 2, clientY: r.top + r.height * 0.7, bubbles: true }));
+  });
+  check(waiting.waiting && !(await page.evaluate(() => BeatFrets.game.waiting)), `Tiles waits for the START tile, then begins (${JSON.stringify(waiting)})`);
+  check(await page.evaluate(() => BeatFrets.game.notes.some((n) => n.group) && BeatFrets.game.notes.some((n) => n.runLeft)), 'tiles that come together are linked, and quick runs are counted');
   // A thumb that taps each tile's column as it reaches the line.
   await page.evaluate(() => {
     const g = window.__tiles = BeatFrets.game, cv = document.getElementById('stage');
@@ -402,14 +412,16 @@ async function touchTests(browser) {
     };
     loop();
   });
-  await page.waitForTimeout(10000);
+  await page.waitForFunction(() => { const g = window.__tiles, P = g.now(); return g.notes.some((n) => n.group && !n.judged && n.t - P < 0.35 && n.t - P > 0.15); }, null, { timeout: 15000 }).catch(() => {});
+  await page.screenshot({ path: path.join(outDir, 'e2e-tiles-pair.png') });
+  await page.waitForTimeout(4000);
   await page.screenshot({ path: path.join(outDir, 'e2e-tiles.png') });
   const t1 = await page.evaluate(() => ({ counts: window.__tiles.counts, lives: window.__tiles.lives, score: window.__tiles.score }));
   check(t1.counts.perfect > 8 && t1.counts.miss === 0 && t1.counts.wrong === 0 && t1.lives === 2, `tapping tiles at the line scores (${JSON.stringify(t1)})`);
   // A long tile fills with colour while it's held.
-  await page.waitForFunction(() => window.__tiles.holding.some((h) => window.__tiles.now() - h.t > 0.25), null, { timeout: 15000 });
+  const filled = await page.waitForFunction(() => window.__tiles.holding.some((h) => h.heldTo > h.t + 0.15), null, { timeout: 20000 }).then(() => true, () => false);
   await page.screenshot({ path: path.join(outDir, 'e2e-tiles-hold.png') });
-  check(await page.evaluate(() => window.__tiles.holding.some((h) => h.heldTo > h.t)), 'held long tiles fill up');
+  check(filled, 'held long tiles fill up');
   // Jump to the end of the lap: the song loops, faster, and gives a heart back.
   await page.evaluate(() => {
     const g = window.__tiles;
@@ -426,8 +438,9 @@ async function touchTests(browser) {
   // Stop tapping: two slipped tiles end the run.
   await page.evaluate(() => { window.__tilesBot = false; });
   await screenIs(page, 'tiles-results');
-  const tr = await page.evaluate(() => ({ score: document.getElementById('tr-score').textContent, run: BeatFrets.save.leaderboard(BeatFrets.current.key, 'tiles:medium', 5).length }));
+  const tr = await page.evaluate(() => ({ score: document.getElementById('tr-score').textContent, run: BeatFrets.save.leaderboard(BeatFrets.current.key, 'tiles:hard', 5).length }));
   check(tr.run === 1 && tr.score !== '0', `losing all lives ends the run and saves the score (${JSON.stringify(tr)})`);
+  check(await page.evaluate(() => window.__tiles.secondChanceUsed === true), 'losing the last heart gives one second chance before game over');
   await page.screenshot({ path: path.join(outDir, 'e2e-tiles-results.png') });
   await page.tap('#btn-tr-board');
   await screenIs(page, 'board');
