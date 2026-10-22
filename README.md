@@ -45,10 +45,11 @@ menu, or the **TILES** switch on any song's screen.
 - **Hold the phone upright.** Four columns fill the screen and dark tiles fall straight down.
   Tap a tile's column as its coloured edge reaches the line near the bottom (a little early is
   fine). Hold long tiles until they've filled up.
-- **Three lives.** A tile that slips past, or a tap on an empty column, costs a heart. Lose all
-  three and the run ends.
-- **It keeps going.** When the song ends it loops, a little faster each lap (up to almost double
-  speed), and every new lap gives a heart back.
+- **One heart.** A tile that slips past, or a tap on an empty column, ends the run.
+- **It keeps going.** When the song ends it loops, 22% faster every lap (up to 2.5x speed).
+- **Every tap counts:** each tile plays a chime (its column's note, with a sparkle on PERFECT),
+  flashes and bursts, and sends a beam of light up its column. The board pulses to the beat and
+  flashes every 25 tiles in a row.
 - **Stars and crowns:** three stars through the first lap, then a crown for every lap after.
 - **Easy, Medium and Hard** use the same note charts as the phone game. Tiles scores have their
   own leaderboard tab. On a keyboard, the columns are `A` `S` `D` `F`.
@@ -217,6 +218,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.6**: Tiles mode: one heart, 22% faster every lap, and much juicier taps (chimes, light
+  beams, rings, sparkles, glossy tiles, a board that pulses to the beat).
 - **1.5**: Tiles mode: a Magic Tiles–style way to play any song (upright board, 3 lives,
   faster every lap).
 - **1.4**: slide notes on phones: long notes whose tail curves into the next lane (and sometimes

@@ -405,11 +405,10 @@ async function touchTests(browser) {
   await page.waitForTimeout(10000);
   await page.screenshot({ path: path.join(outDir, 'e2e-tiles.png') });
   const t1 = await page.evaluate(() => ({ counts: window.__tiles.counts, lives: window.__tiles.lives, score: window.__tiles.score }));
-  check(t1.counts.perfect > 8 && t1.counts.miss === 0 && t1.counts.wrong === 0 && t1.lives === 3, `tapping tiles at the line scores (${JSON.stringify(t1)})`);
+  check(t1.counts.perfect > 8 && t1.counts.miss === 0 && t1.counts.wrong === 0 && t1.lives === 1, `tapping tiles at the line scores (${JSON.stringify(t1)})`);
   // Jump to the end of the lap: the song loops, faster, and gives a life back.
   await page.evaluate(() => {
     const g = window.__tiles;
-    g.lives = 2;
     const jump = g.duration - 1.5 - g.now();
     g.notes.forEach((n) => { if (n.t < g.now() + jump + 0.6) n.judged = n.judged || 'cool'; });
     g.lapStartP += jump;
@@ -418,8 +417,8 @@ async function touchTests(browser) {
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(outDir, 'e2e-tiles-lap.png') });
   const lap = await page.evaluate(() => ({ lap: window.__tiles.lap, rate: window.__tiles.rate, lives: window.__tiles.lives, prog: window.__tiles.progress() }));
-  check(lap.rate > 1.1 && lap.lives === 3 && lap.prog.stars === 3, `each lap is faster and gives a life back (${JSON.stringify(lap)})`);
-  // Stop tapping: three slipped tiles end the run.
+  check(lap.rate >= 1.2 && lap.lives === 1 && lap.prog.stars === 3, `each lap is a lot faster (${JSON.stringify(lap)})`);
+  // Stop tapping: one slipped tile ends the run.
   await page.evaluate(() => { window.__tilesBot = false; });
   await screenIs(page, 'tiles-results');
   const tr = await page.evaluate(() => ({ score: document.getElementById('tr-score').textContent, run: BeatFrets.save.leaderboard(BeatFrets.current.key, 'tiles:medium', 5).length }));

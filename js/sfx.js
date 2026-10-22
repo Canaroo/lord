@@ -143,6 +143,12 @@
       musicIn.gain.setValueAtTime(1, t);
     },
     hitTick: () => seq([[96, 0.012]], { duty: 0.125, vol: 0.07 }),
+    // Tiles mode: a bright two-note chime per tile, pitched by column (a pentatonic
+    // chord, so fast runs still sound pleasant). PERFECT adds the octave sparkle.
+    tileTap: (lane, perfect) => {
+      const base = [76, 79, 83, 88][lane] || 79;
+      seq(perfect ? [[base, 0.025], [base + 12, 0.06]] : [[base, 0.05]], { duty: 0.125, vol: 0.08 });
+    },
     levelUp: (level) => seq([[72 + level * 4, 0.04], [79 + level * 4, 0.06]], { duty: 0.125, vol: 0.12 }),
     move: () => seq([[84, 0.03]], { duty: 0.5, vol: 0.15 }),
     select: () => seq([[79, 0.04], [91, 0.07]], { duty: 0.25, vol: 0.2 }),

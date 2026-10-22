@@ -3,10 +3,9 @@
  *
  * A flat board of four columns, played upright. Tiles fall straight down; tap a
  * tile's column as it reaches the line near the bottom (early is fine). Long
- * tiles are held. You have three lives: a tile that slips past, or a tap on an
- * empty column, costs one. The song loops, a little faster every lap, and each
- * new lap gives a life back. Stars come during the first lap, crowns for every
- * lap after that.
+ * tiles are held. One heart: a tile that slips past, or a tap on an empty
+ * column, ends the run. The song loops, faster every lap. Stars come during the
+ * first lap, crowns for every lap after that.
  *
  * It reuses the 4-lane phone chart for the chosen tier, the Stage's pixel buffer
  * for drawing, and the shared sound effects.
@@ -16,9 +15,9 @@
   const COUNT_IN = 3;
   const RESUME_LEAD = 2.4;
   const RESUME_REWIND = 1; // song seconds
-  const LIVES = 3;
-  const SPEED_STEP = 0.12; // each lap plays 12% faster
-  const SPEED_MAX = 1.84;
+  const LIVES = 1;
+  const SPEED_STEP = 0.22; // each lap plays 22% faster
+  const SPEED_MAX = 2.5;
   // Real-time windows (seconds): tap up to EARLY before a tile's moment, LATE after.
   const EARLY = 0.5;
   const LATE = 0.2;
@@ -61,6 +60,10 @@
       this.onEnd = o.onEnd;
       this.onPauseChange = o.onPauseChange || (() => {});
       this.intro = o.intro || null;
+      this.beats = o.beats || []; // one lap's beat times, for the board's pulse
+      this.effects = []; // tap flourishes: { lane, at, kind }
+      this.scoreBumpAt = 0;
+      this.boardFlashAt = 0;
       this.lanes = 4;
       this.notes = []; // tiles of the laps loaded so far, on one timeline (P, song-seconds)
       this.lapsLoaded = 0;
@@ -217,10 +220,22 @@
       this.score += POINTS[kind] * (n.lap + 1);
       this.lastHit[n.lane] = n.t;
       if (n.len > 0) { n.holdEnd = n.t + n.len; this.holding.push(n); }
-      this.pops.push({ kind, at: performance.now(), lane: n.lane });
+      const now = performance.now();
+      this.pops.push({ kind, at: now, lane: n.lane });
+      this.effects.push({ lane: n.lane, at: now, kind });
+      this.scoreBumpAt = now;
+      // Make every tap feel like something: a chime, sparks, a tiny buzz.
+      Sfx.tileTap(n.lane, kind === 'perfect');
       const W = this.stage.width;
-      this.stage.burst((n.lane + 0.5) * (W / 4), this.lineY(), COLORS[n.lane], 8, 70);
-      if (this.combo % 50 === 0) { this.banner = { text: `${this.combo} IN A ROW!`, at: performance.now() }; Sfx.streak(this.combo); }
+      const cx = (n.lane + 0.5) * (W / 4);
+      this.stage.burst(cx, this.lineY() - 6, COLORS[n.lane], 14, 110);
+      if (kind === 'perfect') this.stage.burst(cx, this.lineY() - 6, '#ffffff', 6, 140);
+      if (this.vibrate) { try { navigator.vibrate(8); } catch (e) { /* not allowed */ } }
+      if (this.combo % 25 === 0) {
+        this.boardFlashAt = now;
+        this.stage.kick(1);
+        if (this.combo % 50 === 0) { this.banner = { text: `${this.combo} IN A ROW!`, at: now }; Sfx.streak(this.combo); }
+      }
     }
 
     _miss(n) {
@@ -351,9 +366,20 @@
       // Board: bright blue columns, so the dark tiles stand out (like Magic Tiles).
       g.fillStyle = '#24347e';
       g.fillRect(0, 0, W, H);
+      // The board breathes with the beat, and flashes on every 25 in a row.
+      const inLap = ((P % this.duration) + this.duration) % this.duration;
+      let lastBeat = -Infinity;
+      for (const b of this.beats) { if (b > inLap) break; lastBeat = b; }
+      const pulse = Math.max(0, 1 - (inLap - lastBeat) / 0.25);
+      const flash = Math.max(0, 1 - (nowMs - this.boardFlashAt) / 400);
       for (let c = 0; c < 4; c++) {
         g.fillStyle = c % 2 ? '#2a3c8c' : '#26378a';
         g.fillRect(Math.round(c * colW), 0, Math.ceil(colW), H);
+        // Light rising from the line: brighter toward the bottom, pulsing on the beat.
+        g.globalAlpha = 0.1 + 0.12 * pulse + 0.35 * flash;
+        g.fillStyle = flash > 0 ? COLORS[c] : '#6a88ff';
+        g.fillRect(Math.round(c * colW), line - H * 0.35, Math.ceil(colW), H * 0.35);
+        g.globalAlpha = 1;
         if (this.held[c]) {
           g.globalAlpha = 0.25;
           g.fillStyle = COLORS[c];
@@ -390,11 +416,15 @@
         const x = Math.round(n.lane * colW) + 2;
         const w = Math.ceil(colW) - 4;
         if (n.judged && n.judged !== 'miss' && !n.len) {
-          // Tapped: fades out, lit up.
-          const k = (nowMs - n.hitAt) / 220;
+          // Tapped: flashes white, lights up in its colour and bulges as it fades.
+          const k = (nowMs - n.hitAt) / 260;
           if (k >= 1) continue;
-          g.globalAlpha = 1 - k;
-          st.rect(x, Math.round(yTop), w, Math.round(h), '#a8b8ff');
+          const grow = 1 + 0.18 * Math.sin(Math.min(1, k * 1.6) * Math.PI);
+          const gw = w * grow, gh = h * (2 - grow);
+          const gx = x + (w - gw) / 2, gy = yTop + (h - gh) / 2;
+          g.globalAlpha = 1 - k * k;
+          st.rect(gx, gy, gw, gh, k < 0.25 ? '#ffffff' : COLORS[n.lane]);
+          st.rect(gx + 3, gy + 3, gw - 6, Math.max(2, gh * 0.25), '#ffffff');
           g.globalAlpha = 1;
           continue;
         }
@@ -405,8 +435,31 @@
         st.rect(x - 1, Math.round(yTop) - 1, w + 2, Math.round(h) + 2, PAL.ink);
         st.rect(x, Math.round(yTop), w, Math.round(h), edge);
         st.rect(x + 2, Math.round(yTop) + 2, w - 4, Math.round(h) - 4, missed ? (blink ? PAL.red : '#601020') : '#0a0a1c');
-        st.rect(x, Math.round(yBot) - 5, w, 5, edge);
-        st.rect(x + 5, Math.round(yTop) + 5, w - 10, 2, missed ? PAL.red : '#2a2f6a');
+        if (!missed) {
+          // Glossy body: a soft lift toward the bottom, a highlight band across the
+          // top, and a shine that sweeps across every tile now and then.
+          const yt = Math.round(yTop) + 2, hh = Math.round(h) - 4;
+          g.globalAlpha = 0.35;
+          st.rect(x + 2, yt + hh * 0.55, w - 4, hh * 0.45, '#20204a');
+          g.globalAlpha = 0.22;
+          st.rect(x + 4, yt + 2, w - 8, Math.max(3, hh * 0.18), '#9aa8ff');
+          g.globalAlpha = 0.5;
+          st.rect(x + 2, yt, 1, hh, edge);
+          g.globalAlpha = 1;
+          const sweep = ((nowMs / 1400 + n.lane * 0.17 + n.t * 0.37) % 1.6) - 0.3; // -0.3..1.3 across the tile
+          if (sweep > -0.2 && sweep < 1.2) {
+            g.globalAlpha = 0.28;
+            g.fillStyle = '#ffffff';
+            for (let r = 0; r < hh; r++) {
+              const sx = x + 2 + (w - 4) * sweep + r * 0.45 - hh * 0.2;
+              const a = Math.max(x + 2, sx), b = Math.min(x + w - 2, sx + 5);
+              if (b > a) g.fillRect(Math.round(a), yt + r, Math.round(b - a), 1);
+            }
+            g.globalAlpha = 1;
+          }
+        }
+        st.rect(x, Math.round(yBot) - 6, w, 6, edge);
+        st.rect(x, Math.round(yBot) - 6, w, 1, '#ffffff');
         if (n.len) {
           // Long tile: a bar up the middle that fills as you hold.
           const cx = x + w / 2;
@@ -415,14 +468,43 @@
             const filled = Math.min(1, ((n.heldTo || n.t) - n.t) / n.len);
             const fh = (Math.round(h) - 14) * filled;
             st.rect(cx - 3, Math.round(yBot) - 6 - fh, 6, fh, COLORS[n.lane]);
+            if (this.held[n.lane] && !n.released && fh > 0) {
+              // Held: the fill glows and sparkles at its tip.
+              g.globalAlpha = 0.3 + 0.2 * Math.sin(nowMs / 60);
+              st.rect(x + 2, Math.round(yBot) - 6 - fh, w - 4, fh, COLORS[n.lane]);
+              g.globalAlpha = 1;
+              if (Math.random() < 0.4) st.burst(cx, Math.round(yBot) - 6 - fh, '#ffffff', 1, 40);
+            }
           }
           st.rect(cx - 5, Math.round(yTop) + 4, 10, 4, COLORS[n.lane]);
         }
       }
 
-      // The line: tap tiles as their coloured edge reaches it.
+      // Tap flourishes: a light beam up the column and a ring bursting from the line.
+      this.effects = this.effects.filter((e) => nowMs - e.at < 360);
+      for (const e of this.effects) {
+        const k = (nowMs - e.at) / 360;
+        const cx = (e.lane + 0.5) * colW;
+        g.globalAlpha = 0.45 * (1 - k);
+        st.rect(Math.round(e.lane * colW) + 4, 0, Math.ceil(colW) - 8, line, COLORS[e.lane]);
+        g.globalAlpha = 0.8 * (1 - k);
+        g.strokeStyle = e.kind === 'perfect' ? '#ffffff' : COLORS[e.lane];
+        g.lineWidth = 2;
+        g.beginPath();
+        g.ellipse(cx, line, 8 + k * colW * 0.7, 4 + k * 18, 0, 0, Math.PI * 2);
+        g.stroke();
+        g.globalAlpha = 1;
+      }
+
+      // The line: tap tiles as their coloured edge reaches it. It lights up where you hit.
       st.rect(0, line - 1, W, 4, PAL.ink);
       st.rect(0, line, W, 2, PAL.cyan);
+      for (const e of this.effects) {
+        const k = (nowMs - e.at) / 360;
+        g.globalAlpha = 1 - k;
+        st.rect(Math.round(e.lane * colW), line - 2, Math.ceil(colW), 6, '#ffffff');
+        g.globalAlpha = 1;
+      }
       st.drawParticles(dt);
 
       // Judgement words, just above the line.
@@ -432,14 +514,16 @@
         g.globalAlpha = 1 - k;
         const label = { perfect: 'PERFECT', great: 'GREAT', cool: 'COOL' }[p.kind];
         const color = { perfect: PAL.cyan, great: PAL.green, cool: PAL.gold }[p.kind];
-        st.text(label, (p.lane + 0.5) * colW, line + 10 + k * 6, color, 8, 'center');
+        const big = p.kind === 'perfect' && k < 0.12;
+        st.text(label, (p.lane + 0.5) * colW, line + 10 + k * 6, big ? '#ffffff' : color, 8, 'center');
         g.globalAlpha = 1;
       }
 
       // HUD: lives, score, stars / crowns, lap, pause.
       for (let i = 0; i < LIVES; i++) this._heart(6 + i * 18, 6, i < this.lives, nowMs);
       const prog = this.progress(P);
-      st.text(Math.round(this.score).toLocaleString('en-US'), W / 2, 22, PAL.white, 24, 'center');
+      const bump = Math.max(0, 1 - (nowMs - this.scoreBumpAt) / 140);
+      st.text(Math.round(this.score).toLocaleString('en-US'), W / 2, 22 - Math.round(bump * 3), bump > 0.5 ? PAL.gold : PAL.white, 24, 'center');
       // Progress bar across the top with three star marks, then crowns.
       st.rect(0, 0, W, 3, '#20204a');
       st.rect(0, 0, W * ((P / this.duration) % 1 || (P >= this.duration ? 1 : 0)), 3, prog.crowns || P >= this.duration ? PAL.gold : PAL.cyan);
