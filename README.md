@@ -48,7 +48,9 @@ menu, or the **TILES** switch on any song's screen.
 - **Long tiles** have coloured side rails, a dashed track and a start pad with an arrow. Press and
   hold: the tile stops at the line and fills with colour from the bottom to the top, with a rising
   note at each quarter, and explodes when it's full. Let go early and the colour drains away.
-- **Tap START to begin.** The song starts the moment you tap the big START tile.
+- **Tap START to begin.** The song starts the moment you tap the big START tile. Before that you
+  can drag the line up or down to where your thumbs like it; it's remembered, and it's also in
+  **Options → Tiles line height**.
 - **Two hearts.** A tile that slips past, or a tap on an empty column, costs one. Each new lap
   gives one back.
 - **One second chance.** The first time you lose your last heart, the song rewinds three seconds
@@ -229,6 +231,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.10**: Tiles mode: the line sits higher (70% down instead of 80%), and you can drag it on
+  the START screen or set it in Options (*Tiles line height*).
 - **1.9**: Tiles mode: tap a START tile to begin; tiles you tap together are linked with a bridge
   and "x2"; quick repeats in one column are sized to fit and counted down with dots; one second
   chance per run.

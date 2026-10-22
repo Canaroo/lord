@@ -24,6 +24,8 @@
   const START_LEAD = 1.2; // song-seconds between tapping START and the music starting
   const RUN_GAP = 0.32; // tiles closer than this in one column form a run (shown with dots)
   const SECOND_CHANCE_REWIND = 3; // song seconds
+  // Where the line sits, in % of the board above the bottom edge (player's choice).
+  const LINE_UP = { min: 15, max: 45, default: 30 };
   const PERFECT = 0.07;
   const GREAT = 0.14;
   const POINTS = { perfect: 3, great: 2, cool: 1 };
@@ -65,6 +67,7 @@
       this.onPauseChange = o.onPauseChange || (() => {});
       this.intro = o.intro || null;
       this.beats = o.beats || []; // one lap's beat times, for the board's pulse
+      this.setLineUp(o.lineUp == null ? LINE_UP.default : o.lineUp);
       this.effects = []; // tap flourishes: { lane, at, kind }
       this.scoreBumpAt = 0;
       this.boardFlashAt = 0;
@@ -224,7 +227,12 @@
 
     lane(lane, down, perfMs) {
       if (!this.running || this.paused || this.over || lane > 3) return;
-      if (this.waiting) { if (down) this._begin(); return; }
+      if (this.waiting) {
+        // Start on release, so a drag to move the line doesn't start the song.
+        if (down) this.dragged = false;
+        else if (!this.dragged) this._begin();
+        return;
+      }
       this.held[lane] = down;
       if (!down) return;
       const P = this.timeAt(perfMs);
@@ -363,7 +371,20 @@
 
     // ---- frame -----------------------------------------------------------------------
 
-    lineY() { return Math.round(this.stage.height * 0.8); }
+    lineY() { return Math.round(this.stage.height * (1 - this.lineUp / 100)); }
+
+    /** Move the line: `up` is % of the board above the bottom edge. */
+    setLineUp(up) {
+      this.lineUp = Math.max(LINE_UP.min, Math.min(LINE_UP.max, Math.round(up)));
+      return this.lineUp;
+    }
+
+    /** START screen: drag the line up or down (a tap without dragging starts the song). */
+    dragLine(clientY) {
+      const y = this.stage.toBuffer(0, clientY).y;
+      this.dragged = true;
+      return this.setLineUp((1 - y / this.stage.height) * 100);
+    }
 
     _frame() {
       if (!this.running) return;
@@ -676,6 +697,19 @@
         st.text('START', W / 2, sy + sh / 2 - 12, '#ffffff', 16, 'center');
         st.text('TAP TO PLAY', W / 2, sy + sh / 2 + 10, PAL.cyan, 8, 'center');
         g.globalAlpha = 1;
+        if (this.waiting) {
+          // Handles on the line: drag it to where your thumbs like it.
+          const bob = Math.round(Math.sin(nowMs / 180) * 2);
+          for (const hx of [14, W - 14]) {
+            st.window(hx - 10, line - 16, 20, 32);
+            for (let i = 0; i < 4; i++) {
+              st.rect(hx - i, line - 10 + i - bob, 1 + i * 2, 1, PAL.cyan);
+              st.rect(hx - i, line + 10 - i + bob, 1 + i * 2, 1, PAL.cyan);
+            }
+            st.rect(hx - 5, line - 1, 11, 3, PAL.white);
+          }
+          st.text('DRAG TO MOVE LINE', W / 2, Math.min(H - 12, line + 14), PAL.white, 8, 'center');
+        }
       }
       const prog = this.progress(P);
       const bump = Math.max(0, 1 - (nowMs - this.scoreBumpAt) / 140);

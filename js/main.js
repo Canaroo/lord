@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.9';
+  const VERSION = '1.10';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -908,6 +908,7 @@
       speed: settings.speed,
       duration: current.analysis.duration,
       beats: current.analysis.beats,
+      lineUp: settings.tilesLineUp,
       calibration: (Input.touch ? settings.calibrationTouchMs : settings.calibrationMs) / 1000,
       vibrate: Input.touch && settings.vibrate,
       intro: { title: current.title.toUpperCase().slice(0, 40), sub: LABEL(id) },
@@ -981,6 +982,17 @@
     show('tiles-results');
   }
   $('#btn-tr-retry').addEventListener('click', () => play(lastDifficulty));
+  // Tiles START screen: drag the line up or down (a tap starts the song).
+  let tilesDrag = null;
+  $('#stage').addEventListener('pointerdown', (e) => {
+    if (game instanceof TilesGame && game.waiting) tilesDrag = { id: e.pointerId, y: e.clientY };
+  });
+  $('#stage').addEventListener('pointermove', (e) => {
+    if (!tilesDrag || tilesDrag.id !== e.pointerId || !(game instanceof TilesGame) || !game.waiting) return;
+    if (!game.dragged && Math.abs(e.clientY - tilesDrag.y) < 8) return;
+    save.setSetting('tilesLineUp', game.dragLine(e.clientY));
+  });
+  window.addEventListener('pointerup', () => { tilesDrag = null; });
   $('#btn-tr-board').addEventListener('click', () => openBoard(current.key, current.title, lastDifficulty, 'tiles-results'));
   $('#mode-tabs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-mode]');
@@ -1465,6 +1477,8 @@
     $('#opt-nofail span').textContent = settings.noFail ? 'ON' : 'OFF';
     $('#opt-hits span').textContent = settings.hitSounds ? 'ON' : 'OFF';
     $('#opt-overhit span').textContent = settings.overhit ? 'ON' : 'OFF';
+    $('#opt-tiles-line').value = settings.tilesLineUp;
+    $('#opt-tiles-line-out').textContent = (settings.tilesLineUp <= 22 ? 'LOW' : settings.tilesLineUp >= 38 ? 'HIGH' : 'MIDDLE') + ` (${settings.tilesLineUp}%)`;
     for (const n of [4, 2]) {
       const up = settings['strikeUp' + n];
       const [lo, hi] = n === 4 ? [22, 34] : [16, 26];
@@ -1492,6 +1506,7 @@
     });
   }
   $('#btn-strike').addEventListener('click', () => openStrikeSetup('options'));
+  $('#opt-tiles-line').addEventListener('input', (e) => { save.setSetting('tilesLineUp', parseInt(e.target.value, 10)); renderOptions(); });
   for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-overhit', 'overhit'], ['#opt-vibrate', 'vibrate']]) {
     $(id).addEventListener('click', () => { save.setSetting(key, !settings[key]); renderOptions(); });
   }

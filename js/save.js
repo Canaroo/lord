@@ -37,6 +37,7 @@
     strikeUp2: 20, // upright (2 lanes)
     strikeOffered: false,
     playMode: 'frets', // 'frets' (the highway) or 'tiles'
+    tilesLineUp: 30, // Tiles: line height, % of the board above the bottom edge
   };
 
   function emptySave() {

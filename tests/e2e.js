@@ -384,6 +384,17 @@ async function touchTests(browser) {
   await page.waitForTimeout(600);
   const waiting = await page.evaluate(() => ({ waiting: BeatFrets.game.waiting, P: BeatFrets.game.now() }));
   await page.screenshot({ path: path.join(outDir, 'e2e-tiles-start.png') });
+  // Drag the line higher on the START screen: it moves, and the song doesn't start.
+  const lineDrag = await page.evaluate(() => {
+    const cv = document.getElementById('stage'), r = cv.getBoundingClientRect();
+    const ev = (type, y) => cv.dispatchEvent(new PointerEvent(type, { pointerId: 4998, pointerType: 'touch', clientX: r.left + r.width / 2, clientY: r.top + r.height * y, bubbles: true }));
+    const before = BeatFrets.save.settings.tilesLineUp;
+    ev('pointerdown', 0.7); ev('pointermove', 0.62); ev('pointermove', 0.6); ev('pointerup', 0.6);
+    return { before, after: BeatFrets.save.settings.tilesLineUp, waiting: BeatFrets.game.waiting };
+  });
+  check(lineDrag.before === 30 && lineDrag.after >= 38 && lineDrag.after <= 42 && lineDrag.waiting, `the Tiles line can be dragged higher before starting (${JSON.stringify(lineDrag)})`);
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: path.join(outDir, 'e2e-tiles-line.png') });
   await page.evaluate(() => {
     const cv = document.getElementById('stage'), r = cv.getBoundingClientRect();
     for (const type of ['pointerdown', 'pointerup']) cv.dispatchEvent(new PointerEvent(type, { pointerId: 4999, pointerType: 'touch', clientX: r.left + r.width / 2, clientY: r.top + r.height * 0.7, bubbles: true }));
