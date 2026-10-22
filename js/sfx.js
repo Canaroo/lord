@@ -145,6 +145,11 @@
     hitTick: () => seq([[96, 0.012]], { duty: 0.125, vol: 0.07 }),
     // Tiles mode: a bright two-note chime per tile, pitched by column (a pentatonic
     // chord, so fast runs still sound pleasant). PERFECT adds the octave sparkle.
+    // Tiles mode: a rising note at each quarter of a long tile, so holding sounds like filling up.
+    holdStep: (lane, step) => {
+      const base = [76, 79, 83, 88][lane] || 79;
+      seq([[base + [0, 2, 4, 7, 12][step], 0.04]], { duty: 0.125, vol: 0.06 });
+    },
     tileTap: (lane, perfect) => {
       const base = [76, 79, 83, 88][lane] || 79;
       seq(perfect ? [[base, 0.025], [base + 12, 0.06]] : [[base, 0.05]], { duty: 0.125, vol: 0.08 });

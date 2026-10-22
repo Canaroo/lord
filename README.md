@@ -46,8 +46,8 @@ menu, or the **TILES** switch on any song's screen.
   Tap a tile's column as its coloured edge reaches the line near the bottom (a little early is
   fine). A tapped tile floods with colour from its border inward.
 - **Long tiles** have coloured side rails, a dashed track and a start pad with an arrow. Press and
-  hold: the tile fills with colour as you hold it, and bursts when you reach the end. Let go
-  early and the colour drains away.
+  hold: the tile stops at the line and fills with colour from the bottom to the top, with a rising
+  note at each quarter, and explodes when it's full. Let go early and the colour drains away.
 - **Two hearts.** A tile that slips past, or a tap on an empty column, costs one; lose both and
   the run ends. Each new lap gives one back.
 - **It keeps going.** When the song ends it loops, 22% faster every lap (up to 2.5x speed).
@@ -222,6 +222,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.8**: Tiles mode: a long tile you grab stops at the line and fills from bottom to top while
+  you hold it, with a rising chime at each quarter, then explodes when you finish.
 - **1.7**: Tiles mode: two hearts (one back each lap); tapped tiles fill with colour; long tiles
   look different and fill while held.
 - **1.6**: Tiles mode: one heart, 22% faster every lap, and much juicier taps (chimes, light

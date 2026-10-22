@@ -32,6 +32,7 @@
   const SCROLL = { easy: 230, medium: 270, mediumplus: 290, hard: 310 };
 
   const COLORS = ['#38d838', '#f84848', '#f8d830', '#4878f8'];
+  const PAL_INK = '#08081a';
 
   class TilesGame {
     /**
@@ -346,14 +347,21 @@
           const seg = to - Math.max(h.heldTo || h.t, h.t);
           if (seg > 0) this.score += HOLD_POINTS * seg * (h.lap + 1);
           h.heldTo = to;
+          const step = Math.min(4, Math.floor(((to - h.t) / h.len) * 4));
+          if (step > (h.step || 0)) { h.step = step; if (step < 4) Sfx.holdStep(h.lane, step); }
           if (P >= h.holdEnd) {
             h.doneAt = nowMs;
             this.scoreBumpAt = nowMs;
             this.effects.push({ lane: h.lane, at: nowMs, kind: 'perfect' });
             Sfx.tileTap(h.lane, true);
             const cx = (h.lane + 0.5) * (this.stage.width / 4);
-            this.stage.burst(cx, this.lineY() - 10, COLORS[h.lane], 18, 130);
-            this.stage.burst(cx, this.lineY() - 10, '#ffffff', 8, 150);
+            // The whole tile explodes: sparks from bottom to top.
+            const top = h.pinTop != null ? h.pinTop : this.lineY() - 40;
+            for (let y = this.lineY() - 6; y > top; y -= 14) {
+              this.stage.burst(cx, y, COLORS[h.lane], 6, 120);
+              this.stage.burst(cx, y, '#ffffff', 2, 150);
+            }
+            this.stage.kick(1);
           }
         } else {
           h.released = true;
@@ -427,7 +435,8 @@
         const yBot = line - (n.t - P) * px;
         const h = Math.max(tileH, n.len * px);
         const yTop = yBot - h;
-        if (yTop > H) continue;
+        const grabbed = n.len && n.judged && n.judged !== 'miss'; // pinned at the line
+        if (yTop > H && !grabbed) continue;
         if (yBot < -10) break;
         const x = Math.round(n.lane * colW) + 2;
         const w = Math.ceil(colW) - 4;
@@ -454,15 +463,7 @@
           g.globalAlpha = 1;
           continue;
         }
-        if (hit && n.len && n.doneAt) {
-          // Held all the way: the full tile flashes and fades out.
-          const ms = nowMs - n.doneAt;
-          if (ms > 320) continue;
-          g.globalAlpha = Math.max(0, 1 - ms / 320);
-          st.rect(x, yt, w, hh, ms < 70 ? '#ffffff' : color);
-          g.globalAlpha = 1;
-          continue;
-        }
+        if (hit && n.len) { this._drawHeld(n, x, w, hh, line, px, P, nowMs); continue; }
         const blink = missed && Math.floor((nowMs - n.missAt) / 120) % 2 === 0;
         // A near-black tile with a bright border in its column's colour.
         const edge = missed ? PAL.red : color;
@@ -608,6 +609,77 @@
         st.rect(W / 2 - 66, 96, 132 * Math.min(1, this.restartProgress), 3, PAL.gold);
       }
       st.blit(dt);
+    }
+
+    /**
+     * A long tile you've grabbed stops at the line and fills with colour from the
+     * bottom to the top as you hold it, reaching the top as the hold ends, then
+     * explodes. Let go early and the colour drains out and the tile fades.
+     */
+    _drawHeld(n, x, w, hh, line, px, P, nowMs) {
+      const st = this.stage, g = st.g;
+      const color = COLORS[n.lane];
+      const live = !n.released && !n.doneAt;
+      if (live) {
+        // Make room if the next tile in this column is arriving: shrink from the top.
+        let top = line - hh;
+        for (const o of this.notes) {
+          if (o !== n && o.lane === n.lane && !o.judged && o.t > n.t) { top = Math.max(top, line - (o.t - P) * px + 3); break; }
+        }
+        n.pinTop = Math.min(line - 16, top);
+      }
+      const top = Math.round(n.pinTop);
+      const h = line - top;
+      const progress = Math.min(1, ((n.heldTo || n.t) - n.t) / n.len);
+      if (n.doneAt) {
+        // Completed: the tile flashes white, swells and bursts.
+        const ms = nowMs - n.doneAt;
+        if (ms > 380) return;
+        const k = ms / 380;
+        const grow = 1 + 0.25 * k;
+        g.globalAlpha = 1 - k;
+        st.rect(x + (w - w * grow) / 2, top - h * 0.1 * k, w * grow, h * (1 + 0.1 * k), ms < 90 ? '#ffffff' : color);
+        g.globalAlpha = 1;
+        return;
+      }
+      let fade = 1, drain = 1;
+      if (n.released) {
+        const k = (nowMs - n.releasedAt) / 300;
+        if (k >= 1) return;
+        drain = 1 - k;
+        fade = 1 - k * k;
+      }
+      g.globalAlpha = fade;
+      st.rect(x - 1, top - 1, w + 2, h + 2, PAL_INK);
+      st.rect(x, top, w, h, color);
+      st.rect(x + 2, top + 2, w - 4, h - 4, '#0a0a1c');
+      // The colour rising from the bottom.
+      const fh = Math.round((h - 4) * progress * drain);
+      if (fh > 0) {
+        st.rect(x + 2, line - 2 - fh, w - 4, fh, color);
+        g.globalAlpha = fade * 0.35;
+        st.rect(x + Math.round(w * 0.2), line - 2 - fh, Math.round(w * 0.12), fh, '#ffffff');
+        g.globalAlpha = fade;
+        if (live) {
+          // A glowing, sparking surface on the rising colour.
+          g.globalAlpha = fade * (0.7 + 0.3 * Math.sin(nowMs / 45));
+          st.rect(x + 2, line - 4 - fh, w - 4, 3, '#ffffff');
+          g.globalAlpha = fade;
+          if (Math.random() < 0.6) st.burst(x + 4 + Math.random() * (w - 8), line - 3 - fh, '#ffffff', 1, 45);
+        }
+      }
+      // Quarter marks: each one lights up as the colour passes it.
+      for (let q = 1; q < 4; q++) {
+        const y = Math.round(line - 2 - (h - 4) * q / 4);
+        st.rect(x + 4, y, 5, 1, progress * drain >= q / 4 ? '#ffffff' : color);
+        st.rect(x + w - 9, y, 5, 1, progress * drain >= q / 4 ? '#ffffff' : color);
+      }
+      if (live) {
+        // The whole column glows while you hold.
+        g.globalAlpha = 0.18 + 0.08 * Math.sin(nowMs / 80);
+        st.rect(x - 2, 0, w + 4, line, color);
+      }
+      g.globalAlpha = 1;
     }
 
     _heart(x, y, full, nowMs) {
