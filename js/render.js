@@ -21,6 +21,11 @@
   const STRIKE_RANGE = { touch4: [0.6, 0.84], touch2: [0.68, 0.9] };
   const HUD_TOP = 26; // touch: taps above this line are the top strip (pause), below are lanes
   const PERSPECTIVE = 3;
+  // Phones: a note is a block this many seconds long along the highway, centred on
+  // its beat, so the strike line runs through it for about the whole PERFECT window.
+  // Sideways the highway is short on screen, so notes are a little longer in time
+  // (still shorter than the 0.22 s minimum between notes in one lane).
+  const NOTE_TIME = { touch4: 0.18, touch2: 0.12 };
   const FONT = '"Press Start 2P", monospace';
 
   const PAL = {
@@ -604,7 +609,7 @@
         let y = geo.yAt(z);
         const rx = Math.max(1.5, geo.laneW * 0.36 * s);
         const ry = rx * 0.55;
-        if (LAYOUT !== 'keys') { this.drawBar(n, x, y, s, geo, z, v.odActive); continue; }
+        if (LAYOUT !== 'keys') { this.drawBar(n, geo, z, (NOTE_TIME[LAYOUT] || 0.12) / v.lookahead, v.odActive); continue; }
         if (n.judged === 'miss') {
           this.g.globalAlpha = 0.5;
           this.ellipse(x, y, rx + 1, ry + 1, PAL.ink);
@@ -641,32 +646,40 @@
     }
 
     /** Phones: a note is a flat bar almost as wide as its lane, like the pad it's aimed at. */
-    drawBar(n, x, y, s, geo, z, od) {
-      // Chunky, button-like bars: wide and thick so they're easy to see and hit.
-      const w = Math.max(3, geo.laneW * 0.92 * s);
-      const h = Math.max(4, Math.round(26 * s));
-      const x0 = Math.round(x - w / 2);
-      const y0 = Math.round(y - h * 0.6);
-      const W2 = Math.round(w);
-      if (n.judged === 'miss') {
-        this.g.globalAlpha = 0.5;
-        this.rect(x0, y0, W2, h, '#4a4a60');
-        this.g.globalAlpha = 1;
-        return;
+    /**
+     * Phones: a note is a block stretched along the highway (it points at you),
+     * drawn scanline by scanline in perspective. Its bright front edge leads, and
+     * the strike line passes through its middle on the beat.
+     */
+    drawBar(n, geo, z, dz, od) {
+      const yNear = Math.round(geo.yAt(Math.max(-0.2, z - dz / 2)));
+      const yFar = Math.round(geo.yAt(z + dz / 2));
+      if (yNear <= yFar) return;
+      const g = this.g;
+      const span = yNear - yFar;
+      const missed = n.judged === 'miss';
+      if (z > 0.95) g.globalAlpha = Math.max(0, (1.15 - z) / 0.2);
+      if (missed) g.globalAlpha = 0.5;
+      for (let y = yFar - 1; y <= yNear + 1; y++) {
+        const sc = (y - HORIZON) / (HIT_Y - HORIZON);
+        const x = geo.cx + geo.laneX(n.lane) * sc;
+        const w = Math.max(2, geo.laneW * 0.78 * sc);
+        const x0 = Math.round(x - w / 2);
+        const ww = Math.round(w);
+        if (y < yFar || y > yNear) { g.fillStyle = od ? PAL.cyan : PAL.ink; g.fillRect(x0, y, ww, 1); continue; }
+        // Outline down the sides.
+        g.fillStyle = od ? PAL.cyan : PAL.ink;
+        g.fillRect(x0 - 1, y, ww + 2, 1);
+        const f = (y - yFar) / span; // 0 at the far end, 1 at the front edge
+        g.fillStyle = missed ? '#4a4a60' : f < 0.14 ? LANES_LIGHT[n.lane] : f > 0.8 ? LANES_DARK[n.lane] : LANES[n.lane];
+        g.fillRect(x0, y, ww, 1);
+        if (!missed && f >= 0.14 && f <= 0.8 && ww > 6) {
+          // A shine running along the block.
+          g.fillStyle = od ? PAL.cyan : PAL.white;
+          g.fillRect(Math.round(x - w * 0.22), y, Math.max(1, Math.round(w * 0.12)), 1);
+        }
       }
-      if (z > 0.95) this.g.globalAlpha = Math.max(0, (1.15 - z) / 0.2);
-      const r = h >= 10 ? 2 : 0; // pixel-rounded corners
-      this.rect(x0 - 1 + r, y0 - 1, W2 + 2 - r * 2, h + 2, od ? PAL.cyan : PAL.ink);
-      this.rect(x0 - 1, y0 - 1 + r, W2 + 2, h + 2 - r * 2, od ? PAL.cyan : PAL.ink);
-      // Body: darker base, bright face, a light top bevel and a white shine.
-      this.rect(x0, y0, W2, h, LANES_DARK[n.lane]);
-      this.rect(x0, y0, W2, Math.max(1, Math.round(h * 0.72)), LANES[n.lane]);
-      if (h >= 6) {
-        this.rect(x0 + 1, y0, W2 - 2, Math.max(1, Math.round(h / 8)), LANES_LIGHT[n.lane]);
-        this.rect(x0 + Math.round(w * 0.12), y0 + Math.max(2, Math.round(h * 0.2)), Math.round(w * 0.76), Math.max(1, Math.round(h * 0.16)), od ? PAL.cyan : PAL.white);
-        this.rect(x0, y0 + h - Math.max(1, Math.round(h / 8)), W2, Math.max(1, Math.round(h / 8)), PAL.ink);
-      }
-      this.g.globalAlpha = 1;
+      g.globalAlpha = 1;
     }
 
     drawFlames(v, geo, nowMs, energy = 0) {

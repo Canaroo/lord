@@ -90,7 +90,8 @@ press a key or a controller button.
   thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
   holds a long note, the other hand plays everything else. The timing window is slightly wider
   than on keys, and the overhit penalty is off, since a thumb can brush the glass.
-- **Big tap pads, raised strike line:** on phones the notes are flat, lane-wide bars and the
+- **Big tap pads, raised strike line:** on phones the notes are long blocks that run along the
+  highway, centred on the beat, so the strike line passes through the middle of each one; the
   frets are lane-wide strike plates. The line sits about 72% of the way down when sideways (80%
   upright), and each lane carries on below it as a big pad down to the bottom edge. Rest your
   thumbs on the pads, below the line, and tap anywhere in a lane's column, so your thumbs never
@@ -243,6 +244,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.12**: Beat Frets phone notes are long blocks along the highway (centred on the beat, so the
+  strike line runs through them), instead of thick flat bars.
 - **1.11**: new home screen with the two games; Beat Frets on a phone asks sideways (4 lanes) or
   upright (2 lanes) and locks the phone that way; a top bar shows where you are, with HOME;
   chunkier Beat Frets notes; no more full-screen notice in the installed app.
