@@ -642,10 +642,11 @@
 
     /** Phones: a note is a flat bar almost as wide as its lane, like the pad it's aimed at. */
     drawBar(n, x, y, s, geo, z, od) {
-      const w = Math.max(3, geo.laneW * 0.86 * s);
-      const h = Math.max(3, Math.round(15 * s));
+      // Chunky, button-like bars: wide and thick so they're easy to see and hit.
+      const w = Math.max(3, geo.laneW * 0.92 * s);
+      const h = Math.max(4, Math.round(26 * s));
       const x0 = Math.round(x - w / 2);
-      const y0 = Math.round(y - h / 2);
+      const y0 = Math.round(y - h * 0.6);
       const W2 = Math.round(w);
       if (n.judged === 'miss') {
         this.g.globalAlpha = 0.5;
@@ -654,10 +655,17 @@
         return;
       }
       if (z > 0.95) this.g.globalAlpha = Math.max(0, (1.15 - z) / 0.2);
-      this.rect(x0 - 1, y0 - 1, W2 + 2, h + 2, od ? PAL.cyan : PAL.ink);
+      const r = h >= 10 ? 2 : 0; // pixel-rounded corners
+      this.rect(x0 - 1 + r, y0 - 1, W2 + 2 - r * 2, h + 2, od ? PAL.cyan : PAL.ink);
+      this.rect(x0 - 1, y0 - 1 + r, W2 + 2, h + 2 - r * 2, od ? PAL.cyan : PAL.ink);
+      // Body: darker base, bright face, a light top bevel and a white shine.
       this.rect(x0, y0, W2, h, LANES_DARK[n.lane]);
-      this.rect(x0, y0, W2, Math.max(1, h - Math.ceil(h / 3)), LANES[n.lane]);
-      if (h >= 4) this.rect(x0 + Math.round(w * 0.1), y0 + Math.max(1, Math.round(h / 6)), Math.round(w * 0.8), Math.max(1, Math.round(h / 4)), od ? PAL.cyan : PAL.white);
+      this.rect(x0, y0, W2, Math.max(1, Math.round(h * 0.72)), LANES[n.lane]);
+      if (h >= 6) {
+        this.rect(x0 + 1, y0, W2 - 2, Math.max(1, Math.round(h / 8)), LANES_LIGHT[n.lane]);
+        this.rect(x0 + Math.round(w * 0.12), y0 + Math.max(2, Math.round(h * 0.2)), Math.round(w * 0.76), Math.max(1, Math.round(h * 0.16)), od ? PAL.cyan : PAL.white);
+        this.rect(x0, y0 + h - Math.max(1, Math.round(h / 8)), W2, Math.max(1, Math.round(h / 8)), PAL.ink);
+      }
       this.g.globalAlpha = 1;
     }
 

@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.10';
+  const VERSION = '1.11';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -35,12 +35,58 @@
   const familyOf = (id) => { const p = parseId(id); return p.tiles ? 'tiles' : p.touch ? 'touch' + p.lanes : 'keys'; };
   const idsFor = (family) => (family === 'keys' ? DIFFS : family === 'tiles' ? TILES_IDS : ChartGen.TOUCH_TIERS.map((d) => family + ':' + d));
 
-  /** keys on desktop; on touch, 4 lanes sideways and 2 lanes upright. */
+  // Which game the player picked on the home screen, and for Beat Frets on a
+  // phone, which way up (sideways = 4 lanes, upright = 2 lanes).
+  const session = { mode: null, orient: null };
+
+  /** keys on desktop; on touch, the chosen orientation (or however the phone is held). */
   function layoutMode() {
     if (!Input.touch) return 'keys';
+    if (session.mode === 'frets' && session.orient) return session.orient === 'landscape' ? 'touch4' : 'touch2';
     return window.innerHeight > window.innerWidth ? 'touch2' : 'touch4';
   }
-  const tilesMode = () => settings.playMode === 'tiles';
+
+  // ---- orientation: lock it where we can, otherwise ask the player to turn the phone ----
+
+  const isInstalled = () => (window.matchMedia && (matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches)) || navigator.standalone === true;
+  const orientation = {
+    wanted: null,
+    want(o) {
+      this.wanted = o || null;
+      if (o && Input.touch && screen.orientation && screen.orientation.lock) screen.orientation.lock(o).catch(() => { /* not allowed here: the prompt covers it */ });
+      checkOrientation();
+    },
+    release() {
+      this.wanted = null;
+      try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { /* nothing locked */ }
+      checkOrientation();
+    },
+  };
+  function wantedOrientation() {
+    if (!Input.touch) return null;
+    if (orientation.wanted) return orientation.wanted;
+    if (game && gameLayout !== 'keys') return gameLayout === 'touch4' ? 'landscape' : 'portrait';
+    return null;
+  }
+  /** Show the "turn your phone" prompt (and pause a song) while it's held the wrong way. */
+  function checkOrientation() {
+    const want = wantedOrientation();
+    const wrong = !!want && (want === 'landscape') !== (window.innerWidth > window.innerHeight);
+    $('#rotate').hidden = !wrong;
+    $('#rotate-msg').textContent = want === 'landscape' ? 'TURN YOUR PHONE SIDEWAYS' : 'TURN YOUR PHONE UPRIGHT';
+    if (game) {
+      if (wrong) {
+        if (!game.paused) game.pause();
+        $('#pause-msg').textContent = want === 'landscape' ? 'Turn your phone sideways to keep playing.' : 'Turn your phone upright to keep playing.';
+        $('#btn-resume').disabled = true;
+      } else if ($('#btn-resume').disabled) {
+        $('#pause-msg').textContent = '';
+        $('#btn-resume').disabled = false;
+      }
+    }
+    return wrong;
+  }
+  const tilesMode = () => session.mode === 'tiles';
   const tierIds = () => (tilesMode() ? TILES_IDS : idsFor(layoutMode()));
   /** The chart id for a tier in the current layout ('hard' → 'touch4:hard' when sideways). */
   function idFor(base) {
@@ -116,6 +162,8 @@
     if (updateWaiting && !game && (name === 'title' || name === 'main')) { location.reload(); return; }
     stopPreview();
     stage.setupMode = name === 'strike-setup';
+    if (name === 'main' || name === 'title') leaveMode();
+    renderCrumbs(name);
     screen = name;
     $('#panel').classList.toggle('hidden', !name);
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
@@ -293,7 +341,9 @@
 
   $('#btn-start').addEventListener('click', () => {
     ensureAudio();
-    if (Input.touch && document.documentElement.requestFullscreen && !document.fullscreenElement) {
+    // In a browser tab, go full screen. The installed app already is, and asking
+    // again makes Android show its "full screen" notice every time.
+    if (Input.touch && !isInstalled() && document.documentElement.requestFullscreen && !document.fullscreenElement) {
       document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
     }
     if (!save.active) initials.open(null, (txt) => { save.createProfile(txt); renderMain(); show('main'); });
@@ -762,12 +812,10 @@
     const mode = layoutMode();
     if (mode !== 'keys') {
       $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · ~${Math.round(current.analysis.bpm)} BPM · ` + (mode === 'touch4'
-        ? '4 lanes. Turn your phone upright for 2.'
-        : '2 lanes. Turn your phone sideways for 4.');
+        ? (session.orient ? '4 lanes, sideways.' : '4 lanes. Turn your phone upright for 2.')
+        : (session.orient ? '2 lanes, upright.' : '2 lanes. Turn your phone sideways for 4.'));
     }
     if (tilesMode()) $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · Tap each tile as it reaches the line. Two hearts, and every lap gets faster.`;
-    $('#mode-tabs').innerHTML = [['frets', 'BEAT FRETS'], ['tiles', 'TILES']]
-      .map(([m, label]) => `<button data-mode="${m}" class="${settings.playMode === m ? 'on' : ''}">${label}</button>`).join('');
     $('#song-match').hidden = !current.matchNote;
     $('#song-match').textContent = current.matchNote || '';
     $('#diffs').innerHTML = tierIds().map((d) => {
@@ -994,17 +1042,77 @@
   });
   window.addEventListener('pointerup', () => { tilesDrag = null; });
   $('#btn-tr-board').addEventListener('click', () => openBoard(current.key, current.title, lastDifficulty, 'tiles-results'));
-  $('#mode-tabs').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-mode]');
-    if (!b || settings.playMode === b.dataset.mode) return;
-    save.setSetting('playMode', b.dataset.mode);
-    showSong();
+  // ---- home: pick a game, then (Beat Frets on a phone) which way up, then a song ----
+
+  const MODE_LABEL = { frets: 'BEAT FRETS', tiles: 'TILES' };
+  function enterMode(mode) {
+    session.mode = mode;
+    session.orient = null;
+    save.setSetting('playMode', mode);
+    if (mode === 'tiles') {
+      // Tiles is always played upright.
+      session.orient = Input.touch ? 'portrait' : null;
+      orientation.want(session.orient);
+      goSongs();
+      return;
+    }
+    if (Input.touch) { show('frets-setup'); return; }
+    goSongs();
+  }
+  function goSongs(which = 'pack') {
+    const back = session.mode === 'frets' && Input.touch ? 'frets-setup' : 'main';
+    $('#screen-pack').dataset.back = back;
+    $('#screen-import').dataset.back = back;
+    if (which === 'import') renderImport(); else renderPack();
+    show(which);
+  }
+  /** Leaving a mode (back to the home screen): unlock the orientation. */
+  function leaveMode() {
+    if (!session.mode && !orientation.wanted) return;
+    session.mode = null;
+    session.orient = null;
+    orientation.release();
+    applyLayout();
+  }
+  function goHome() {
+    if (game) {
+      game.stop();
+      game = null;
+      wakeLock.release();
+      Input.setGameplay(false);
+      $('#pause').hidden = true;
+    }
+    Sfx.back();
+    renderMain();
+    show('main');
+  }
+  function renderCrumbs(name) {
+    const IN_MODE = ['frets-setup', 'pack', 'import', 'song', 'results', 'tiles-results', 'board', 'share', 'strike-setup', 'calib-offer', 'calib'];
+    const visible = !!session.mode && IN_MODE.includes(name);
+    $('#crumbs').hidden = !visible;
+    if (!visible) return;
+    const parts = [MODE_LABEL[session.mode] + (session.mode === 'frets' && session.orient ? (session.orient === 'landscape' ? ' · 4 LANES' : ' · 2 LANES') : '')];
+    if (name !== 'frets-setup') parts.push('SONGS');
+    if (current && !['frets-setup', 'pack', 'import'].includes(name)) parts.push(current.title.toUpperCase().slice(0, 22));
+    $('#crumbs-path').textContent = parts.join(' › ');
+  }
+  $('#btn-mode-frets').addEventListener('click', () => enterMode('frets'));
+  $('#btn-mode-tiles').addEventListener('click', () => enterMode('tiles'));
+  $('#screen-frets-setup').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-orient]');
+    if (!b) return;
+    session.orient = b.dataset.orient;
+    orientation.want(session.orient);
+    applyLayout();
+    goSongs();
   });
-  $('#btn-tiles-mode').addEventListener('click', () => {
-    save.setSetting('playMode', 'tiles');
-    renderPack();
-    show('pack');
+  document.addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-songs]');
+    if (tab) { goSongs(tab.dataset.songs); return; }
+    if (e.target.closest('[data-go-songs]')) goSongs(songOrigin === 'import' ? 'import' : 'pack');
   });
+  $('#btn-home').addEventListener('click', goHome);
+  $('#btn-rotate-home').addEventListener('click', goHome);
 
   $('#btn-resume').addEventListener('click', () => game && game.resume());
   $('#btn-restart').addEventListener('click', () => { $('#pause').hidden = true; play(lastDifficulty); });
@@ -1652,26 +1760,19 @@
     document.body.classList.toggle('touch', Input.touch);
     if (game) return;
     stage.setLayout(layoutMode(), window.innerWidth / window.innerHeight);
+    checkOrientation();
   }
 
   let resizeTimer = 0;
   function onResize() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      if (game && gameLayout === 'tiles') { stage.setLayout('tiles', window.innerWidth / window.innerHeight); return; }
       if (game) {
-        // Turning the phone mid-song would change the lanes: pause until it's turned back.
-        if (gameLayout !== 'keys' && layoutMode() !== gameLayout) {
-          if (!game.paused) game.pause();
-          $('#pause-msg').textContent = gameLayout === 'touch4' ? 'Turn your phone sideways to keep playing.' : 'Turn your phone upright to keep playing.';
-          $('#btn-resume').disabled = true;
-        } else {
-          $('#pause-msg').textContent = '';
-          $('#btn-resume').disabled = false;
-          stage.setLayout(gameLayout, window.innerWidth / window.innerHeight);
-        }
+        // Turned the wrong way mid-song: pause and ask to turn it back.
+        if (!checkOrientation()) stage.setLayout(gameLayout, window.innerWidth / window.innerHeight);
         return;
       }
+      checkOrientation();
       const before = stage.layout;
       applyLayout();
       if (stage.layout !== before && screen === 'song' && current) showSong();
@@ -1840,6 +1941,8 @@
 
   window.BeatFrets = {
     version: VERSION,
+    session,
+    goHome,
     save,
     get game() { return game; },
     get current() { return current; },

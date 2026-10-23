@@ -47,21 +47,46 @@
 
     <!-- Main menu -->
     <section id="screen-main" class="screen win" data-back="title">
-      <h2 class="small">MAIN MENU</h2>
-      <div class="menu">
-        <button data-go="pack" data-autofocus>SONG PACK <small>Same charts for everyone</small></button>
-        <button id="btn-tiles-mode">TILES MODE <small>Tap the falling tiles · two hearts</small></button>
-        <button data-go="import">YOUR MUSIC <small>Import an MP3</small></button>
-        <button data-go="boards">LEADERBOARDS</button>
+      <h2 class="small">CHOOSE A GAME</h2>
+      <div class="modes">
+        <button class="mode-card frets" id="btn-mode-frets" data-autofocus>
+          <span class="mode-art" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <strong>BEAT FRETS</strong>
+          <small>Rock the highway: hit notes on the line, hold, slide and fire overdrive.</small>
+        </button>
+        <button class="mode-card tiles" id="btn-mode-tiles">
+          <span class="mode-art" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <strong>TILES</strong>
+          <small>Tap the falling tiles. Two hearts, and every lap gets faster.</small>
+        </button>
+      </div>
+      <div class="menu row small-row">
         <button data-go="players">PLAYER <small id="main-player"></small></button>
+        <button data-go="boards">LEADERBOARDS</button>
         <button data-go="options">OPTIONS</button>
         <button data-go="data">SAVE DATA</button>
       </div>
     </section>
 
+    <!-- Beat Frets on a phone: sideways or upright? -->
+    <section id="screen-frets-setup" class="screen win" data-back="main">
+      <h2 class="small">HOW DO YOU WANT TO PLAY?</h2>
+      <div class="modes">
+        <button class="mode-card" data-orient="landscape" data-autofocus>
+          <strong>SIDEWAYS · 4 LANES</strong>
+          <small>The full game. Hold the phone sideways and play with both thumbs.</small>
+        </button>
+        <button class="mode-card" data-orient="portrait">
+          <strong>UPRIGHT · 2 LANES</strong>
+          <small>One lane per thumb. Great for a quick game.</small>
+        </button>
+      </div>
+      <div class="menu row back-row"><button data-back-btn>BACK</button></div>
+    </section>
+
     <!-- Song pack -->
     <section id="screen-pack" class="screen win" data-back="main">
-      <h2 class="small">SONG PACK</h2>
+      <div class="menu row tabs song-tabs"><button class="on" data-songs="pack">SONG PACK</button><button data-songs="import">YOUR MUSIC</button></div>
       <p class="hint">Everyone gets the same notes on these songs, so they're the fairest ones to compete on.</p>
       <p class="eyebrow">CHIPTUNE PACK</p>
       <div class="menu" id="pack-list"></div>
@@ -74,7 +99,7 @@
 
     <!-- Import -->
     <section id="screen-import" class="screen win" data-back="main">
-      <h2 class="small">YOUR MUSIC</h2>
+      <div class="menu row tabs song-tabs"><button data-songs="pack">SONG PACK</button><button class="on" data-songs="import">YOUR MUSIC</button></div>
       <label id="drop" class="drop" tabindex="0" data-autofocus>
         <input id="file" type="file" accept="audio/*,.mp3" hidden />
         <strong>IMPORT AN MP3</strong>
@@ -99,7 +124,6 @@
       <p id="song-meta" class="hint"></p>
       <p id="song-match" class="match" hidden></p>
       <p id="song-credit" class="hint" hidden></p>
-      <div class="menu row tabs mode-tabs" id="mode-tabs"></div>
       <div class="diffs" id="diffs"></div>
       <p class="hint kbd-only">Hit each note as it crosses the line, and hold long notes until their tail ends. Hold <b>R</b> (or Back) to restart. Fill the OD meter, then press <b data-glyph="overdrive">SPACE</b> for double points. Don't let the rock meter run out.</p>
       <p class="hint touch-only">Tap each note as it crosses the line, and keep your finger down on long notes. When the OD meter flashes, <b>swipe up</b> with any finger for double points. <b>II</b> pauses.</p>
@@ -137,6 +161,7 @@
         <button id="btn-share">SHARE</button>
         <button id="btn-res-board">BOARD</button>
         <button id="btn-res-back">SONG</button>
+        <button data-go-songs>SONGS</button>
       </div>
     </section>
 
@@ -158,6 +183,7 @@
       <div class="menu row">
         <button id="btn-tr-retry" data-autofocus>PLAY AGAIN</button>
         <button id="btn-tr-board">BOARD</button>
+        <button data-go-songs>SONGS</button>
         <button data-back-btn>SONG</button>
       </div>
     </section>
@@ -305,6 +331,16 @@
       </div>
     </section>
   </main>
+
+  <!-- Where you are: HOME › BEAT FRETS › SONGS › … -->
+  <nav id="crumbs" hidden><button id="btn-home">HOME</button><span id="crumbs-path"></span></nav>
+
+  <!-- Phones: shown until the phone is turned the way the chosen mode needs. -->
+  <div id="rotate" hidden>
+    <div class="rotate-phone" aria-hidden="true"><i></i></div>
+    <p id="rotate-msg">TURN YOUR PHONE SIDEWAYS</p>
+    <button id="btn-rotate-home">HOME</button>
+  </div>
 
   <!-- Pause -->
   <div id="pause" class="overlay" hidden>

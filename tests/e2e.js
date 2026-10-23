@@ -171,7 +171,7 @@ async function touchTests(browser) {
     .filter((s) => !s.querySelector('[data-back-btn], [data-go]'))
     .map((s) => s.id));
   check(!missing.length, 'every menu has an on-screen way back ' + missing.join(' '));
-  for (const go of ['pack', 'import', 'boards', 'players', 'options', 'data']) {
+  for (const go of ['boards', 'players', 'options', 'data']) {
     await page.tap(`#screen-main [data-go="${go}"]`);
     await screenIs(page, go);
     await page.tap(`#screen-${go} [data-back-btn]`);
@@ -188,7 +188,20 @@ async function touchTests(browser) {
   await page.goBack();
   await screenIs(page, 'main');
   check(page.url().startsWith(url), "repeated phone Back stays in the game");
-  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  // Home → BEAT FRETS → SIDEWAYS · 4 LANES → song list → a song.
+  check(await page.isVisible('#btn-mode-frets') && await page.isVisible('#btn-mode-tiles'), 'home screen offers the two games');
+  await page.tap('#btn-mode-frets');
+  await screenIs(page, 'frets-setup');
+  await page.tap('[data-orient="landscape"]');
+  await screenIs(page, 'pack');
+  const crumbs = await page.textContent('#crumbs-path');
+  check(/BEAT FRETS · 4 LANES/.test(crumbs) && await page.isVisible('#btn-home'), `the top bar shows where you are (${crumbs})`);
+  await page.tap('#screen-pack [data-songs="import"]');
+  await screenIs(page, 'import');
+  await page.tap('#screen-import [data-songs="pack"]');
+  await screenIs(page, 'pack');
+  check(true, 'Song pack / Your music tabs switch the song list');
+  await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   const landIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
   check(landIds.join() === 'touch4:easy,touch4:medium,touch4:mediumplus,touch4:hard', 'sideways: four touch tiers (' + landIds.join(' ') + ')');
@@ -249,11 +262,20 @@ async function touchTests(browser) {
   const tabs = await page.evaluate(() => [...document.querySelectorAll('[data-board-family]')].map((b) => b.textContent).join('|'));
   check(/TOUCH 4/.test(tabs) && /TOUCH 2/.test(tabs) && /KEYS/.test(tabs), `leaderboard has keys / touch tabs (${tabs})`);
 
-  // Upright: two lanes.
+  // Upright: HOME → Beat Frets → UPRIGHT · 2 LANES. Chosen while the phone is
+  // sideways, it asks to turn the phone until it is.
+  await page.tap('#btn-home');
+  await screenIs(page, 'main');
+  await page.tap('#btn-mode-frets');
+  await screenIs(page, 'frets-setup');
+  await page.tap('[data-orient="portrait"]');
+  await page.waitForTimeout(250);
+  check(await page.isVisible('#rotate') && /UPRIGHT/.test(await page.textContent('#rotate-msg')), 'choosing upright while sideways shows "turn your phone"');
   await page.setViewportSize(PORT);
   await page.waitForTimeout(400);
-  check(await page.evaluate(() => BeatFrets.stage.layout === 'touch2'), 'upright phone switches to the 2-lane layout');
-  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  check(!(await page.isVisible('#rotate')) && await page.evaluate(() => BeatFrets.stage.layout === 'touch2'), 'turned upright: the prompt goes and the 2-lane layout is used');
+  await screenIs(page, 'pack');
+  await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   const portIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
   check(portIds.length === 4 && portIds.every((d) => d.startsWith('touch2:')), 'upright: four 2-lane tiers');
@@ -274,7 +296,7 @@ async function touchTests(browser) {
   await page.setViewportSize(LAND);
   await page.waitForTimeout(500);
   const rot = await page.evaluate(() => ({ paused: BeatFrets.game.paused, msg: document.getElementById('pause-msg').textContent, resume: document.getElementById('btn-resume').disabled }));
-  check(rot.paused && /upright/.test(rot.msg) && rot.resume, 'turning the phone mid-song pauses and asks to turn it back');
+  check(rot.paused && /upright/.test(rot.msg) && rot.resume && await page.isVisible('#rotate'), 'turning the phone mid-song pauses and asks to turn it back');
   await page.setViewportSize(PORT);
   await page.waitForTimeout(500);
   check(await page.evaluate(() => !document.getElementById('btn-resume').disabled && BeatFrets.stage.layout === 'touch2'), 'turning it back allows resuming');
@@ -298,9 +320,14 @@ async function touchTests(browser) {
   // Long notes: the holding thumb can slide away (here: to the far corner) and keep
   // holding, and taps that land just inside the next lane still count (tap assist).
   await page.tap('#btn-quit').catch(() => {});
+  await page.tap('#btn-home');
+  await screenIs(page, 'main');
   await page.setViewportSize(LAND);
   await page.waitForTimeout(400);
-  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  await page.tap('#btn-mode-frets');
+  await page.tap('[data-orient="landscape"]');
+  await screenIs(page, 'pack');
+  await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   await page.tap('[data-diff="touch4:hard"]');
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
@@ -371,11 +398,15 @@ async function touchTests(browser) {
 
   // ---- Tiles mode: upright board, tap the tiles, 3 lives, faster laps ----
   await page.tap('#btn-quit').catch(() => {});
+  await page.tap('#btn-home');
+  await screenIs(page, 'main');
   await page.setViewportSize(PORT);
   await page.waitForTimeout(400);
-  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  await page.tap('#btn-mode-tiles');
+  await screenIs(page, 'pack');
+  check(/TILES/.test(await page.textContent('#crumbs-path')), 'Tiles mode goes straight to its song list');
+  await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
-  await page.tap('[data-mode="tiles"]');
   const tilesIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join(' '));
   check(tilesIds === 'tiles:easy tiles:medium tiles:hard', `song screen switches to Tiles tiers (${tilesIds})`);
   await page.tap('[data-diff="tiles:hard"]');
@@ -460,7 +491,6 @@ async function touchTests(browser) {
   await screenIs(page, 'tiles-results');
   await page.tap('#screen-tiles-results [data-back-btn]');
   await screenIs(page, 'song');
-  await page.tap('[data-mode="frets"]');
 
   // The keyboard takes over as soon as it's used.
   await page.keyboard.press('ArrowDown');
@@ -768,7 +798,7 @@ async function touchTests(browser) {
   }
 
   if (mp3) {
-    await page.evaluate(() => { document.querySelector('[data-go="import"]').click(); });
+    await page.evaluate(() => { document.querySelector('[data-songs="import"]').click(); });
     await page.setInputFiles('#file', mp3);
     await screenIs(page, 'song');
     const info = await page.evaluate(() => ({ key: BeatFrets.current.key, notes: BeatFrets.current.charts.hard.notes.length }));

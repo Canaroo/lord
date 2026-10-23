@@ -414,3 +414,62 @@ body.touch .kbd-only { display: none; }
 .tr-stars { font-size: 28px; letter-spacing: 4px; color: #3a3a6a; margin: 4px 0; }
 .tr-stars b { color: var(--gold, #f8d830); font-weight: normal; }
 .tr-stars .hint { font-size: 16px; letter-spacing: 1px; }
+
+/* ---- Home: two big game cards ------------------------------------------------------------ */
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 10px 0 6px; }
+.mode-card {
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+  padding: 14px 14px 12px; border: 3px solid var(--edge-mid); border-radius: 8px;
+  background: rgba(8, 8, 26, 0.45); box-shadow: 0 0 0 2px var(--ink), 0 6px 0 rgba(0, 0, 0, 0.35);
+  font-size: 14px; text-align: left; min-height: 110px;
+}
+.mode-card::before { display: none; }
+.mode-card strong { font-weight: normal; }
+.mode-card:hover, .mode-card:focus-visible, body.nav .mode-card:focus { border-color: var(--gold); transform: translateY(-2px); }
+.mode-card small { font-size: 19px; }
+/* A tiny pixel picture of each game. */
+.mode-art { display: flex; gap: 4px; height: 26px; align-items: flex-end; }
+.mode-art i { display: block; width: 18px; border: 2px solid var(--ink); }
+.mode-card.frets .mode-art i { height: 8px; border-radius: 4px; }
+.mode-card.frets .mode-art i:nth-child(1) { background: var(--k0); }
+.mode-card.frets .mode-art i:nth-child(2) { background: var(--k1); margin-bottom: 10px; }
+.mode-card.frets .mode-art i:nth-child(3) { background: var(--k2); margin-bottom: 4px; }
+.mode-card.frets .mode-art i:nth-child(4) { background: var(--k3); margin-bottom: 14px; }
+.mode-card.tiles .mode-art i { background: #0a0a1c; height: 22px; box-shadow: inset 0 -4px 0 var(--cyan); }
+.mode-card.tiles .mode-art i:nth-child(2) { height: 12px; }
+.mode-card.tiles .mode-art i:nth-child(4) { height: 16px; }
+.small-row { justify-content: center; margin-top: 12px; }
+.small-row button { font-size: 10px; }
+.small-row button small { font-size: 16px; display: inline; margin-left: 4px; }
+
+/* Song lists: Song pack / Your music tabs. */
+.song-tabs { justify-content: center; margin: 0 0 8px; }
+
+/* ---- Where you are: HOME › BEAT FRETS › SONGS › … ------------------------------------------- */
+#crumbs {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px max(10px, env(safe-area-inset-right, 0px)) 6px max(10px, env(safe-area-inset-left, 0px));
+  background: rgba(8, 8, 26, 0.85); border-bottom: 2px solid var(--edge-mid);
+  font-family: var(--pixel); font-size: 10px; color: var(--muted);
+}
+#crumbs[hidden] { display: none; }
+#crumbs button { font-size: 10px; padding: 4px 8px; border: 2px solid var(--edge-mid); border-radius: 4px; }
+#crumbs button::before { display: none; }
+#crumbs-path { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body:has(#crumbs:not([hidden])) #panel { padding-top: 64px; padding-bottom: 12px; }
+body:has(#crumbs:not([hidden])) .screen { max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); }
+
+/* ---- Turn your phone ------------------------------------------------------------------------- */
+#rotate {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: var(--night); color: var(--text); font-family: var(--pixel); font-size: 12px; text-align: center; padding: 20px;
+}
+#rotate[hidden] { display: none; }
+.rotate-phone {
+  width: 54px; height: 92px; border: 5px solid var(--edge); border-radius: 9px; box-shadow: 0 0 0 3px var(--ink);
+  position: relative; animation: turn-phone 2.4s steps(1) infinite;
+}
+.rotate-phone i { position: absolute; left: 50%; bottom: 5px; width: 10px; height: 4px; margin-left: -5px; background: var(--edge); }
+@keyframes turn-phone { 0%, 30% { transform: rotate(0deg); } 40% { transform: rotate(-45deg); } 50%, 80% { transform: rotate(-90deg); } 90% { transform: rotate(-45deg); } }

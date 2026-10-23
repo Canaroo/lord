@@ -67,10 +67,22 @@ menu, or the **TILES** switch on any song's screen.
 - **Easy, Medium and Hard** use the same note charts as the phone game. Tiles scores have their
   own leaderboard tab. On a keyboard, the columns are `A` `S` `D` `F`.
 
+## Getting around
+
+The home screen has the two games, **Beat Frets** and **Tiles**, as big cards, with Player,
+Leaderboards, Options and Save data below. Pick a game, then a song (Song pack or Your music), then
+a difficulty. A bar across the top shows where you are (*BEAT FRETS · 4 LANES › SONGS › …*) with a
+**HOME** button; BACK always goes up one step. After a song, **SONGS** takes you back to the list.
+
 ## Playing on a phone or tablet
 
 The game switches to touch controls on its own when you tap the screen, and back again if you
 press a key or a controller button.
+
+- **Beat Frets asks how you'll hold the phone:** *Sideways · 4 lanes* or *Upright · 2 lanes*.
+  The game then locks the phone that way until you go back Home. Tiles is always upright. Where
+  the phone can't be locked (iPhone, or a browser tab), a "turn your phone" screen shows until
+  it's held the right way, and a song pauses if you turn it mid-song.
 
 - **Sideways: 4 lanes.** Tap the frets along the bottom with your fingers or thumbs.
 - **Upright: 2 lanes**, one per thumb, like Duo.
@@ -231,6 +243,9 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.11**: new home screen with the two games; Beat Frets on a phone asks sideways (4 lanes) or
+  upright (2 lanes) and locks the phone that way; a top bar shows where you are, with HOME;
+  chunkier Beat Frets notes; no more full-screen notice in the installed app.
 - **1.10**: Tiles mode: the line sits higher (70% down instead of 80%), and you can drag it on
   the START screen or set it in Options (*Tiles line height*).
 - **1.9**: Tiles mode: tap a START tile to begin; tiles you tap together are linked with a bridge
