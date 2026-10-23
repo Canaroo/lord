@@ -126,6 +126,253 @@
         { bars: 4, drums: 'verse', bass: 'verse', lead: 'verse', crash: true },
       ],
     },
+
+    // ---- Spooky ----
+    {
+      id: 'haunted-hallway',
+      theme: 'spooky',
+      title: 'Haunted Hallway',
+      blurb: 'A creeping monster march on a wobbly organ.',
+      bpm: 112,
+      root: 57,
+      scale: 'harmonic',
+      prog: [0, 5, 3, 4],
+      voice: { lead: 'organ', vibrato: { rate: 4.5, depth: 0.018 }, echo: { steps: 6, fb: 0.5, wet: 0.45 }, toms: 'tom' },
+      drums: {
+        intro: { k: 'x.......x.......', t: '..........x...x.' },
+        march: { k: 'x.......x.......', s: '....x.......x...', h: '..x...x...x...x.' },
+        chorus: { k: 'x...x...x...x...', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        creep: { k: 'x...............', t: 'x.....x.....x...' },
+        fill: { k: 'x...x...........', s: '........x.x.x.x.', t: '....x.x.........' },
+      },
+      bass: {
+        march: '0...4...0...4...',
+        chorus: '0.0.4.4.0.0.7.4.',
+        creep: '0---------------',
+      },
+      lead: {
+        verse: ['4---3-2-1---6...', '7---6-5-4-------', '5---4-3-2---3-4-', '6---4-6-7-------'],
+        chorus: ['7.7.b.a.9.8.7...', 'c-b-a-9-8---6---', 'a.a.9.8.7.6.5...', '6-7-8-6-7-------'],
+        creep: ['b-------a-------', 'c-------b---a---', '9-------8-------', '6---------------'],
+        outro: ['7-------4-------', '0---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'creep', arp: true },
+        { bars: 8, drums: 'march', bass: 'march', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'creep', bass: 'creep', lead: 'creep', crash: true },
+        { bars: 8, drums: 'march', bass: 'march', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'march', bass: 'march', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'graveyard-shift',
+      theme: 'spooky',
+      title: 'Graveyard Shift',
+      blurb: 'Skeletons dance a fast, spooky shuffle.',
+      bpm: 138,
+      root: 62,
+      scale: 'harmonic',
+      prog: [0, 0, 5, 6],
+      voice: { lead: 'organ', vibrato: { rate: 6, depth: 0.012 }, echo: { steps: 3, fb: 0.45, wet: 0.4 }, toms: 'tom' },
+      drums: {
+        intro: { k: 'x.......x.......', h: 'x.xx.xx.x.xx.xx.' },
+        verse: { k: 'x..x..x...x..x..', s: '....x.......x...', h: 'x.xx.xx.x.xx.xx.' },
+        chorus: { k: 'x...x...x...x...', s: '....x..x....x...', o: '..x...x...x...x.' },
+        brk: { k: 'x...............', t: 'x..x..x..x..x...' },
+        fill: { k: 'x.......x.......', s: '....x...x.x.xxxx', t: 'x.x.............' },
+      },
+      bass: {
+        verse: '0..0..4.0..0..7.',
+        chorus: '0.0.0.0.4.4.7.4.',
+        brk: '0---------------',
+      },
+      lead: {
+        verse: ['0.2.4.7.6.4.2.1.', '0.2.4.7.8.7.6...', '5.4.3.2.1.2.3.4.', '6.4.6.7.6.......'],
+        chorus: ['7.7.9.b.a.9.7.6.', '7.7.9.b.c.b.a...', 'b.a.9.8.7.6.5.4.', '6.7.8.9.a---7...'],
+        brk: ['7-------6-------', '5-------4-------', '3-------2-------', '6---------------'],
+        outro: ['7-6-4-2-0-------', '0---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'verse', arp: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+    // ---- Rock ----
+    {
+      id: 'power-chord-party',
+      theme: 'rock',
+      title: 'Power Chord Party',
+      blurb: 'Crunchy guitars and a big stadium chorus.',
+      bpm: 128,
+      root: 64,
+      scale: 'minor',
+      prog: [0, 5, 6, 4],
+      voice: { lead: 'square', echo: { steps: 3, fb: 0.3, wet: 0.25 }, toms: 'tom' },
+      drums: {
+        intro: { k: 'x.......x.......', h: 'x.x.x.x.x.x.x.x.' },
+        verse: { k: 'x.......x.x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        chorus: { k: 'x.x...x.x.x...x.', s: '....x.......x...', o: 'x...x...x...x...' },
+        solo: { k: 'x.x.x.x.x.x.x.x.', s: '....x.......x...', h: 'xxxxxxxxxxxxxxxx' },
+        fill: { k: 'x...............', s: '....x.......xxxx', t: '........x.x.x...' },
+      },
+      bass: {
+        verse: '0.0.0.0.0.0.0.0.',
+        chorus: '0.0.0.0.0.0.7.7.',
+      },
+      gtr: {
+        intro: 'o-------o-------',
+        verse: 'x.x.x.x.x.x.x.x.',
+        chorus: 'o---x.x.o---x.x.',
+        solo: 'x.xxx.xxx.xxx.xx',
+      },
+      lead: {
+        verse: ['7---7-9-a---9-7-', '6---6-7-9---7---', '5---5-6-7---6-5-', '4-------6---7---'],
+        chorus: ['b.b.a.9.a---9-7-', 'a.a.9.7.9---7-6-', '9.9.7.6.7---6-5-', '6.7.9.a.b-------'],
+        solo: ['7.9.a.b.a.9.7.9.', 'a.b.c.b.a.9.a.b.', 'c.b.a.9.a.9.7.6.', '7-9-a-b-c-b-a---'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'verse', gtr: 'intro', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', gtr: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 8, drums: 'verse', bass: 'verse', gtr: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 8, drums: 'solo', bass: 'verse', gtr: 'solo', lead: 'solo', crash: true, fill: true },
+        { bars: 4, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', crash: true },
+      ],
+    },
+    {
+      id: 'amp-overload',
+      theme: 'rock',
+      title: 'Amp Overload',
+      blurb: 'A fast, shredding speed-metal blast.',
+      bpm: 160,
+      root: 57,
+      scale: 'minor',
+      prog: [0, 0, 3, 4],
+      voice: { lead: 'square', vibrato: { rate: 7, depth: 0.008 }, echo: { steps: 2, fb: 0.3, wet: 0.25 }, toms: 'tom' },
+      drums: {
+        intro: { k: 'x.x.x.x.x.x.x.x.', h: 'x.x.x.x.x.x.x.x.' },
+        verse: { k: 'x.x...x.x.x...x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        pre: { k: 'x...x...x...x...', s: '....x...x...x.x.', h: 'xxxxxxxxxxxxxxxx' },
+        chorus: { k: 'x.x.x.x.x.x.x.x.', s: '....x.......x...', o: 'x...x...x...x...' },
+        fill: { k: 'x.x.x.x.........', s: '........xxxxxxxx', t: '....x.x.........' },
+      },
+      bass: {
+        verse: '0.00.00.0.00.07.',
+        chorus: '0.0.0.0.0.0.0.0.',
+      },
+      gtr: {
+        intro: 'x.x.x.x.x.x.x.x.',
+        verse: 'x.xxx.xxx.xxx.x.',
+        pre: 'x.x.x.x.x.x.x.x.',
+        chorus: 'o-------o---o---',
+      },
+      lead: {
+        verse: ['7.7.9.7.a.7.b.a.', '9.9.a.9.7...5.4.', '7.7.9.7.a.7.b.a.', 'c.b.a.9.a---7---'],
+        pre: ['b-b-a-a-9-9-8-8-', 'b-b-a-a-c---b---'],
+        chorus: ['e---d-c-b---a-b-', 'c---b-a-9---7---', 'a---b-c-d---c-b-', 'c-d-e-----------'],
+        solo: ['e.d.c.b.c.b.a.9.', 'a.9.8.7.8.9.a.b.', 'c.d.e.d.c.b.a.b.', 'c.b.a.9.a---7---'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'verse', gtr: 'intro', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', gtr: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 4, drums: 'pre', bass: 'verse', gtr: 'pre', lead: 'pre', crash: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 8, drums: 'verse', bass: 'verse', gtr: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 4, drums: 'pre', bass: 'verse', gtr: 'pre', lead: 'pre', crash: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'verse', gtr: 'verse', lead: 'solo', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', crash: true },
+      ],
+    },
+    // ---- Epic video game ----
+    {
+      id: 'heros-dawn',
+      theme: 'epic',
+      title: "Hero's Dawn",
+      blurb: 'A brassy fanfare for the start of a quest.',
+      bpm: 120,
+      root: 62,
+      scale: 'major',
+      prog: [0, 4, 5, 3],
+      voice: { lead: 'brass', echo: { steps: 4, fb: 0.35, wet: 0.35 }, toms: 'timpani' },
+      drums: {
+        intro: { t: 'x.......x.x.x...' },
+        march: { k: 'x.......x.......', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', t: '..............x.' },
+        chorus: { k: 'x...x...x...x...', s: '....x.......x...', o: '..x...x...x...x.', t: 'x.......x.......' },
+        bridge: { k: 'x.......x.......', t: '....x.......x...' },
+        fill: { k: 'x...............', t: 'x.x.x.x.x.x.xxxx' },
+      },
+      bass: {
+        verse: '0...4...0...4...',
+        chorus: '0.0.4.4.7.7.4.2.',
+        bridge: '0-------4-------',
+      },
+      lead: {
+        intro: ['0---4---7-------', '6---7-8-9-------'],
+        verse: ['4---4-7-6-4-2---', '3---3-5-4-------', '4---4-7-9-8-7---', '8---6-7---------'],
+        chorus: ['7-7-9-b---9-7---', '8-8-9-a---9-8---', '9-9-a-c---b-a---', 'b---9---7-------'],
+        bridge: ['5-------4-------', '3-------4-------', '5-------6-------', '7---------------'],
+        outro: ['7---4---0-------', '0---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'bridge', lead: 'intro', crash: true },
+        { bars: 8, drums: 'march', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'bridge', bass: 'bridge', lead: 'bridge', crash: true },
+        { bars: 8, drums: 'march', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'march', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'final-quest',
+      theme: 'epic',
+      title: 'Final Quest',
+      blurb: 'The last dungeon: thundering timpani and a heroic charge.',
+      bpm: 152,
+      root: 60,
+      scale: 'harmonic',
+      prog: [0, 5, 3, 4],
+      voice: { lead: 'brass', echo: { steps: 3, fb: 0.35, wet: 0.3 }, toms: 'timpani' },
+      drums: {
+        intro: { t: 'x...x...x...xxxx' },
+        verse: { k: 'x.x...x.x.x...x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        chorus: { k: 'x.x.x.x.x.x.x.x.', s: '....x.......x...', o: 'x...x...x...x...', t: 'x.......x.......' },
+        brk: { k: 'x...............', t: 'x..x..x.x..x..x.' },
+        fill: { s: '....x...........', t: 'x.x.x.x.xxxxxxxx' },
+      },
+      bass: {
+        verse: '0.00.00.0.00.07.',
+        chorus: '0.0.0.0.7.7.4.4.',
+        brk: '0---------------',
+      },
+      lead: {
+        intro: ['7---4---7---b---', 'a---9---8---6---'],
+        verse: ['7.6.7.4.2.4.7.9.', '8.7.8.4.6---4...', '9.8.9.7.5.7.9.a.', 'b.a.9.8.6---7...'],
+        chorus: ['e---d-c-b---9---', 'c---b-a-9-------', 'a---b-c-d---b---', 'c-b-a-9-6---7---'],
+        brk: ['7-------8-------', '9-------a-------', 'b-------c-------', 'd---------------'],
+        outro: ['e-------b-------', '7---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'brk', lead: 'intro', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
   ];
 
   // Instrument fingerprints for charting: [strength, 5-band spectrum (low → high)].
@@ -136,6 +383,8 @@
     ohat: [0.45, [0, 0, 0, 0.4, 1]],
     crash: [1.0, [0.3, 0.2, 0.3, 0.6, 1]],
     bass: [0.5, [0.5, 1, 0.1, 0, 0]],
+    tom: [0.8, [0.7, 1, 0.3, 0, 0]],
+    gtr: [0.6, [0.2, 0.7, 1, 0.3, 0]],
   };
 
   function validate(song) {
@@ -146,6 +395,7 @@
       for (const [inst, s] of Object.entries(kit)) if (s) check(s, `drums.${name}.${inst}`);
     }
     for (const [name, s] of Object.entries(song.bass)) check(s, `bass.${name}`);
+    for (const [name, s] of Object.entries(song.gtr || {})) check(s, `gtr.${name}`);
     for (const [name, bars] of Object.entries(song.lead)) bars.forEach((s, i) => check(s, `lead.${name}[${i}]`));
   }
 
@@ -175,7 +425,7 @@
         const isFill = sec.fill && b === sec.bars - 1;
         const kit = song.drums[isFill ? 'fill' : sec.drums] || {};
         if (sec.crash && b === 0) events.push({ t: barT, inst: 'crash', vel: 1 });
-        for (const [inst, key] of [['kick', 'k'], ['snare', 's'], ['hat', 'h'], ['ohat', 'o']]) {
+        for (const [inst, key] of [['kick', 'k'], ['snare', 's'], ['hat', 'h'], ['ohat', 'o'], ['tom', 't']]) {
           const p = kit[key];
           if (!p) continue;
           for (let i = 0; i < 16; i++) {
@@ -188,6 +438,16 @@
             if (!(p[i] in BASS_STEPS)) continue;
             const midi = degToMidi(song, chord + BASS_STEPS[p[i]]) - 12;
             events.push({ t: barT + i * step, inst: 'bass', midi, dur: holdLength(p, i) * step * 0.92, vel: 0.9 });
+          }
+        }
+        if (sec.gtr) {
+          // Power chords on the chord root: 'x' a short palm-muted chug, 'o' an open
+          // chord that rings through any following '-'.
+          const p = song.gtr[sec.gtr];
+          for (let i = 0; i < 16; i++) {
+            if (p[i] !== 'x' && p[i] !== 'o') continue;
+            const open = p[i] === 'o';
+            events.push({ t: barT + i * step, inst: 'gtr', midi: degToMidi(song, chord) - 12, open, dur: open ? holdLength(p, i) * step * 0.95 : step * 0.8, vel: open ? 0.9 : 0.75 });
           }
         }
         if (sec.lead) {
@@ -238,10 +498,10 @@
       const g = groups.get(key) || { t: +key, s: 0, b: [0, 0, 0, 0, 0], d: 0 };
       g.s = Math.max(g.s, strength * e.vel);
       // How long it rings: exact for melody and bass notes, short for drums.
-      if (e.inst === 'lead' || e.inst === 'bass') g.d = Math.max(g.d, e.dur);
+      if (e.inst === 'lead' || e.inst === 'bass' || (e.inst === 'gtr' && e.open)) g.d = Math.max(g.d, e.dur);
       // Weight by strength so quiet hats don't drag every note right; the melody
       // gets extra weight so lanes follow the tune when it lands on a drum hit.
-      const w = (e.inst === 'lead' ? 1.4 : e.inst === 'kick' ? 0.8 : e.inst === 'bass' ? 0.3 : strength) * e.vel;
+      const w = (e.inst === 'lead' ? 1.4 : e.inst === 'kick' ? 0.8 : e.inst === 'bass' ? 0.3 : e.inst === 'gtr' ? 0.5 : strength) * e.vel;
       for (let i = 0; i < 5; i++) g.b[i] += bands[i] * w;
       groups.set(key, g);
     }
@@ -268,10 +528,22 @@
 
   const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
-  async function render(built) {
-    const sr = 44100;
+  /**
+   * Synthesise a song. 32 kHz, the SNES's own output rate: authentic, and a
+   * quarter less work than 44.1 kHz. `onProgress(0–1)` is called as it goes.
+   */
+  async function render(built, onProgress) {
+    const sr = 32000;
     const ctx = new OfflineAudioContext(2, Math.ceil(sr * built.duration), sr);
+    if (onProgress) {
+      for (let k = 1; k < 10; k++) {
+        const at = Math.floor((built.duration * k) / 10 * sr / 128) * 128 / sr;
+        ctx.suspend(at).then(() => { onProgress(k / 10); ctx.resume(); }).catch(() => {});
+      }
+    }
     const step = 60 / built.song.bpm / 4;
+    // Each song can set its own sound: lead instrument, vibrato, echo, toms.
+    const voice = { lead: 'pulse', vibrato: null, echo: { steps: 3, fb: 0.38, wet: 0.32 }, toms: 'tom', ...(built.song.voice || {}) };
 
     // Master: gentle low-pass for that warm console DAC, then a limiter.
     const master = ctx.createGain();
@@ -286,14 +558,14 @@
     // Echo bus, in the spirit of the SNES echo unit.
     const echoIn = ctx.createGain();
     const delay = ctx.createDelay(1);
-    delay.delayTime.value = step * 3;
+    delay.delayTime.value = Math.min(0.99, step * voice.echo.steps);
     const fb = ctx.createGain();
-    fb.gain.value = 0.38;
+    fb.gain.value = voice.echo.fb;
     const echoTone = ctx.createBiquadFilter();
     echoTone.type = 'lowpass';
     echoTone.frequency.value = 2800;
     const wet = ctx.createGain();
-    wet.gain.value = 0.32;
+    wet.gain.value = voice.echo.wet;
     echoIn.connect(delay).connect(echoTone).connect(fb).connect(delay);
     echoTone.connect(wet).connect(master);
 
@@ -307,6 +579,38 @@
     }
     const pulse25 = pulseWave(ctx, 0.25);
     const pulse125 = pulseWave(ctx, 0.125);
+    const square = pulseWave(ctx, 0.5);
+    // Drawbar organ: a fundamental plus a few soft harmonics.
+    const organ = (() => {
+      const amps = [0, 1, 0.65, 0.4, 0.3, 0, 0.2, 0, 0.15];
+      return ctx.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps));
+    })();
+    // A whole power chord in one waveform: played an octave below the root, its
+    // 2nd, 3rd and 4th harmonics are the root, fifth and octave, each with square-
+    // wave overtones. One oscillator per chord keeps rendering quick.
+    const powerChord = (() => {
+      const n = 48, imag = new Float32Array(n);
+      for (const [part, amp] of [[2, 1], [3, 0.8], [4, 0.55]]) {
+        for (let k = 1; part * k < n; k += 2) imag[part * k] += amp / k;
+      }
+      return ctx.createPeriodicWave(new Float32Array(n), imag);
+    })();
+    // Guitar distortion: a hard-clipping curve.
+    const crunch = (() => {
+      const ws = ctx.createWaveShaper();
+      const n = 1024, c = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(x * 6); }
+      ws.curve = c;
+      const tone = ctx.createBiquadFilter();
+      tone.type = 'lowpass';
+      tone.frequency.value = 3200;
+      const g = ctx.createGain();
+      g.gain.value = 0.17;
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = -0.15;
+      ws.connect(tone).connect(g).connect(pan).connect(master);
+      return ws;
+    })();
 
     const panner = (v) => {
       const p = ctx.createStereoPanner();
@@ -375,6 +679,38 @@
         case 'hat': noiseHit(t, 'highpass', 8500, 0.28 * e.vel, 0.035, drumOut); break;
         case 'ohat': noiseHit(t, 'highpass', 7500, 0.25 * e.vel, 0.18, drumOut); break;
         case 'crash': noiseHit(t, 'highpass', 4500, 0.45 * e.vel, 1.3, drumOut); break;
+        case 'tom': {
+          // Toms, or deep rolling timpani for the epic songs.
+          const timp = voice.toms === 'timpani';
+          const o = ctx.createOscillator();
+          o.type = 'triangle';
+          o.frequency.setValueAtTime(timp ? 120 : 200, t);
+          o.frequency.exponentialRampToValueAtTime(timp ? 62 : 95, t + (timp ? 0.35 : 0.18));
+          const g = ctx.createGain();
+          g.gain.setValueAtTime((timp ? 1.1 : 0.9) * e.vel, t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + (timp ? 0.7 : 0.3));
+          o.connect(g).connect(drumOut);
+          o.start(t);
+          o.stop(t + (timp ? 0.75 : 0.32));
+          noiseHit(t, 'lowpass', timp ? 900 : 1600, 0.2 * e.vel, timp ? 0.12 : 0.05, drumOut);
+          break;
+        }
+        case 'gtr': {
+          // A distorted power chord: root, fifth and octave through the crunch.
+          // Chugs are palm-muted (short, darker); open chords ring.
+          const mute = ctx.createBiquadFilter();
+          mute.type = 'lowpass';
+          mute.frequency.value = e.open ? 5000 : 1400;
+          const g = envGain(t, (e.open ? 0.5 : 0.42) * e.vel, 0.003, e.dur, e.open ? 0.06 : 0.02);
+          g.connect(mute).connect(crunch);
+          const o = ctx.createOscillator();
+          o.setPeriodicWave(powerChord);
+          o.frequency.value = hz(e.midi - 12);
+          o.connect(g);
+          o.start(t);
+          o.stop(t + e.dur + 0.1);
+          break;
+        }
         case 'bass': {
           const o = ctx.createOscillator();
           o.type = 'triangle';
@@ -387,10 +723,22 @@
         }
         case 'lead': {
           const o = ctx.createOscillator();
-          o.setPeriodicWave(pulse25);
+          if (voice.lead === 'organ') o.setPeriodicWave(organ);
+          else if (voice.lead === 'square') o.setPeriodicWave(square);
+          else if (voice.lead === 'brass') o.type = 'sawtooth';
+          else o.setPeriodicWave(pulse25);
           o.frequency.value = hz(e.midi);
-          // A touch of delayed vibrato on held notes.
-          if (e.dur > 0.3) {
+          if (voice.vibrato) {
+            // Themed vibrato from the very start (a wobbly organ, say).
+            const lfo = ctx.createOscillator();
+            lfo.frequency.value = voice.vibrato.rate;
+            const depth = ctx.createGain();
+            depth.gain.value = hz(e.midi) * voice.vibrato.depth;
+            lfo.connect(depth).connect(o.frequency);
+            lfo.start(t);
+            lfo.stop(t + e.dur + 0.1);
+          } else if (e.dur > 0.3) {
+            // A touch of delayed vibrato on held notes.
             const lfo = ctx.createOscillator();
             lfo.frequency.value = 5.5;
             const depth = ctx.createGain();
@@ -400,8 +748,18 @@
             lfo.start(t);
             lfo.stop(t + e.dur + 0.1);
           }
-          const g = envGain(t, 0.32 * e.vel, 0.006, e.dur, 0.02);
-          o.connect(g);
+          const brass = voice.lead === 'brass';
+          const g = envGain(t, (brass ? 0.26 : voice.lead === 'organ' ? 0.36 : 0.32) * e.vel, brass ? 0.03 : voice.lead === 'organ' ? 0.015 : 0.006, e.dur, 0.02);
+          if (brass) {
+            // Brass: the tone opens up as the note swells, then settles.
+            const f = ctx.createBiquadFilter();
+            f.type = 'lowpass';
+            f.Q.value = 2;
+            f.frequency.setValueAtTime(500, t);
+            f.frequency.linearRampToValueAtTime(3600, t + 0.06);
+            f.frequency.setTargetAtTime(1800, t + 0.06, 0.15);
+            o.connect(f).connect(g);
+          } else o.connect(g);
           g.connect(leadOut);
           g.connect(echoIn);
           o.start(t);

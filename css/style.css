@@ -473,3 +473,8 @@ body:has(#crumbs:not([hidden])) .screen { max-height: calc(100vh - 80px); max-he
 }
 .rotate-phone i { position: absolute; left: 50%; bottom: 5px; width: 10px; height: 4px; margin-left: -5px; background: var(--edge); }
 @keyframes turn-phone { 0%, 30% { transform: rotate(0deg); } 40% { transform: rotate(-45deg); } 50%, 80% { transform: rotate(-90deg); } 90% { transform: rotate(-45deg); } }
+
+/* Song pack theme headings. */
+.eyebrow.theme-spooky { color: #b878f8; }
+.eyebrow.theme-rock { color: var(--red); }
+.eyebrow.theme-epic { color: var(--gold); }

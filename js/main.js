@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.12';
+  const VERSION = '1.13';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -434,9 +434,18 @@
   }
 
   function renderPack() {
-    $('#pack-list').innerHTML = SongPack.SONGS.map((s, i) =>
-      `<button data-pack="${esc(s.id)}" ${i === 0 ? 'data-autofocus' : ''}>${esc(s.title.toUpperCase())} <small>${s.bpm} BPM · ${esc(s.blurb)}<br>${esc(bestLine(SongPack.keyFor(s)))}</small></button>`
-    ).join('');
+    // Grouped by theme, each with a heading.
+    const THEMES = [['classic', 'CHIPTUNE CLASSICS'], ['spooky', 'SPOOKY'], ['rock', 'ROCK'], ['epic', 'EPIC ADVENTURE']];
+    let first = true;
+    $('#pack-list').innerHTML = THEMES.map(([theme, heading]) => {
+      const songs = SongPack.SONGS.filter((s) => (s.theme || 'classic') === theme);
+      if (!songs.length) return '';
+      return `<p class="eyebrow theme-${theme}">${heading}</p><div class="menu">` + songs.map((s) => {
+        const auto = first ? 'data-autofocus' : '';
+        first = false;
+        return `<button data-pack="${esc(s.id)}" ${auto}>${esc(s.title.toUpperCase())} <small>${s.bpm} BPM · ${esc(s.blurb)}<br>${esc(bestLine(SongPack.keyFor(s)))}</small></button>`;
+      }).join('') + '</div>';
+    }).join('');
     fetchBonusIndex().then((list) => {
       $('#bonus-section').hidden = !list.length;
       $('#bonus-list').innerHTML = list.map((s) =>
@@ -614,7 +623,7 @@
     for (const id of ChartGen.ALL_IDS) charts[id] = ChartGen.generateId(analysis, id);
     setProgress(0.45, 'Tuning the sound chip…');
     try {
-      const buffer = await packBuffer(id);
+      const buffer = await packBuffer(id, (k) => setProgress(0.45 + 0.5 * k, `Playing the sound chip… ${Math.round(k * 100)}%`));
       setProgress(1, 'Ready');
       current = { key: SongPack.keyFor(def), title: def.title, kind: 'pack', packId: id, buffer, analysis, charts, fp: null, matchNote: null };
       showSong();
@@ -751,12 +760,37 @@
     }, 450);
   }
 
-  async function packBuffer(id) {
-    let buffer = bufferCache.get(id);
-    if (!buffer) {
-      buffer = await SongPack.render(SongPack.build(SongPack.SONGS.find((s) => s.id === id)));
-      bufferCache.set(id, buffer);
+  /**
+   * A song-pack song's audio. Synthesised once per device and kept in the browser
+   * (as 16-bit samples), so later loads are instant; rebuilt if the song changes.
+   */
+  const packPending = new Map(); // id → render in progress (a preview and a load share one)
+  function packBuffer(id, onProgress) {
+    if (bufferCache.has(id)) return Promise.resolve(bufferCache.get(id));
+    if (!packPending.has(id)) packPending.set(id, makePackBuffer(id, onProgress).finally(() => packPending.delete(id)));
+    return packPending.get(id);
+  }
+  async function makePackBuffer(id, onProgress) {
+    let buffer;
+    const def = SongPack.SONGS.find((s) => s.id === id);
+    const stamp = 'r2:' + hashBytes(new TextEncoder().encode(JSON.stringify(def)).buffer);
+    const cached = await Library.cacheGet('pack:' + id);
+    if (cached && cached.stamp === stamp) {
+      buffer = audioCtx.createBuffer(2, cached.l.length, cached.sr);
+      [cached.l, cached.r].forEach((ch, c) => {
+        const out = buffer.getChannelData(c);
+        for (let i = 0; i < ch.length; i++) out[i] = ch[i] / 32767;
+      });
+    } else {
+      buffer = await SongPack.render(SongPack.build(def), onProgress);
+      const pcm = [0, 1].map((c) => {
+        const d = buffer.getChannelData(c), out = new Int16Array(d.length);
+        for (let i = 0; i < d.length; i++) out[i] = Math.max(-32767, Math.min(32767, Math.round(d[i] * 32767)));
+        return out;
+      });
+      Library.cachePut('pack:' + id, { stamp, sr: buffer.sampleRate, l: pcm[0], r: pcm[1] });
     }
+    bufferCache.set(id, buffer);
     return buffer;
   }
 

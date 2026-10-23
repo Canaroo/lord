@@ -9,7 +9,7 @@
 'use strict';
 (function (root) {
   const DB_NAME = 'beatfrets';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2; // 2: adds "cache" (rendered song-pack audio)
   let dbPromise = null;
 
   function open() {
@@ -21,6 +21,7 @@
         const db = req.result;
         if (!db.objectStoreNames.contains('files')) db.createObjectStore('files');
         if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('cache')) db.createObjectStore('cache');
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -61,6 +62,14 @@
           played: new Date().toISOString(),
         });
       });
+    },
+
+    /** Rendered song-pack audio, so a song is synthesised once per device. */
+    cacheGet(key) {
+      return tx(['cache'], 'readonly', (t) => req2p(t.objectStore('cache').get(key))).then((v) => v || null).catch(() => null);
+    },
+    cachePut(key, value) {
+      return tx(['cache'], 'readwrite', (t) => { t.objectStore('cache').put(value, key); }).catch(() => { /* storage full: just render next time */ });
     },
 
     /** @returns {Promise<ArrayBuffer|null>} */

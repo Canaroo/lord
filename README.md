@@ -235,8 +235,22 @@ and you play them while holding. On the chiptune songs, long notes use the compo
 lengths exactly.
 
 Song pack tracks (`js/songs.js`) are written as patterns and synthesised with a 16-bit-style
-sound palette: pulse-wave leads with SNES-style echo, triangle bass and noise drums. Their
-charts come from the notes themselves, with the melody walking across the frets.
+sound palette: pulse-wave leads with SNES-style echo, triangle bass and noise drums. Each song
+can pick its own sounds (`voice`): a drawbar **organ** with vibrato, a square lead, a **brass**
+lead whose tone opens as it swells, toms or deep **timpani**, and distorted **power-chord
+guitar** (`gtr` patterns: `x` palm-muted chug, `o` open chord). Their charts come from the notes
+themselves, with the melody walking across the frets.
+
+| Theme | Song | Tempo | Sound |
+| --- | --- | --- | --- |
+| Classics | Pixel Overture, Turbo Cartridge, Castle Overdrive | 104–168 | pulse lead, arpeggios |
+| Spooky | Haunted Hallway (easier), Graveyard Shift (harder) | 112, 138 | wobbly organ, long echo, toms |
+| Rock | Power Chord Party (easier), Amp Overload (harder) | 128, 160 | power-chord guitar, square lead |
+| Epic | Hero's Dawn (easier), Final Quest (harder) | 120, 152 | brass fanfares, timpani |
+
+Songs are synthesised at 32 kHz (the SNES's own output rate) the first time they're played on a
+device, with a progress bar, and then kept in the browser so every later load is instant (and
+works offline). A song is rebuilt automatically if its composition changes.
 
 ## Versions
 
@@ -244,6 +258,9 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.13**: six new songs in the pack, grouped by theme: Spooky (*Haunted Hallway*, *Graveyard
+  Shift*), Rock (*Power Chord Party*, *Amp Overload*) and Epic adventure (*Hero's Dawn*, *Final
+  Quest*), each with its own sounds: wobbly organ, distorted power-chord guitar, brass and timpani.
 - **1.12**: Beat Frets phone notes are long blocks along the highway (centred on the beat, so the
   strike line runs through them), instead of thick flat bars.
 - **1.11**: new home screen with the two games; Beat Frets on a phone asks sideways (4 lanes) or
