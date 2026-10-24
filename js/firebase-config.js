@@ -1,6 +1,6 @@
 /*
- * World leaderboards: paste your Firebase web config here to switch them on.
- * Until then the game works as before, with leaderboards on this device only.
+ * World leaderboards: the Firebase web config for the "beat-frets" project.
+ * Set it to null to switch world boards off (leaderboards stay on this device).
  *
  * In the Firebase console: Project settings → Your apps → Web app → Config.
  * Also turn on Authentication → Sign-in method → Anonymous, and publish the
@@ -15,4 +15,11 @@
  *   appId: '…',
  * };
  */
-window.BEAT_FRETS_FIREBASE = null;
+window.BEAT_FRETS_FIREBASE = {
+  apiKey: 'AIzaSyCWTWhI0TzEYxLjYegIMf85W1k_98AnMQs',
+  authDomain: 'beat-frets.firebaseapp.com',
+  projectId: 'beat-frets',
+  storageBucket: 'beat-frets.firebasestorage.app',
+  messagingSenderId: '315986848448',
+  appId: '1:315986848448:web:945d5254fb663609b09b25',
+};
