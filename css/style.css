@@ -1011,3 +1011,17 @@ body.touch .group > .btn.touch-only { display: block; }
 .inbox-win .close { top: 8px; right: 8px; width: 34px; height: 34px; }
 .inbox-win .list { margin: 8px 0 4px; text-align: left; }
 .rematch-tag { flex: none; padding: 5px 8px; border: 2px solid var(--ink); border-radius: 6px; background: linear-gradient(180deg, #ff6a82, #d81e45); color: var(--text); font: 700 11px var(--act); }
+
+/* World records: the song list's ⚔ badge, and each difficulty card's record and gap. */
+.rec-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 2px solid var(--ink); border-radius: 5px; background: linear-gradient(180deg, #ff6a82, #d81e45); color: var(--text); font: 700 10px var(--act); white-space: nowrap; }
+.rec-tag svg { width: 10px; height: 10px; fill: currentColor; }
+.wr { display: flex; flex-direction: column; gap: 3px; width: 100%; padding-top: 6px; border-top: 2px dashed var(--line); }
+.wr:empty { display: none; }
+.wr-who { display: inline-flex; align-items: center; gap: 5px; font: 700 12px var(--act); color: var(--gold); }
+.wr-who svg { width: 12px; height: 12px; fill: currentColor; }
+.wr-gap { font: 400 12px var(--pixel); }
+.wr-note { font: 400 16px/1 var(--body); color: var(--muted); }
+.wr-gap.behind { color: var(--red); }
+.wr-gap.ahead { color: var(--green); }
+.wr-gap.word { font: 700 11px var(--act); }
+.wr-wait, .wr-none { font: 400 17px var(--body); color: var(--muted); }

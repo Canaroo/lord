@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.21';
+  const VERSION = '1.22';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -476,11 +476,13 @@
         return `<button data-pack="${esc(s.id)}" ${auto}>${songRow(s.title, `${s.bpm} BPM · ${s.blurb}`, SongPack.keyFor(s))}</button>`;
       }).join('') + '</div>';
     }).join('');
+    markRecords();
     fetchBonusIndex().then((list) => {
       $('#bonus-section').hidden = !list.length;
       $('#bonus-list').innerHTML = list.map((s) =>
         `<button data-bonus="${esc(s.id)}">${songRow(s.title.slice(0, 40), s.artist || 'Bonus track', BonusPack.keyFor(s.id))}</button>`
       ).join('');
+      markRecords();
     });
   }
 
@@ -607,6 +609,7 @@
           <button data-saved="${esc(m.key)}">${songRow(m.title.slice(0, 36), fmtSize(m.size), m.key)}</button>
           <button class="del" data-del="${esc(m.key)}" aria-label="Delete ${esc(m.title)}">DELETE</button>
         </div>`).join('');
+      markRecords();
     });
   }
 
@@ -898,6 +901,7 @@
             <span class="keys" data-keys="4">${Input.touch ? '<span class="lanes-tag">4 COLUMNS</span>' : ''}</span>
             <span class="stats">${c.notes.length} tiles a lap</span>
             ${tilesBest(d)}
+            <span class="wr" data-wr="${d}"></span>
             <span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span>
           </button>
           <ol class="mini-board">${miniBoard(current.key, d)}</ol>
@@ -911,6 +915,7 @@
           <span class="keys" data-keys="${c.lanes}">${mode === 'keys' ? '' : `<span class="lanes-tag">${c.lanes} LANES</span>`}</span>
           <span class="stats">${n} notes · ${(n / Math.max(1, current.analysis.duration)).toFixed(1)}/sec${holds ? ` · ${holds} long` : ''}</span>
           ${cardStars(d)}
+          <span class="wr" data-wr="${d}"></span>
           <span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span>
         </button>
         <ol class="mini-board">${miniBoard(current.key, d)}</ol>
@@ -918,6 +923,91 @@
     }).join('');
     updateDeviceUI();
     show('song', { focus: `[data-diff="${idFor(parseId(lastDifficulty).difficulty)}"]` });
+    fillRecords();
+  }
+
+  // ---- world records on the song list and difficulty cards ---------------------------------------------
+
+  /** The #1 world score on a board (cached for a couple of minutes), or null. */
+  const recordCache = new Map();
+  function worldRecord(id) {
+    const hit = recordCache.get(id);
+    if (hit && Date.now() - hit.at < 120000) return hit.p;
+    const p = World.top(id, 1).then((rows) => rows[0] || null).catch(() => null);
+    recordCache.set(id, { p, at: Date.now() });
+    return p;
+  }
+
+  /** The world boards of a song, per tier of the current mode (imported songs: the ones you've played). */
+  function songBoards(key, chartOf) {
+    const out = {};
+    for (const d of tierIds()) {
+      let id = null;
+      if (/^(pack|bonus):/.test(key)) id = World.boardId(key, d);
+      else if (chartOf && chartOf(d)) id = World.boardId(key, d, chartOf(d));
+      else {
+        const run = save.data.runs.slice().reverse().find((r) => r.songKey === key && r.difficulty === d && r.world);
+        if (run) id = run.world;
+      }
+      if (id) out[d] = id;
+    }
+    return out;
+  }
+
+  /** Your best on a tier on this device (0 if never played). */
+  function myBest(key, d) {
+    const p = save.active;
+    const b = p && save.personalBest(p.id, key, d);
+    return b ? b.score : 0;
+  }
+
+  /** Tiers of a song where someone else holds a better world record than yours. */
+  async function recordsToBeat(key) {
+    const boards = songBoards(key);
+    const recs = await Promise.all(Object.entries(boards).map(async ([d, id]) => [d, await worldRecord(id)]));
+    return recs.filter(([d, r]) => r && !r.mine && Number(r.score) > myBest(key, d)).length;
+  }
+
+  /** Song list rows: a red ⚔ badge when there are records to beat. */
+  function markRecords() {
+    if (!World.available() || !save.active) return;
+    for (const row of $$('[data-pack], [data-bonus], [data-saved]')) {
+      const key = row.dataset.pack ? SongPack.keyFor(SongPack.SONGS.find((x) => x.id === row.dataset.pack))
+        : row.dataset.bonus ? BonusPack.keyFor(row.dataset.bonus) : row.dataset.saved;
+      recordsToBeat(key).then((n) => {
+        const side = $('.row-side', row);
+        if (!n || !side || $('.rec-tag', side)) return;
+        side.insertAdjacentHTML('afterbegin', `<span class="rec-tag"><svg><use href="#i-sword"/></svg>${n} TO BEAT</span>`);
+      });
+    }
+  }
+
+  /**
+   * Difficulty cards: the world record on each tier, and how far you are from it
+   * (red and negative when behind, counting a tier you've never played as 0;
+   * green when the record is yours).
+   */
+  function fillRecords() {
+    if (!World.available() || !current) return;
+    const key = current.key;
+    const fmt = (n) => Number(n).toLocaleString('en-US');
+    const boards = songBoards(key, chartFor);
+    for (const el of $$('#diffs [data-wr]')) {
+      const d = el.dataset.wr;
+      if (!boards[d]) continue;
+      el.innerHTML = '<span class="wr-wait">WORLD RECORD…</span>';
+      worldRecord(boards[d]).then((r) => {
+        if (!current || current.key !== key || !el.isConnected) return;
+        if (!r) { el.innerHTML = '<span class="wr-none">NO WORLD RECORD YET</span>'; return; }
+        const mine = myBest(key, d);
+        const gap = mine - Number(r.score);
+        el.innerHTML = `<span class="wr-who"><svg><use href="#i-crown"/></svg>${esc(r.initials)} ${fmt(r.score)}</span>` +
+          (r.mine ? '<span class="wr-gap ahead word">YOU HOLD THE RECORD</span>'
+            : gap > 0 ? `<span class="wr-gap ahead">+${fmt(gap)}</span><span class="wr-note">POST YOUR BEST TO TAKE IT</span>`
+              : gap === 0 ? '<span class="wr-gap ahead word">TIED WITH THE RECORD</span>'
+                : `<span class="wr-gap behind">-${fmt(-gap)}</span><span class="wr-note">${mine ? 'TO BEAT THE RECORD' : 'NOT PLAYED YET'}</span>`);
+      });
+    }
   }
 
   $('#diffs').addEventListener('click', (e) => {
@@ -1639,6 +1729,7 @@
         line.textContent = 'Posting…';
         return World.submit({ id: world.id, meta: world.meta, profileId: p.id, entry });
       })().then((r) => {
+        recordCache.delete(world.id);
         if (seq === postSeq) {
           btn.hidden = true;
           line.textContent = `POSTED! WORLD RANK #${r.rank}`;

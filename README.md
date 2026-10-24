@@ -255,6 +255,11 @@ The world boards are fair because a score only ranks against people who played *
   everywhere; on a phone it's played upright). Because Tiles loops and speeds up identically for
   everyone, the race compares your score with theirs at the same point of the run, across laps;
   once their run ended, you're racing their final score.
+- **Records to beat:** in the song lists, a red **⚔ 2 TO BEAT** badge marks songs where someone
+  holds a world record you haven't matched (on the difficulties for how you're playing: keys,
+  sideways, upright or Tiles). On the difficulty cards, each tier shows its world record (👑 and
+  the score) and your gap to it: red and negative when you're behind (a tier you've never played
+  counts as 0, so the gap is the whole record), green when the record is yours.
 - **"You've been beaten":** when someone wins a challenge against your score and posts it, you
   get a message. The next time you open the game, the home screen pops up *YOU'VE BEEN BEATEN!*
   with who beat you, on which song, and the scores; tap one for a **REMATCH** (as the player who
@@ -349,6 +354,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.22**: records to beat: a ⚔ badge on songs with world records you haven't matched, and each
+  difficulty card shows the world record and your gap to it (red behind, green when it's yours).
 - **1.21**: "You've been beaten!": players beaten in a challenge get a message the next time they
   open the game, with a one-tap rematch. Needs the updated `firestore.rules`.
 - **1.20**: players' imported songs: a **Players' music** list under Boards, "import your copy"

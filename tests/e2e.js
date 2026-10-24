@@ -788,6 +788,43 @@ async function worldTests(browser) {
   await c.context.close();
 }
 
+// ---- World records on the song list and difficulty cards ----
+
+async function recordTests(browser) {
+  const { page, errors, context } = await newPage(browser);
+  await page.addInitScript(() => {
+    // Easy: ZED's record. Medium: this player's own record. Hard: none.
+    window.__seed = {
+      boards: [['pack-pixel-overture__easy', { kind: 'pack', difficulty: 'easy', notes: 97 }], ['pack-pixel-overture__medium', { kind: 'pack', difficulty: 'medium', notes: 142 }]],
+      scores: [
+        ['pack-pixel-overture__easy/zed_p', { initials: 'ZED', score: 12500, grade: 'A', accuracy: 92, maxCombo: 60, fullCombo: false, date: '2026-10-24' }],
+        ['pack-pixel-overture__medium/devR_me', { initials: 'JDT', score: 9000, grade: 'B', accuracy: 85, maxCombo: 40, fullCombo: false, date: '2026-10-24' }],
+      ],
+    };
+  });
+  await page.addInitScript(MEMORY_WORLD);
+  await page.goto(url);
+  await screenIs(page, 'title');
+  await page.evaluate(() => { window.BeatFretsWorldBackend.uid = 'devR'; BeatFrets.save.createProfile('JDT'); document.querySelector('#btn-start').click(); });
+  await page.click('#btn-mode-frets');
+  await screenIs(page, 'pack');
+  await page.waitForSelector('[data-pack="pixel-overture"] .rec-tag', { timeout: 5000 }).catch(() => {});
+  const tag = await page.evaluate(() => { const t = document.querySelector('[data-pack="pixel-overture"] .rec-tag'); return t && t.textContent; });
+  check(tag === '1 TO BEAT', `the song list flags songs with world records to beat (${tag})`);
+  check(await page.evaluate(() => !document.querySelector('[data-pack="turbo-cartridge"] .rec-tag')), 'songs without records to beat get no badge');
+  await page.screenshot({ path: path.join(outDir, 'e2e-records-list.png') });
+  await page.click('[data-pack="pixel-overture"]');
+  await screenIs(page, 'song');
+  await page.waitForFunction(() => /ZED/.test(document.querySelector('[data-wr="easy"]').textContent) && /RECORD/.test(document.querySelector('[data-wr="medium"]').textContent), null, { timeout: 5000 }).catch(() => {});
+  const wr = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-wr]')].map((el) => [el.dataset.wr, { text: el.textContent, behind: !!el.querySelector('.behind'), ahead: !!el.querySelector('.ahead') }])));
+  await page.screenshot({ path: path.join(outDir, 'e2e-records-song.png') });
+  check(/ZED 12,500/.test(wr.easy.text) && /-12,500/.test(wr.easy.text) && /NOT PLAYED YET/.test(wr.easy.text) && wr.easy.behind, `never played: the record's gap shows red and negative (${wr.easy.text})`);
+  check(/YOU HOLD THE RECORD/.test(wr.medium.text) && wr.medium.ahead, 'holding the record shows green');
+  check(/NO WORLD RECORD YET/.test(wr.hard.text), 'a tier with no world scores says so');
+  check(!errors.length, 'no errors with world records ' + errors.join(' | '));
+  await context.close();
+}
+
 (async () => {
   const server = await serve();
   url = `http://127.0.0.1:${server.address().port}/`;
@@ -795,6 +832,14 @@ async function worldTests(browser) {
     executablePath: process.env.CHROMIUM_PATH || undefined,
     args: ['--autoplay-policy=no-user-gesture-required'],
   });
+  if (process.env.E2E_ONLY === 'records') {
+    await recordTests(browser);
+    await browser.close();
+    server.close();
+    if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }
+    console.log('\nPASS');
+    return;
+  }
   if (process.env.E2E_ONLY === 'world') {
     await worldTests(browser);
     await browser.close();
@@ -1113,6 +1158,7 @@ async function worldTests(browser) {
 
   await touchTests(browser);
   await worldTests(browser);
+  await recordTests(browser);
 
   await browser.close();
   server.close();
