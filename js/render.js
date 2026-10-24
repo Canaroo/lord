@@ -30,6 +30,7 @@
   const NOTE_TIME = { touch4: 0.085, touch2: 0.08 };
   const NOTE_GAP = 0.6;
   const NOTE_MIN_PX = 4;
+  const GLOW_Z = 0.16; // notes glow over the last 16% of the highway before the line
   const FONT = '"Press Start 2P", monospace';
 
   const PAL = {
@@ -489,13 +490,30 @@
           g.fillRect(Math.round(x0 + w - 2 * sc) - 1, y, 1, 1);
         }
         g.globalAlpha = 1;
-        // Strike plate: a solid bar across the lane on the line.
+        // Strike plate: a wide arcade button on the line. Up, you see its side
+        // under the cap; pressed, the cap sinks into the housing and lights up.
         const x0 = geo.cx + (l - v.lanes / 2) * geo.laneW + 2;
         const w = geo.laneW - 4;
-        this.rect(x0 - 1, hy - 4, w + 2, 9, PAL.ink);
-        this.rect(x0, hy - 3, w, 7, down ? LANES_LIGHT[l] : LANES_DARK[l]);
-        this.rect(x0, hy - 3, w, 2, down ? PAL.white : LANES[l]);
-        this.rect(x0 + 3, hy + 1, w - 6, 1, down ? PAL.white : '#0e0e20');
+        this.rect(x0 - 1, hy - 5, w + 2, 11, PAL.ink); // housing
+        const top = down ? hy - 2 : hy - 4;
+        if (!down) this.rect(x0 + 1, hy + 2, w - 2, 2, LANES_DARK[l]); // the button's side
+        for (let r = 0; r < 6; r++) {
+          const inset = r === 0 || r === 5 ? 1 : 0;
+          const col = r === 0 ? (down ? PAL.white : LANES_LIGHT[l]) : r === 5 ? LANES_DARK[l] : down ? LANES_LIGHT[l] : LANES[l];
+          this.rect(x0 + inset, top + r, w - inset * 2, 1, col);
+          if (r === 1 || r === 2) {
+            const dw = Math.round(w * (r === 1 ? 0.7 : 0.5));
+            this.rect(x0 + Math.round((w - dw) / 2), top + r, dw, 1, down ? PAL.white : LANES_LIGHT[l]);
+          }
+        }
+        if (down) {
+          // Pressed: light spills up the lane.
+          g.globalAlpha = 0.35;
+          this.rect(x0 + 2, hy - 9, w - 4, 4, LANES_LIGHT[l]);
+          g.globalAlpha = 0.18;
+          this.rect(x0 + 4, hy - 14, w - 8, 5, LANES_LIGHT[l]);
+          g.globalAlpha = 1;
+        }
       }
     }
 
@@ -668,9 +686,10 @@
     }
 
     /**
-     * Phones: a note is a short block almost as wide as its lane,
-     * drawn scanline by scanline in perspective. Its bright front edge leads, and
-     * the strike line passes through its middle on the beat.
+     * Phones: a note is a short arcade-button cap, almost as wide as its lane,
+     * drawn scanline by scanline in perspective: rounded corners, a lit dome on
+     * top, a dark rim at the front and a shadow under it. The strike line passes
+     * through its middle on the beat, and in the last moment before that it glows.
      */
     drawBar(n, geo, z, dz, od) {
       let yNear = Math.round(geo.yAt(Math.max(-0.2, z - dz / 2)));
@@ -681,28 +700,55 @@
       if (yNear - yFar < minPx) { yFar = Math.round(yMid - minPx / 2); yNear = yFar + minPx; }
       if (yNear <= yFar) return;
       const g = this.g;
+      const L = n.lane;
       const span = yNear - yFar;
       const missed = n.judged === 'miss';
-      if (z > 0.95) g.globalAlpha = Math.max(0, (1.15 - z) / 0.2);
-      if (missed) g.globalAlpha = 0.5;
-      for (let y = yFar - 1; y <= yNear + 1; y++) {
+      const alpha = missed ? 0.5 : z > 0.95 ? Math.max(0, (1.15 - z) / 0.2) : 1;
+      const rowAt = (y) => {
         const sc = (y - HORIZON) / (HIT_Y - HORIZON);
-        const x = geo.cx + geo.laneX(n.lane) * sc;
-        const w = Math.max(2, geo.laneW * 0.78 * sc);
-        const x0 = Math.round(x - w / 2);
-        const ww = Math.round(w);
-        if (y < yFar || y > yNear) { g.fillStyle = od ? PAL.cyan : PAL.ink; g.fillRect(x0, y, ww, 1); continue; }
-        // Outline down the sides.
-        g.fillStyle = od ? PAL.cyan : PAL.ink;
-        g.fillRect(x0 - 1, y, ww + 2, 1);
-        const f = (y - yFar) / span; // 0 at the far end, 1 at the front edge
-        g.fillStyle = missed ? '#4a4a60' : f < 0.14 ? LANES_LIGHT[n.lane] : f > 0.8 ? LANES_DARK[n.lane] : LANES[n.lane];
-        g.fillRect(x0, y, ww, 1);
-        if (!missed && f >= 0.14 && f <= 0.8 && ww > 6) {
-          // A shine running along the block.
-          g.fillStyle = od ? PAL.cyan : PAL.white;
-          g.fillRect(Math.round(x - w * 0.22), y, Math.max(1, Math.round(w * 0.12)), 1);
+        return [geo.cx + geo.laneX(L) * sc, Math.max(2, geo.laneW * 0.78 * sc)];
+      };
+      // Glow: brightens over the last stretch before the line.
+      const near = !missed && z > -0.03 && z < GLOW_Z ? 1 - Math.max(0, z) / GLOW_Z : 0;
+      if (near > 0) {
+        g.fillStyle = LANES_LIGHT[L];
+        for (let y = yFar - 3; y <= yNear + 3; y++) {
+          const edge = Math.min(y - (yFar - 3), yNear + 3 - y);
+          g.globalAlpha = alpha * near * (edge < 2 ? 0.18 : 0.38);
+          const [x, w] = rowAt(y);
+          const ww = w + 8;
+          g.fillRect(Math.round(x - ww / 2), y, Math.round(ww), 1);
         }
+      }
+      // Shadow under the cap.
+      g.globalAlpha = alpha * 0.45;
+      g.fillStyle = PAL.ink;
+      for (let y = yNear + 2; y <= yNear + 3; y++) {
+        const [x, w] = rowAt(y);
+        g.fillRect(Math.round(x - w / 2) + 2, y, Math.round(w) - 4, 1);
+      }
+      g.globalAlpha = alpha;
+      for (let y = yFar - 1; y <= yNear + 1; y++) {
+        const [x, w] = rowAt(y);
+        // Rounded corners: the top and bottom rows are pulled in.
+        const edge = Math.min(y - (yFar - 1), yNear + 1 - y);
+        const inset = edge === 0 ? 2 : edge === 1 && span > 3 ? 1 : 0;
+        const x0 = Math.round(x - w / 2) + inset;
+        const ww = Math.max(1, Math.round(w) - inset * 2);
+        g.fillStyle = od ? PAL.cyan : PAL.ink;
+        if (y < yFar || y > yNear) { g.fillRect(x0, y, ww, 1); continue; }
+        g.fillRect(x0 - 1, y, ww + 2, 1);
+        if (missed) { g.fillStyle = '#4a4a60'; g.fillRect(x0, y, ww, 1); continue; }
+        const f = (y - yFar) / span; // 0 at the far (top) edge, 1 at the front
+        if (f > 0.7) { g.fillStyle = LANES_DARK[L]; g.fillRect(x0, y, ww, 1); continue; } // rim
+        g.fillStyle = LANES[L];
+        g.fillRect(x0, y, ww, 1);
+        // The dome: a light half-oval, widest along the top edge.
+        const k = f / 0.7;
+        const dw = Math.round(ww * 0.84 * Math.sqrt(Math.max(0, 1 - k * k)));
+        if (dw < 1) continue;
+        g.fillStyle = y === yFar && near > 0.5 ? PAL.white : LANES_LIGHT[L];
+        g.fillRect(Math.round(x - dw / 2), y, dw, 1);
       }
       g.globalAlpha = 1;
     }

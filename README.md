@@ -104,11 +104,11 @@ press a key or a controller button.
   thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
   holds a long note, the other hand plays everything else. The timing window is slightly wider
   than on keys, and the overhit penalty is off, since a thumb can brush the glass.
-- **Big tap pads, raised strike line:** on phones the notes are short, wide blocks centred on
+- **Big tap pads, raised strike line:** on phones the notes are short, wide arcade-button caps centred on
   the beat, so the strike line passes through the middle of each one. A note's length doesn't
   change how easy it is to hit (the whole lane is the target), so blocks stay short and shrink
   further when notes in a lane come close together, always leaving a dark gap between them. The
-  frets are lane-wide strike plates. The line sits about 72% of the way down when sideways (80%
+  frets are lane-wide arcade buttons that press down and light up when you tap. The line sits about 72% of the way down when sideways (80%
   upright), and each lane carries on below it as a big pad down to the bottom edge. Rest your
   thumbs on the pads, below the line, and tap anywhere in a lane's column, so your thumbs never
   cover the notes coming in. A pressed pad lights up.
@@ -320,6 +320,10 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.17**: phone notes are arcade-button caps (rounded, a lit dome on top, a dark rim and a
+  shadow) instead of a block with a white stripe, and they glow as they reach the line. The frets
+  on the strike line are arcade buttons too: they sink into their housing and light up the lane
+  when you press them.
 - **1.16**: you choose whether to post: the results screen shows where the run would rank and a
   **POST TO WORLD** button (or turn on auto-posting in Options). **Tiles** has world leaderboards
   too, with an anti-cheat limit that grows with the laps played (needs the updated
