@@ -30,6 +30,7 @@
   const GREAT = 0.14;
   const POINTS = { perfect: 3, great: 2, cool: 1 };
   const HOLD_POINTS = 4; // per second held
+  const PACE_STEP = 2; // timeline samples, in song-seconds of the run
   const STAR_AT = [1 / 3, 2 / 3, 1]; // share of the first lap
   const BOUNCE = 0.12; // a second tap this soon after a hit in the same column is ignored
   // Pixels per song-second on a 450-tall board, by tier.
@@ -50,6 +51,8 @@
      * @param {number} o.calibration   seconds
      * @param {number} o.duration      song length (seconds)
      * @param {boolean} o.vibrate
+     * @param {{initials:string, score:number, timeline:number[]|null, laps:number}|null} o.rival
+     *        a challenge: race this score, compared at the same point of the run
      * @param {(res:object)=>void} o.onEnd
      * @param {(paused:boolean)=>void} o.onPauseChange
      */
@@ -66,6 +69,9 @@
       this.onEnd = o.onEnd;
       this.onPauseChange = o.onPauseChange || (() => {});
       this.intro = o.intro || null;
+      this.rival = o.rival && typeof o.rival.score === 'number' ? o.rival : null;
+      this.raceLead = null; // true while you're ahead of the rival
+      this.timeline = []; // score every PACE_STEP of the run, for later challengers
       this.beats = o.beats || []; // one lap's beat times, for the board's pulse
       this.setLineUp(o.lineUp == null ? LINE_UP.default : o.lineUp);
       this.effects = []; // tap flourishes: { lane, at, kind }
@@ -350,6 +356,51 @@
       return { stars, crowns, starProgress: Math.min(1, lapDone) };
     }
 
+    // ---- challenges --------------------------------------------------------------------
+    //
+    // Runs are compared at the same position P (laps speed up the same for everyone).
+
+    /** Where the rival stood at P: their saved timeline, or an estimate from their laps. */
+    _rivalAt(P) {
+      const r = this.rival;
+      const tl = r.timeline;
+      if (tl && tl.length > 1) {
+        const x = P / PACE_STEP;
+        const i = Math.floor(x);
+        if (i < 0) return 0;
+        if (i >= tl.length - 1) return r.score; // their run ended here
+        return tl[i] + (tl[i + 1] - tl[i]) * (x - i);
+      }
+      // Estimate: points come in proportion to the lap multiplier (lap k is worth k+1).
+      const D = this.duration;
+      const weight = (p) => { const k = Math.floor(p / D); return D * k * (k + 1) / 2 + (k + 1) * (p - k * D); };
+      const end = ((r.laps || 0) + 0.5) * D;
+      return P >= end ? r.score : r.score * weight(Math.max(0, P)) / weight(end);
+    }
+
+    _race(P) {
+      if (!this.rival || P < 4) return;
+      const ahead = this.score > this._rivalAt(P);
+      if (this.raceLead === null) { this.raceLead = ahead; return; }
+      if (ahead === this.raceLead) return;
+      this.raceLead = ahead;
+      this.banner = ahead
+        ? { text: 'YOU TAKE THE LEAD!', sub: 'VS ' + this.rival.initials, at: performance.now() }
+        : { text: `${this.rival.initials} LEADS`, sub: 'CATCH UP!', at: performance.now() };
+      if (ahead) Sfx.takeLead(); else Sfx.loseLead();
+    }
+
+    raceView(P) {
+      if (!this.rival || P < 1) return null;
+      const them = this._rivalAt(P);
+      return {
+        name: this.rival.initials,
+        gap: Math.round(this.score - them),
+        youLead: this.raceLead === null ? this.score >= them : this.raceLead,
+        estimate: !(this.rival.timeline && this.rival.timeline.length > 1),
+      };
+    }
+
     results() {
       const P = this.over ? this.overP : this.now();
       const { stars, crowns } = this.progress(P);
@@ -366,6 +417,7 @@
         topSpeed: this.rate,
         accuracy,
         grade: crowns ? `${crowns}C` : `${stars}★`,
+        timeline: this.timeline.slice(),
       };
     }
 
@@ -399,6 +451,8 @@
     _update() {
       if (this.waiting) return;
       const P = this.now();
+      while (P >= 0 && this.timeline.length <= Math.floor(P / PACE_STEP)) this.timeline.push(Math.round(this.score));
+      this._race(P);
       // Queue the next lap's music (and tiles) just before this lap ends, so it's seamless.
       const lapEnd = (this.lap + 1) * this.duration;
       if (this.lapsLoaded <= this.lap + 1 && P > lapEnd - 6) this._loadLap(this.lap + 1);
@@ -723,6 +777,15 @@
         const crowns = Math.max(1, prog.crowns + 1);
         st.text('LAP ' + (this.lap + 1), W / 2, 52, PAL.gold, 8, 'center');
         for (let i = 0; i < Math.min(5, crowns - 1); i++) this._crown(W / 2 - 22 + i * 12, 62);
+      }
+      // A challenge: who leads, and the gap.
+      const race = !this.waiting && this.raceView(P);
+      if (race) {
+        const ry = P < this.duration ? 70 : 76;
+        g.globalAlpha = 0.6; // a dark plate, so falling tiles don't hide it
+        st.rect(Math.round(W / 2 - 74), ry - 4, 148, 25, PAL.ink);
+        g.globalAlpha = 1;
+        st.drawRace(race, W / 2, ry, 'center');
       }
       // Pause button.
       st.window(W - 27, 4, 22, 18);

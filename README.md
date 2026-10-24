@@ -250,7 +250,11 @@ The world boards are fair because a score only ranks against people who played *
   score-over-time; older scores use an estimate, marked ~). Win, and a **YOU BEAT …!** pop-up
   offers to post; posted, you take their place, and your card shows **⚔ BEAT …** for a week.
   Lose or tie, and it offers a **REMATCH**. Races are only between the same controls: keyboard
-  scores are challenged from a computer, phone scores from a phone. Tiles challenges come later.
+  scores are challenged from a computer, phone scores from a phone.
+- **Tiles challenges** work the same way, from any device (Tiles has the same four columns
+  everywhere; on a phone it's played upright). Because Tiles loops and speeds up identically for
+  everyone, the race compares your score with theirs at the same point of the run, across laps;
+  once their run ended, you're racing their final score.
 - **Imported songs:** a challenge plays the board's own notes over your copy. For an imported song, the
   World tab also lists **other versions of this song** that players have posted. Pick one and
   you play **their exact notes over your own copy** of the song. The game lines their chart up
@@ -331,6 +335,9 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.19**: Tiles challenges: ⚔ CHALLENGE on Tiles world boards, the same versus pop-up (upright on
+  phones), a live race measured along the run across laps, and the victory or rematch pop-up.
+  Tiles scores now save their score-over-time too.
 - **1.18**: challenges, redone: ⚔ CHALLENGE buttons and a leader's crown on world boards, a
   versus pop-up that loads the song and handles turning the phone, a live race against the
   rival's score-over-time (who leads, and the gap in green or red), and a victory pop-up that

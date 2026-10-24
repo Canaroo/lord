@@ -539,10 +539,11 @@ const LANE_BOT = () => {
   const g = BeatFrets.game;
   let i = 0;
   const loop = () => {
-    if (!g.running) return;
+    if (!g.running || window.__botOff) return;
     const t = g.now();
     while (i < g.notes.length && g.notes[i].t <= t) {
       const n = g.notes[i++];
+      if (n.judged) continue;
       if (window.__skipEvery && i % window.__skipEvery === 0) continue; // a less-than-perfect player
       g.lane(n.lane, true, performance.now());
       setTimeout(() => g.lane(n.lane, false, performance.now()), n.len ? n.len * 1000 + 20 : 60);
@@ -672,6 +673,34 @@ async function worldTests(browser) {
     return { text: document.querySelector('#tr-world').textContent, diff: b && b[1].difficulty, laps: sc && sc[1].laps };
   });
   check(/POSTED! WORLD RANK #1/.test(tw.text) && tw.diff === 'tiles:easy' && tw.laps === 0, `Tiles posts to its own world board (${JSON.stringify(tw)})`);
+
+  // Tiles challenges: same versus pop-up and race, measured along the run.
+  await page.evaluate(() => {
+    const id = [...window.__world.boards.keys()].find((k) => k.endsWith('__tiles-easy'));
+    window.__world.scores.set(id + '/zzz_p', { initials: 'ZED', score: 9000, grade: '1C', accuracy: 90, maxCombo: 90, fullCombo: false, laps: 2, crowns: 1, topSpeed: 1.44, date: '2026-10-24', tl: Array.from({ length: 30 }, (_, i) => i * 300) });
+    BeatFrets.save.setSetting('autoPost', false);
+  });
+  await page.click('#oc-close').catch(() => {});
+  await page.evaluate(() => BeatFrets.openBoard(BeatFrets.current.key, BeatFrets.current.title, 'tiles:easy', 'song', 'world'));
+  await screenIs(page, 'board');
+  await page.waitForSelector('[data-challenge="0"]', { timeout: 5000 });
+  await page.click('[data-challenge="0"]');
+  await page.waitForFunction(() => !document.querySelector('#vs').hidden && !document.querySelector('#btn-vs-fight').disabled, null, { timeout: 10000 });
+  check(/ZED/.test(await page.textContent('#vs')) && /Tiles/.test(await page.textContent('#vs-song')), 'Tiles scores can be challenged: the versus pop-up says Tiles');
+  await page.screenshot({ path: path.join(outDir, 'e2e-versus-tiles.png') });
+  await page.click('#btn-vs-fight');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game instanceof TilesGame && BeatFrets.game.waiting, null, { timeout: 15000 });
+  await page.evaluate(() => { window.__botOff = false; BeatFrets.game.lane(0, true, performance.now()); BeatFrets.game.lane(0, false, performance.now()); });
+  await page.evaluate(LANE_BOT);
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.now() > 6, null, { timeout: 20000 });
+  const traceT = await page.evaluate(() => BeatFrets.game.raceView(BeatFrets.game.now()));
+  await page.screenshot({ path: path.join(outDir, 'e2e-tiles-race.png') });
+  await page.evaluate(() => { window.__botOff = true; });
+  check(traceT && traceT.name === 'ZED' && traceT.gap < 0 && !traceT.youLead && !traceT.estimate, `the Tiles race shows ZED ahead (${JSON.stringify(traceT)})`);
+  await page.waitForFunction(() => BeatFrets.screen === 'tiles-results', null, { timeout: 60000 });
+  await page.waitForSelector('#outcome', { state: 'visible', timeout: 5000 });
+  check(/ZED STILL LEADS/.test(await page.textContent('#oc-title')) && await page.isVisible('#oc-rematch'), 'losing a Tiles challenge offers a rematch');
+  await page.click('#oc-close');
   check(!errors.length, 'no errors on world boards ' + errors.join(' | '));
   await context.close();
 }

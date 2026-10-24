@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.18';
+  const VERSION = '1.19';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1018,16 +1018,17 @@
     game = new TilesGame({
       audioCtx,
       buffer: current.buffer,
-      chart: chartFor(id),
+      chart: playOpts.chart || chartFor(id),
       stage,
       tier: tier.difficulty,
+      rival: playOpts.target ? { initials: playOpts.target.initials, score: playOpts.target.score, timeline: playOpts.target.timeline || null, laps: playOpts.target.laps || 0 } : null,
       speed: settings.speed,
       duration: current.analysis.duration,
       beats: current.analysis.beats,
       lineUp: settings.tilesLineUp,
       calibration: (Input.touch ? settings.calibrationTouchMs : settings.calibrationMs) / 1000,
       vibrate: Input.touch && settings.vibrate,
-      intro: { title: current.title.toUpperCase().slice(0, 40), sub: LABEL(id) },
+      intro: { title: current.title.toUpperCase().slice(0, 40), sub: playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : LABEL(id) },
       onEnd: (res) => {
         game = null;
         wakeLock.release();
@@ -1083,12 +1084,17 @@
       fp: current.kind === 'mp3' ? current.fp : undefined,
       world: World.boardId(current.key, id, chartFor(id)),
     };
-    const outcome = p ? save.addRun(run) : null;
+    // A challenge on someone else's notes goes on their world board only.
+    const outcome = p && !playOpts.chart ? save.addRun(run) : null;
     lastRun = outcome ? outcome.entry : { ...run, date: new Date().toISOString() };
     $('#tr-title').textContent = `${current.title.toUpperCase().slice(0, 40)} · ${LABEL(id)}`;
     $('#tr-score').textContent = res.score.toLocaleString('en-US');
     $('#tr-stars').innerHTML = tilesBadge(res.stars, res.crowns) + (res.crowns ? ` <span class="hint">${res.crowns} CROWN${res.crowns > 1 ? 'S' : ''}</span>` : '');
-    $('#tr-flag').textContent = outcome && outcome.personalBest ? (before ? 'NEW PERSONAL BEST!' : 'FIRST CLEAR!') : '';
+    const target = playOpts.target;
+    const won = !!target && res.score > target.score;
+    $('#tr-flag').textContent = target
+      ? (won ? `YOU BEAT ${target.initials}!` : res.score === target.score ? `TIED WITH ${target.initials}!` : `${target.initials} LEADS BY ${(target.score - res.score).toLocaleString('en-US')}`)
+      : outcome && outcome.personalBest ? (before ? 'NEW PERSONAL BEST!' : 'FIRST CLEAR!') : '';
     $('#tr-tiles').textContent = res.tiles;
     $('#tr-perfect').textContent = res.counts.perfect;
     $('#tr-great').textContent = res.counts.great;
@@ -1096,13 +1102,16 @@
     $('#tr-miss').textContent = res.counts.miss + res.counts.wrong;
     $('#tr-combo').textContent = res.maxCombo;
     $('#tr-laps').textContent = `${res.laps} · TOP SPEED x${res.topSpeed.toFixed(2)}`;
-    worldPanel('tr', worldFor(id, chartFor(id)), p ? {
+    const panel = worldPanel('tr', worldFor(id, playOpts.chart || chartFor(id)), p ? {
       initials: p.initials, score: Math.round(res.score), grade: res.grade, accuracy: +res.accuracy.toFixed(2),
       maxCombo: res.maxCombo, fullCombo: false, stars: res.stars || 0, crowns: res.crowns || 0,
       laps: res.laps, topSpeed: +res.topSpeed.toFixed(2),
       date: new Date().toISOString().slice(0, 10), ver: VERSION,
+      tl: (res.timeline || []).slice(0, 400).map((x) => Math.round(x)),
+      ...(won ? { beat: target.initials } : {}),
     } : null);
     show('tiles-results');
+    if (target) setTimeout(() => { if (screen === 'tiles-results') openOutcome(res, target, panel); }, 900);
   }
   $('#btn-tr-retry').addEventListener('click', () => play(lastDifficulty));
   // Tiles START screen: drag the line up or down (a tap starts the song).
@@ -1544,7 +1553,7 @@
 
   /** The world board a run belongs on, and what's stored with the board the first time. */
   function worldFor(difficulty, chart) {
-    const id = (!parseId(difficulty).tiles && playOpts.boardId) || World.boardId(current.key, difficulty, chart);
+    const id = (playOpts.boardId && playOpts.diff === difficulty && playOpts.boardId) || World.boardId(current.key, difficulty, chart);
     const meta = {
       kind: current.kind, title: current.title.slice(0, 80), songKey: current.key.slice(0, 80), difficulty,
       lanes: chart.lanes, notes: chart.notes.length,
@@ -1688,11 +1697,11 @@
   /**
    * Whether this device can challenge scores on a tier: true, or why not.
    * Races are only fair on the same controls: keyboard scores from a computer,
-   * touch scores from a phone (Sideways or Upright). Tiles comes later.
+   * touch scores from a phone (Sideways or Upright). Tiles is the same everywhere.
    */
   function canChallenge(diff) {
     const t = parseId(diff);
-    if (t.tiles) return 'Tiles challenges are coming soon.';
+    if (t.tiles) return true; // the same four columns on every device
     if (Input.touch && !t.touch) return 'These scores were played on a keyboard. Play on a computer to challenge them.';
     if (!Input.touch && t.touch) return 'These scores were played on a phone. Play on a phone to challenge them.';
     return true;
@@ -1715,9 +1724,10 @@
     vs = {
       key, diff,
       id: worldBoardFor(key, diff),
-      want: Input.touch && t.touch ? (t.lanes === 4 ? 'landscape' : 'portrait') : null,
+      want: Input.touch ? (t.tiles ? 'portrait' : t.touch ? (t.lanes === 4 ? 'landscape' : 'portrait') : null) : null,
+      tiles: !!t.tiles,
       prevWant: orientation.wanted,
-      target: r ? { initials: r.initials, score: Number(r.score), timeline: Array.isArray(r.tl) && r.tl.length > 1 ? r.tl : null, rank } : null,
+      target: r ? { initials: r.initials, score: Number(r.score), timeline: Array.isArray(r.tl) && r.tl.length > 1 ? r.tl : null, laps: Number(r.laps) || 0, rank } : null,
       loaded: false, error: null, status: 'Loading the stage…', opts: null, match: null,
     };
     $('#vs-you-ini').textContent = me ? me.initials : '---';
@@ -1725,7 +1735,7 @@
     $('#vs-them-ini').textContent = r ? r.initials : '???';
     $('#vs-them').classList.toggle('leads', rank === 1);
     $('#vs-them-line').textContent = r ? `#${rank} · ${fmt(r.score)}` : 'EMPTY BOARD';
-    const layout = t.touch ? (t.lanes === 4 ? 'Sideways · 4 lanes' : 'Upright · 2 lanes') : 'Keys';
+    const layout = t.tiles ? 'Tiles' : t.touch ? (t.lanes === 4 ? 'Sideways · 4 lanes' : 'Upright · 2 lanes') : 'Keys';
     $('#vs-song').textContent = `${boardState.title} · ${BASE_LABEL(t.difficulty)} · ${layout}`;
     $('#vs-goal').textContent = !r ? 'Set the first score on this board!'
       : mine && Number(mine.score) > Number(r.score) ? `You're already ahead of ${r.initials}. Friendly rematch!`
@@ -1744,7 +1754,7 @@
     try {
       if (/^(pack|bonus):/.test(v.key)) {
         if (!current || current.key !== v.key) await loadQuietly(v.key);
-        v.opts = { key: v.key, target: v.target };
+        v.opts = { key: v.key, diff: v.diff, target: v.target };
       } else {
         if (!current || current.kind !== 'mp3') throw new Error('Open your copy of this song first (PICK A SONG → YOUR MUSIC), then come back to this board.');
         v.status = v.target ? `Lining up ${v.target.initials}'s notes with your copy…` : 'Getting their notes…';
@@ -1753,7 +1763,7 @@
         if (!b || !b.chart) throw new Error('This board has no notes saved.');
         const fit = World.alignChart(World.unpackChart(b.chart), chartFor(v.diff) || current.charts[ChartGen.ALL_IDS[0]]);
         v.match = fit;
-        v.opts = { key: current.key, chart: fit.chart, boardId: v.id, target: v.target };
+        v.opts = { key: current.key, diff: v.diff, chart: fit.chart, boardId: v.id, target: v.target };
       }
       v.loaded = true;
     } catch (e) {
@@ -1812,7 +1822,12 @@
     const v = vs;
     if (!v || !v.loaded) return;
     closeVersus(false);
-    if (v.want) {
+    if (v.tiles) {
+      session.mode = 'tiles';
+      session.orient = v.want;
+      if (v.want) orientation.want(v.want);
+      applyLayout();
+    } else if (v.want) {
       session.mode = 'frets';
       session.orient = v.want;
       orientation.want(v.want);
@@ -1870,7 +1885,7 @@
   $('#oc-board').addEventListener('click', () => {
     closeOutcome();
     const board = playOpts.boardId;
-    openBoard(current.key, current.title, lastDifficulty, 'results', 'world');
+    openBoard(current.key, current.title, lastDifficulty, screen === 'tiles-results' ? 'tiles-results' : 'results', 'world');
     if (board && board !== World.boardId(current.key, lastDifficulty, chartFor(lastDifficulty))) { boardState.worldId = board; renderBoard(); }
   });
 
