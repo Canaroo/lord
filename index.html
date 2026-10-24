@@ -164,7 +164,10 @@
             <div id="res-score" class="big">0</div>
             <div class="res-stars-row"><span id="res-stars" class="res-stars" aria-label="Stars"></span></div>
             <p id="res-flag" class="flag"></p>
-            <p id="res-world" class="world-line" aria-live="polite"></p>
+            <div id="res-world-box" class="world-box" hidden>
+              <p id="res-world" class="world-line" aria-live="polite"></p>
+              <button id="res-post" class="btn small primary" hidden>POST TO WORLD</button>
+            </div>
           </div>
         </div>
         <p id="res-next" class="hint center-text"></p>
@@ -201,6 +204,10 @@
             <div id="tr-score" class="big"></div>
             <p id="tr-stars" class="tr-stars"></p>
             <p id="tr-flag" class="flag"></p>
+            <div id="tr-world-box" class="world-box" hidden>
+              <p id="tr-world" class="world-line" aria-live="polite"></p>
+              <button id="tr-post" class="btn small primary" hidden>POST TO WORLD</button>
+            </div>
           </div>
         </div>
         <table class="res">
@@ -329,6 +336,10 @@
             <input id="opt-strike2" class="touch-only" type="range" min="10" max="32" step="1" />
           </div>
           <button id="btn-strike" class="btn touch-only">MOVE STRIKE LINE</button>
+        </div>
+        <div class="group" id="opt-world-group">
+          <p class="label">WORLD LEADERBOARD</p>
+          <button id="opt-autopost" class="toggle">POST NEW BESTS AUTOMATICALLY <span></span> <small>Off: you choose after each song whether to post your score</small></button>
         </div>
         <div class="group">
           <p class="label">DISPLAY</p>

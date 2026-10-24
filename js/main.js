@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.15';
+  const VERSION = '1.16';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1077,6 +1077,7 @@
       stars: res.stars,
       crowns: res.crowns,
       fp: current.kind === 'mp3' ? current.fp : undefined,
+      world: World.boardId(current.key, id, chartFor(id)),
     };
     const outcome = p ? save.addRun(run) : null;
     lastRun = outcome ? outcome.entry : { ...run, date: new Date().toISOString() };
@@ -1091,6 +1092,12 @@
     $('#tr-miss').textContent = res.counts.miss + res.counts.wrong;
     $('#tr-combo').textContent = res.maxCombo;
     $('#tr-laps').textContent = `${res.laps} · TOP SPEED x${res.topSpeed.toFixed(2)}`;
+    worldPanel('tr', worldFor(id, chartFor(id)), p ? {
+      initials: p.initials, score: Math.round(res.score), grade: res.grade, accuracy: +res.accuracy.toFixed(2),
+      maxCombo: res.maxCombo, fullCombo: false, stars: res.stars || 0, crowns: res.crowns || 0,
+      laps: res.laps, topSpeed: +res.topSpeed.toFixed(2),
+      date: new Date().toISOString().slice(0, 10), ver: VERSION,
+    } : null);
     show('tiles-results');
   }
   $('#btn-tr-retry').addEventListener('click', () => play(lastDifficulty));
@@ -1358,24 +1365,11 @@
     const flagEl = $('#res-flag');
     flagEl.textContent = '';
     flagEl.className = 'flag';
-    const worldEl = $('#res-world');
-    worldEl.textContent = '';
-    if (p && !res.failed && World.available()) {
-      worldEl.textContent = 'Sending to the world board…';
-      World.submit({
-        id: world.id, meta: world.meta, profileId: p.id,
-        entry: {
-          initials: p.initials, score: Math.round(res.score), grade: res.grade, accuracy: +res.accuracy.toFixed(2),
-          maxCombo: res.maxCombo, fullCombo: !!res.fullCombo, stars: res.stars || 0,
-          date: new Date().toISOString().slice(0, 10), ver: VERSION,
-        },
-      }).then((r) => {
-        worldEl.textContent = r.improved ? `WORLD RANK #${r.rank}` : `World best ${r.best.toLocaleString('en-US')} · rank #${r.rank}`;
-      }).catch((e) => {
-        console.warn(e);
-        worldEl.textContent = "Couldn't reach the world board. Your score is saved on this device.";
-      });
-    }
+    worldPanel('res', world, p && !res.failed ? {
+      initials: p.initials, score: Math.round(res.score), grade: res.grade, accuracy: +res.accuracy.toFixed(2),
+      maxCombo: res.maxCombo, fullCombo: !!res.fullCombo, stars: res.stars || 0,
+      date: new Date().toISOString().slice(0, 10), ver: VERSION,
+    } : null);
     show('results');
 
     // Count the score up, then stamp the grade. Any key or button skips ahead.
@@ -1541,7 +1535,7 @@
 
   /** The world board a run belongs on, and what's stored with the board the first time. */
   function worldFor(difficulty, chart) {
-    const id = playOpts.boardId || World.boardId(current.key, difficulty, chart);
+    const id = (!parseId(difficulty).tiles && playOpts.boardId) || World.boardId(current.key, difficulty, chart);
     const meta = {
       kind: current.kind, title: current.title.slice(0, 80), songKey: current.key.slice(0, 80), difficulty,
       lanes: chart.lanes, notes: chart.notes.length,
@@ -1553,11 +1547,60 @@
     return { id, meta };
   }
 
+  /**
+   * Results: how this run compares on the world board, and a button to post it.
+   * Nothing is posted unless the player taps POST (or turned on auto-posting),
+   * and only a first score or a new best can be posted.
+   */
+  let postSeq = 0;
+  function worldPanel(prefix, world, entry) {
+    const box = $(`#${prefix}-world-box`);
+    const line = $(`#${prefix}-world`);
+    const btn = $(`#${prefix}-post`);
+    const seq = ++postSeq;
+    const p = save.active;
+    btn.hidden = true;
+    btn.disabled = false;
+    line.textContent = '';
+    box.hidden = !(p && entry && World.available());
+    if (box.hidden) return;
+    const fmt = (n) => Number(n).toLocaleString('en-US');
+    const post = () => {
+      btn.disabled = true;
+      line.textContent = 'Posting…';
+      World.submit({ id: world.id, meta: world.meta, profileId: p.id, entry }).then((r) => {
+        if (seq !== postSeq) return;
+        btn.hidden = true;
+        line.textContent = `POSTED! WORLD RANK #${r.rank}`;
+        Sfx.select();
+      }).catch((e) => {
+        console.warn(e);
+        if (seq !== postSeq) return;
+        btn.disabled = false;
+        line.textContent = "Couldn't reach the world board. Try again?";
+      });
+    };
+    btn.onclick = post;
+    line.textContent = 'Checking the world board…';
+    World.peek({ id: world.id, profileId: p.id, score: entry.score }).then((r) => {
+      if (seq !== postSeq) return;
+      if (!r.better) { line.textContent = `Your world best is still ${fmt(r.best)} (#${r.rank}).`; return; }
+      if (settings.autoPost) { post(); return; }
+      line.textContent = r.best == null
+        ? `Not on the world board yet. This run would rank #${r.rank}.`
+        : `Beats your world best of ${fmt(r.best)}. This run would rank #${r.rank}.`;
+      btn.hidden = false;
+    }).catch((e) => {
+      console.warn(e);
+      if (seq === postSeq) line.textContent = "Couldn't reach the world board. Your score is saved on this device.";
+    });
+  }
+
   /** The world board id for a board screen, if we can tell (imported songs need their chart). */
   function worldBoardFor(key, diff) {
     if (boardState.worldId) return boardState.worldId;
     if (/^(pack|bonus):/.test(key)) return World.boardId(key, diff);
-    if (current && current.key === key && current.charts[diff]) return World.boardId(key, diff, current.charts[diff]);
+    if (current && current.key === key && chartFor(diff)) return World.boardId(key, diff, chartFor(diff));
     const run = save.data.runs.slice().reverse().find((r) => r.songKey === key && r.difficulty === diff && r.world);
     return run ? run.world : null;
   }
@@ -1572,7 +1615,6 @@
     const table = $('#board-table');
     worldRows = [];
     if (!World.available()) { table.innerHTML = boardMsg("World boards aren't switched on for this copy of the game yet."); return; }
-    if (String(diff).startsWith('tiles:')) { table.innerHTML = boardMsg('Tiles mode scores stay on this device for now.'); return; }
     const id = worldBoardFor(key, diff);
     if (!id) { table.innerHTML = boardMsg(`Play ${esc(LABEL(diff))} once to find this song's world board.`); return; }
     table.innerHTML = boardMsg('Loading…');
@@ -1580,12 +1622,13 @@
       const rows = await World.top(id, 25);
       if (seq !== worldSeq) return;
       worldRows = rows;
-      table.innerHTML = rows.length ? rows.map((r, i) => scoreCard(r, i, { mine: r.mine, tap: true })).join('')
+      const tiles = parseId(diff).tiles;
+      table.innerHTML = rows.length ? rows.map((r, i) => scoreCard(r, i, { mine: r.mine, tap: !tiles })).join('')
         : boardMsg(`No world scores for ${esc(LABEL(diff))} yet. Be the first.`);
       pinYou(rows, (r) => r.mine);
-      if (rows.length) $('#board-note').textContent = 'Tap a score to challenge it.';
+      if (rows.length && !tiles) $('#board-note').textContent = 'Tap a score to challenge it.';
       // Imported songs: other people's versions of the same song have boards of their own.
-      if (!/^(pack|bonus):/.test(key) && current && current.kind === 'mp3') {
+      if (!tiles && !/^(pack|bonus):/.test(key) && current && current.kind === 'mp3') {
         const list = await World.versions({ difficulty: diff, bpm: current.analysis.bpm, fp: current.fp, title: current.title, exclude: id });
         if (seq !== worldSeq || !list.length) return;
         $('#board-versions').innerHTML = '<p class="label">OTHER VERSIONS OF THIS SONG</p>' +
@@ -1703,7 +1746,7 @@
       <span class="rank">${i + 1}</span>
       <span class="who">${esc(r.initials)}${tag ? ` <span class="tag">${tag}</span>` : ''}</span>
       <span class="pts">${Number(r.score).toLocaleString('en-US')}</span>
-      <span class="sub">${Number(r.accuracy).toFixed(1)}% · ${r.maxCombo} streak · ${esc(fmtDate(r.date))}</span>
+      <span class="sub">${r.laps != null ? `${r.laps} lap${r.laps === 1 ? '' : 's'} · x${Number(r.topSpeed || 1).toFixed(2)} speed` : `${Number(r.accuracy).toFixed(1)}% · ${r.maxCombo} streak`} · ${esc(fmtDate(r.date))}</span>
       <span class="gr">${esc(r.grade)}${r.fullCombo ? ' FC' : ''}</span>
     </div>`;
   }
@@ -1852,6 +1895,8 @@
     $('#opt-nofail span').textContent = settings.noFail ? 'ON' : 'OFF';
     $('#opt-hits span').textContent = settings.hitSounds ? 'ON' : 'OFF';
     $('#opt-overhit span').textContent = settings.overhit ? 'ON' : 'OFF';
+    $('#opt-autopost span').textContent = settings.autoPost ? 'ON' : 'OFF';
+    $('#opt-world-group').hidden = !World.available();
     $('#opt-tiles-line').value = settings.tilesLineUp;
     $('#opt-tiles-line-out').textContent = (settings.tilesLineUp <= 22 ? 'LOW' : settings.tilesLineUp >= 38 ? 'HIGH' : 'MIDDLE') + ` (${settings.tilesLineUp}%)`;
     for (const n of [4, 2]) {
@@ -1883,7 +1928,7 @@
   }
   $('#btn-strike').addEventListener('click', () => openStrikeSetup('options'));
   $('#opt-tiles-line').addEventListener('input', (e) => { save.setSetting('tilesLineUp', parseInt(e.target.value, 10)); renderOptions(); });
-  for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-overhit', 'overhit'], ['#opt-vibrate', 'vibrate']]) {
+  for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-overhit', 'overhit'], ['#opt-vibrate', 'vibrate'], ['#opt-autopost', 'autoPost']]) {
     $(id).addEventListener('click', () => { save.setSetting(key, !settings[key]); renderOptions(); });
   }
   /** Keyboard/controller and touch each keep their own timing offset. */

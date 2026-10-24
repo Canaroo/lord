@@ -5,6 +5,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /beatfrets_boards/{boardId} {
+      // The most a score can be. Beat Frets: a song has a fixed number of notes.
+      // Tiles loops, and each lap's tiles are worth more (lap 1 x1, lap 2 x2, ...),
+      // so the most grows with the laps played.
+      function scoreOk(d) {
+        let b = get(/databases/$(database)/documents/beatfrets_boards/$(boardId)).data;
+        return b.difficulty.matches('tiles:.*')
+          ? (d.laps is int && d.laps >= 0 && d.laps <= 500
+             && d.score * 2 <= b.notes * 50 * (d.laps + 1) * (d.laps + 2))
+          : d.score <= b.notes * 2000;
+      }
+
       // Anyone can read a board; a signed-in player can create it once. It never changes.
       allow read: if true;
       allow create: if request.auth != null
@@ -20,11 +31,11 @@ service cloud.firestore {
         // Your own entries only (id starts with your sign-in id), and only to raise the score.
         allow create, update: if request.auth != null
           && scoreId.matches(request.auth.uid + '_[A-Za-z0-9]{0,24}')
-          && request.resource.data.keys().hasOnly(['initials', 'score', 'grade', 'accuracy', 'maxCombo', 'fullCombo', 'stars', 'date', 'ver', 'at'])
+          && request.resource.data.keys().hasOnly(['initials', 'score', 'grade', 'accuracy', 'maxCombo', 'fullCombo', 'stars', 'crowns', 'laps', 'topSpeed', 'date', 'ver', 'at'])
           && request.resource.data.initials is string && request.resource.data.initials.matches('[A-Z0-9-]{3}')
           && request.resource.data.score is int && request.resource.data.score >= 0
-          && request.resource.data.score <= get(/databases/$(database)/documents/beatfrets_boards/$(boardId)).data.notes * 2000
           && request.resource.data.accuracy is number && request.resource.data.accuracy <= 100
+          && scoreOk(request.resource.data)
           && (resource == null || request.resource.data.score > resource.data.score);
         allow delete: if false;
       }

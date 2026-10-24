@@ -92,9 +92,14 @@ test('submit keeps each player\'s best and reports the rank', async () => {
     assert.ok(World.available());
     const meta = { kind: 'pack', title: 'Neon', notes: 100 };
     scores.set('b1/other_p', { initials: 'ZZZ', score: 5000 });
+    let pk = await World.peek({ id: 'b1', profileId: 'p1', score: 4000 });
+    assert.deepStrictEqual(pk, { best: null, better: true, rank: 2 });
+    assert.strictEqual(scores.size, 1, 'peeking posts nothing');
     let r = await World.submit({ id: 'b1', meta, profileId: 'p1', entry: { initials: 'AAA', score: 4000 } });
     assert.deepStrictEqual([r.rank, r.improved], [2, true]);
     assert.ok(boards.has('b1'));
+    pk = await World.peek({ id: 'b1', profileId: 'p1', score: 3000 });
+    assert.deepStrictEqual(pk, { best: 4000, better: false, rank: 2 });
     r = await World.submit({ id: 'b1', meta, profileId: 'p1', entry: { initials: 'AAA', score: 3000 } });
     assert.deepStrictEqual([r.rank, r.improved, r.best], [2, false, 4000]);
     r = await World.submit({ id: 'b1', meta, profileId: 'p1', entry: { initials: 'AAA', score: 6000 } });

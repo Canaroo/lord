@@ -38,6 +38,7 @@
     strikeOffered: false,
     playMode: 'frets', // 'frets' (the highway) or 'tiles'
     tilesLineUp: 30, // Tiles: line height, % of the board above the bottom edge
+    autoPost: false, // world boards: post new bests without asking
   };
 
   function emptySave() {

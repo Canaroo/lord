@@ -221,8 +221,17 @@ game, a determined player could still fake a score, so treat rival scores as fri
 
 ### World leaderboards
 
-Every board has two tabs: **This device** and **World**. Finished runs post your initials and
-best score to the world board (one entry per player per board, and only ever raised).
+Every board has two tabs: **This device** and **World**, for Beat Frets and Tiles alike.
+
+**You choose what gets posted.** After a song, the results screen checks the world board and
+says how the run compares (*Not on the world board yet. This run would rank #4.*). Tap **POST TO
+WORLD** to put it up; play again or leave and nothing is posted. The button only appears when
+posting would change something: your first score on that board, or a new best. Each player keeps
+one entry per board, and it can only go up, so a bad run never replaces a good one. If you'd
+rather not be asked, turn on **Options → Post new bests automatically**.
+
+Tiles scores have no fixed ceiling (the song loops, and each lap's tiles are worth more), so the
+world board's anti-cheat limit for Tiles grows with the number of laps played.
 
 The world boards are fair because a score only ranks against people who played **the same notes**:
 
@@ -311,6 +320,10 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.16**: you choose whether to post: the results screen shows where the run would rank and a
+  **POST TO WORLD** button (or turn on auto-posting in Options). **Tiles** has world leaderboards
+  too, with an anti-cheat limit that grows with the laps played (needs the updated
+  `firestore.rules`).
 - **1.15**: menus redesigned as an arcade cabinet. Every screen is full-screen, with a lit marquee
   bar (back, where you are, home), a tab bar for Play / Boards / Player / Options, and actions in
   a dock at the bottom. Buttons, list rows, switches and headings each have their own look (and
@@ -394,5 +407,5 @@ turns the phone mid-song.
 ### Ideas for next steps
 
 - More chiptune tracks. Each one is a small block of pattern data in `js/songs.js`.
-- World boards for Tiles mode.
+- Challenges on Tiles world boards (playing someone's exact tiles over your copy of a song).
 - Button remapping.

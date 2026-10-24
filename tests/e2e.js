@@ -583,8 +583,15 @@ async function worldTests(browser) {
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
   await page.evaluate(LANE_BOT);
   await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 60000 });
+  // Nothing is posted until the player chooses to.
+  await page.waitForSelector('#res-post', { state: 'visible', timeout: 5000 }).catch(() => {});
+  check(/would rank #1/.test(await page.textContent('#res-world')) && await page.evaluate(() => window.__world.scores.size === 0),
+    `results ask before posting, and say where the run would rank ("${await page.textContent('#res-world')}")`);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(outDir, 'e2e-results-ask.png') });
+  await page.click('#res-post');
   await page.waitForFunction(() => /WORLD RANK #1/.test(document.querySelector('#res-world').textContent), null, { timeout: 5000 }).catch(() => {});
-  check(/WORLD RANK #1/.test(await page.textContent('#res-world')), 'results post to the world board (rank #1)');
+  check(/POSTED! WORLD RANK #1/.test(await page.textContent('#res-world')) && !(await page.isVisible('#res-post')), 'POST TO WORLD posts the score (rank #1)');
   await page.waitForTimeout(1500);
   await page.screenshot({ path: path.join(outDir, 'e2e-results-new.png') });
   const boardA = await page.evaluate((id) => window.__world.boards.get(id), idA);
@@ -626,9 +633,25 @@ async function worldTests(browser) {
   await page.waitForTimeout(2600);
   const flag = await page.textContent('#res-flag');
   check(/AAA/.test(flag), `results compare with the challenged score ("${flag}")`);
-  await page.waitForFunction(() => /WORLD/.test(document.querySelector('#res-world').textContent), null, { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector('#res-post', { state: 'visible', timeout: 5000 }).catch(() => {});
+  await page.click('#res-post');
+  await page.waitForFunction(() => /WORLD RANK/.test(document.querySelector('#res-world').textContent), null, { timeout: 5000 }).catch(() => {});
   const rows = await page.evaluate((id) => [...window.__world.scores].filter(([k]) => k.startsWith(id + '/')).length, idA);
   check(rows === 2, 'challenge score lands on the same world board');
+
+  // Tiles has world boards too. With auto-posting on (Options), a new best posts itself.
+  await page.evaluate(() => BeatFrets.save.setSetting('autoPost', true));
+  await page.evaluate(() => { BeatFrets.session.mode = 'tiles'; BeatFrets.play('tiles:easy', {}); });
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game.waiting, null, { timeout: 15000 });
+  await page.evaluate(() => { BeatFrets.game.lane(0, true, performance.now()); BeatFrets.game.lane(0, false, performance.now()); });
+  await page.waitForFunction(() => BeatFrets.screen === 'tiles-results', null, { timeout: 60000 });
+  await page.waitForFunction(() => /POSTED/.test(document.querySelector('#tr-world').textContent), null, { timeout: 5000 }).catch(() => {});
+  const tw = await page.evaluate(() => {
+    const b = [...window.__world.boards].find(([id]) => id.endsWith('__tiles-easy'));
+    const sc = b && [...window.__world.scores].find(([k]) => k.startsWith(b[0] + '/'));
+    return { text: document.querySelector('#tr-world').textContent, diff: b && b[1].difficulty, laps: sc && sc[1].laps };
+  });
+  check(/POSTED! WORLD RANK #1/.test(tw.text) && tw.diff === 'tiles:easy' && tw.laps === 0, `Tiles posts to its own world board (${JSON.stringify(tw)})`);
   check(!errors.length, 'no errors on world boards ' + errors.join(' | '));
   await context.close();
 }

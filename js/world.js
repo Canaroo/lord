@@ -214,10 +214,25 @@
    * their chart, so others can challenge it.
    * @returns {Promise<{rank:number, improved:boolean, best:number}>}
    */
+  const scoreId = (b, profileId) => b.uid + '_' + String(profileId || 'guest').replace(/[^a-z0-9]/gi, '').slice(0, 24);
+
+  /**
+   * Before posting: this player's world best on the board (null if none yet),
+   * and the rank a score would get. Nothing is written.
+   * @returns {Promise<{best:number|null, rank:number, better:boolean}>}
+   */
+  async function peek({ id, profileId, score }) {
+    const b = await backend();
+    const prev = await b.getScore(id, scoreId(b, profileId));
+    const best = prev ? prev.score : null;
+    const better = best == null || score > best;
+    return { best, better, rank: (await b.above(id, better ? score : best)) + 1 };
+  }
+
   async function submit({ id, meta, entry, profileId }) {
     const b = await backend();
     if (!(await b.getBoard(id))) await b.createBoard(id, meta);
-    const sid = b.uid + '_' + String(profileId || 'guest').replace(/[^a-z0-9]/gi, '').slice(0, 24);
+    const sid = scoreId(b, profileId);
     const prev = await b.getScore(id, sid);
     const improved = !prev || entry.score > prev.score;
     if (improved) await b.putScore(id, sid, entry);
@@ -250,7 +265,7 @@
   }
 
   return {
-    available, submit, top, board, versions,
+    available, peek, submit, top, board, versions,
     boardId, chartHash, packChart, unpackChart, alignShift, alignChart,
     GOOD_MATCH, COLLECTION,
   };

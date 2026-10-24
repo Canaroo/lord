@@ -668,7 +668,9 @@ kbd.k0 { color: var(--k0); } kbd.k1 { color: var(--k1); } kbd.k2 { color: var(--
 .big { font-size: 28px; text-shadow: 3px 3px 0 var(--ink); font-variant-numeric: tabular-nums; }
 .flag { font-size: 10px; color: var(--gold); margin: 8px 0 0; min-height: 1.4em; line-height: 1.6; }
 .flag.new { animation: blink 0.6s steps(1) infinite; }
-.world-line { margin: 4px 0 0; min-height: 1em; font: 700 13px var(--act); color: var(--cyan); }
+.world-box { margin-top: 10px; padding-top: 10px; border-top: 2px dashed var(--line); }
+.world-line { margin: 0 0 8px; min-height: 1em; font: 400 19px/1.1 var(--body); color: var(--cyan); }
+.world-box .btn { margin-bottom: 6px; }
 .res-stars-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 4px 0 0; }
 .res-stars { font-size: 26px; letter-spacing: 2px; color: #3a2f60; text-shadow: 2px 2px 0 var(--ink); }
 .res-stars b { color: var(--gold); font-weight: 400; }
