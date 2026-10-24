@@ -1004,3 +1004,10 @@ body.touch .group > .btn.touch-only { display: block; }
 .name-win .oc-title.gold { color: var(--gold); text-shadow: 3px 3px 0 var(--red), 5px 5px 0 var(--ink); }
 .name-win .linkbox { margin: 8px 0 4px; font-size: 22px; color: var(--text); text-align: center; }
 .name-win .linkbox:focus { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* You've been beaten: messages from challengers. */
+#inbox { z-index: 52; }
+.inbox-win { width: min(460px, 100%); max-height: calc(100% - 16px); overflow-y: auto; padding-top: 20px; box-shadow: inset 0 0 0 2px var(--red), 0 8px 0 rgba(0, 0, 0, 0.5), 0 0 40px rgba(248, 72, 96, 0.35); }
+.inbox-win .close { top: 8px; right: 8px; width: 34px; height: 34px; }
+.inbox-win .list { margin: 8px 0 4px; text-align: left; }
+.rematch-tag { flex: none; padding: 5px 8px; border: 2px solid var(--ink); border-radius: 6px; background: linear-gradient(180deg, #ff6a82, #d81e45); color: var(--text); font: 700 11px var(--act); }

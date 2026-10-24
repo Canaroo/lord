@@ -15,6 +15,24 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // "ZED beat your score": a message for the player who was beaten in a challenge.
+    // Only they can read it or clear it. It has to be backed by the sender's real
+    // score on that board, higher than the score they beat.
+    match /beatfrets_notices/{noticeId} {
+      allow read, delete: if request.auth != null && resource.data.toUid == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['toUid', 'toProfile', 'toInitials', 'from', 'fromSid', 'fromScore', 'theirScore', 'board', 'title', 'difficulty', 'at'])
+        && request.resource.data.fromSid is string && request.resource.data.fromSid.matches(request.auth.uid + '_[A-Za-z0-9]{0,24}')
+        && request.resource.data.from is string && request.resource.data.from.matches('[A-Z0-9-]{3}')
+        && request.resource.data.toUid is string && request.resource.data.toUid.size() <= 128
+        && request.resource.data.board is string && request.resource.data.board.size() <= 120
+        && request.resource.data.title is string && request.resource.data.title.size() <= 80
+        && request.resource.data.fromScore is int && request.resource.data.theirScore is int
+        && request.resource.data.fromScore > request.resource.data.theirScore
+        && get(/databases/$(database)/documents/beatfrets_boards/$(request.resource.data.board)/scores/$(request.resource.data.fromSid)).data.score >= request.resource.data.fromScore;
+      allow update: if false;
+    }
+
     match /beatfrets_boards/{boardId} {
       // The most a score can be. Beat Frets: a song has a fixed number of notes.
       // Tiles loops, and each lap's tiles are worth more (lap 1 x1, lap 2 x2, ...),

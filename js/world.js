@@ -25,6 +25,7 @@
   const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   const COLLECTION = 'beatfrets_boards';
   const SONGS = 'beatfrets_songs'; // a small listing of imported songs' boards (no charts), for browsing
+  const NOTICES = 'beatfrets_notices'; // "ZED beat your score": read by the beaten player next time they play
   const MAX_ALIGN_SHIFT = 15; // seconds: different rips can start quite differently
   const GOOD_MATCH = 0.6;
 
@@ -205,6 +206,12 @@
         const q = fs.query(fs.collection(db, SONGS), fs.orderBy('created', 'desc'), fs.limit(limit));
         return (await fs.getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data(), created: d.data().created && d.data().created.toMillis ? d.data().created.toMillis() : 0 }));
       },
+      async addNotice(data) { await fs.addDoc(fs.collection(db, NOTICES), { ...data, at: fs.serverTimestamp() }); },
+      async noticesFor(uid) {
+        const q = fs.query(fs.collection(db, NOTICES), fs.where('toUid', '==', uid), fs.limit(20));
+        return (await fs.getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data(), at: d.data().at && d.data().at.toMillis ? d.data().at.toMillis() : 0 }));
+      },
+      async deleteNotice(id) { await fs.deleteDoc(fs.doc(db, NOTICES, id)); },
       async findBoards(difficulty, bpmKeys) {
         const q = fs.query(fs.collection(db, COLLECTION), fs.where('difficulty', '==', difficulty),
           fs.where('bpmKey', 'in', bpmKeys), fs.limit(30));
@@ -319,8 +326,37 @@
     }).sort((a, c) => c.likeness - a.likeness).slice(0, 6);
   }
 
+  // ---- "you've been beaten" ----------------------------------------------------------------
+
+  /**
+   * After a challenge win is posted: tell the player who was beaten. `toSid` is
+   * their score's id on the board (their device's sign-in + profile).
+   */
+  async function notify({ toSid, toInitials, from, fromSid, fromScore, theirScore, board, title, difficulty }) {
+    const b = await backend();
+    if (!b.addNotice || !toSid) return;
+    const cut = toSid.indexOf('_');
+    if (cut < 1) return;
+    await b.addNotice({
+      toUid: toSid.slice(0, cut), toProfile: toSid.slice(cut + 1), toInitials,
+      from, fromSid, fromScore, theirScore, board, title: String(title).slice(0, 80), difficulty,
+    });
+  }
+
+  /** Messages for this device's players, newest first. */
+  async function inbox() {
+    const b = await backend();
+    if (!b.noticesFor) return [];
+    return (await b.noticesFor(b.uid)).sort((a, c) => (c.at || 0) - (a.at || 0));
+  }
+
+  async function dismiss(id) {
+    const b = await backend();
+    if (b.deleteNotice) await b.deleteNotice(id);
+  }
+
   return {
-    available, peek, submit, top, board, versions, songs, tempoKeys,
+    available, peek, submit, top, board, versions, songs, tempoKeys, notify, inbox, dismiss,
     boardId, chartHash, packChart, unpackChart, alignShift, alignChart,
     GOOD_MATCH, COLLECTION,
   };

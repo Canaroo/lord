@@ -469,6 +469,18 @@
     </div>
   </div>
 
+  <!-- Next time you play: who beat your scores -->
+  <div id="inbox" class="overlay" hidden>
+    <div class="modal inbox-win" role="dialog" aria-labelledby="inbox-title">
+      <button id="btn-inbox-close" class="round close" aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <p id="inbox-title" class="vs-title">YOU'VE BEEN<br>BEATEN!</p>
+      <p class="hint">While you were away, these players beat your scores in a challenge. Tap one for a rematch.</p>
+      <div id="inbox-list" class="list"></div>
+      <p id="inbox-more" class="hint"></p>
+      <div class="dock stack"><button id="btn-inbox-ok" class="btn">GOT IT</button></div>
+    </div>
+  </div>
+
   <!-- An imported song's first world post: name it -->
   <div id="name-pop" class="overlay" hidden>
     <div class="modal name-win" role="dialog" aria-labelledby="name-title">

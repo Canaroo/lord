@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.20';
+  const VERSION = '1.21';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -183,6 +183,7 @@
   }
 
   function activeRoot() {
+    if (!$('#inbox').hidden) return $('#inbox');
     if (!$('#name-pop').hidden) return $('#name-pop');
     if (!$('#vs').hidden) return $('#vs');
     if (!$('#outcome').hidden) return $('#outcome');
@@ -238,6 +239,7 @@
   }
 
   function goBack() {
+    if (!$('#inbox').hidden) { closeInbox(); return; }
     if (!$('#name-pop').hidden) { if (askSongName.cancel) askSongName.cancel(); return; }
     if (!$('#vs').hidden) { closeVersus(true); return; }
     if (!$('#outcome').hidden) { $('#outcome').hidden = true; return; }
@@ -370,6 +372,7 @@
   function renderMain() {
     const p = save.active;
     $('#main-player').textContent = p ? p.initials : '---';
+    setTimeout(checkInbox, 600);
   }
 
   const initials = (() => {
@@ -1116,6 +1119,7 @@
       tl: (res.timeline || []).slice(0, 400).map((x) => Math.round(x)),
       ...(won ? { beat: target.initials } : {}),
     } : null);
+    if (won) tellBeaten(panel, worldFor(id, playOpts.chart || chartFor(id)), target, Math.round(res.score), id);
     show('tiles-results');
     if (target) setTimeout(() => { if (screen === 'tiles-results') openOutcome(res, target, panel); }, 900);
   }
@@ -1393,6 +1397,7 @@
       tl: (res.timeline || []).slice(0, 400).map((x) => Math.round(x)),
       ...(won ? { beat: target.initials } : {}),
     } : null);
+    if (won) tellBeaten(panel, world, target, Math.round(res.score), difficulty);
     show('results');
 
     // Count the score up, then stamp the grade. Any key or button skips ahead.
@@ -1552,18 +1557,23 @@
     btn.disabled = true;
     $('#ch-status').textContent = 'Finding the world board…';
     try {
-      const meta = await World.board(sh.world);
-      if (!meta) throw new Error("That score isn't on the world board any more.");
-      const remote = meta.kind === 'mp3' ? { key: meta.songKey, title: meta.title, fp: meta.fp || null, boards: { [meta.difficulty]: sh.world } } : null;
-      await openBoard(remote ? meta.songKey : sh.songKey, meta.title || sh.title, meta.difficulty, 'main', 'world', remote);
-      const row = worldRows.find((r) => r.initials === sh.initials) || { initials: sh.initials, score: sh.score };
-      if (canChallenge(meta.difficulty) === true && !row.mine) openVersus(row);
+      await openWorldChallenge(sh);
     } catch (e) {
       console.warn(e);
       $('#ch-status').textContent = e.message || String(e);
     } finally {
       btn.disabled = false;
     }
+  }
+
+  /** Open a world board ({ world, initials, score, sid, songKey, title }) and challenge that player's score. */
+  async function openWorldChallenge(sh, back = 'main') {
+    const meta = await World.board(sh.world);
+    if (!meta) throw new Error("That score isn't on the world board any more.");
+    const remote = meta.kind === 'mp3' ? { key: meta.songKey, title: meta.title, fp: meta.fp || null, boards: { [meta.difficulty]: sh.world } } : null;
+    await openBoard(meta.songKey || sh.songKey, meta.title || sh.title, meta.difficulty, back, 'world', remote);
+    const row = worldRows.find((r) => (sh.sid && r.id === sh.sid) || r.initials === sh.initials) || { initials: sh.initials, score: sh.score };
+    if (canChallenge(meta.difficulty) === true && !row.mine) openVersus(row);
   }
 
   function checkHash() {
@@ -1696,6 +1706,66 @@
     if (current && current.key === key) current.title = name;
   }
 
+  /** Once a challenge win is posted, leave a message for the player who was beaten. */
+  function tellBeaten(panel, world, target, score, difficulty) {
+    const p = save.active;
+    if (!panel.post || !target.sid || !p) return;
+    panel.onPosted.push((r) => {
+      World.notify({
+        toSid: target.sid, toInitials: target.initials, from: p.initials, fromSid: r.sid,
+        fromScore: score, theirScore: target.score, board: world.id, title: current.title, difficulty,
+      }).catch((e) => console.warn('notice not sent', e));
+    });
+  }
+
+  // ---- "you've been beaten" --------------------------------------------------------------------------
+
+  /**
+   * On the home screen, now and then: messages from players who beat one of
+   * this device's scores in a challenge, each with a REMATCH.
+   */
+  let inboxAt = 0;
+  let inboxItems = [];
+  async function checkInbox() {
+    if (!World.available() || Date.now() - inboxAt < 60000) return;
+    inboxAt = Date.now();
+    let list;
+    try { list = await World.inbox(); } catch (e) { console.warn(e); return; }
+    if (!list.length || screen !== 'main' || !$('#vs').hidden || !$('#outcome').hidden) return;
+    inboxItems = list.slice(0, 4);
+    const fmt = (n) => Number(n).toLocaleString('en-US');
+    $('#inbox-list').innerHTML = inboxItems.map((n, i) => `<button data-notice="${i}" style="--acc:var(--red)">
+      <svg class="ico"><use href="#i-sword"/></svg>
+      <span class="row-main"><b>${esc(n.from)} BEAT ${esc(n.toInitials || 'YOU')}</b>
+      <small>${esc(n.title)} · ${esc(LABEL(n.difficulty))}<br>${fmt(n.fromScore)} vs ${fmt(n.theirScore)}</small></span>
+      <span class="rematch-tag">REMATCH</span></button>`).join('');
+    $('#inbox-more').textContent = list.length > inboxItems.length ? `…and ${list.length - inboxItems.length} more.` : '';
+    $('#inbox').hidden = false;
+    Sfx.challenger();
+    requestAnimationFrame(() => { const b = $('#inbox-list button'); if (b) b.focus(); });
+  }
+
+  /** Seen: the messages are cleared (from the world board too). */
+  function closeInbox() {
+    $('#inbox').hidden = true;
+    for (const n of inboxItems) World.dismiss(n.id).catch(() => {});
+    inboxItems = [];
+  }
+
+  $('#inbox-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-notice]');
+    const n = b && inboxItems[+b.dataset.notice];
+    if (!n) return;
+    closeInbox();
+    // Rematch as the player who was beaten.
+    if (n.toProfile && save.profiles.some((x) => x.id === n.toProfile)) { save.setActive(n.toProfile); renderMain(); }
+    ensureAudio();
+    openWorldChallenge({ world: n.board, initials: n.from, score: n.fromScore, sid: n.fromSid, title: n.title }, 'main')
+      .catch((err) => toast(err.message || String(err)));
+  });
+  $('#btn-inbox-close').addEventListener('click', closeInbox);
+  $('#btn-inbox-ok').addEventListener('click', closeInbox);
+
   /** The world board id for a board screen, if we can tell (imported songs need their chart). */
   function worldBoardFor(key, diff) {
     if (boardState.worldId) return boardState.worldId;
@@ -1803,7 +1873,7 @@
       want: Input.touch ? (t.tiles ? 'portrait' : t.touch ? (t.lanes === 4 ? 'landscape' : 'portrait') : null) : null,
       tiles: !!t.tiles,
       prevWant: orientation.wanted,
-      target: r ? { initials: r.initials, score: Number(r.score), timeline: Array.isArray(r.tl) && r.tl.length > 1 ? r.tl : null, laps: Number(r.laps) || 0, rank } : null,
+      target: r ? { initials: r.initials, score: Number(r.score), timeline: Array.isArray(r.tl) && r.tl.length > 1 ? r.tl : null, laps: Number(r.laps) || 0, rank, sid: r.id || null } : null,
       loaded: false, error: null, status: 'Loading the stage…', opts: null, match: null, needCopy: null, row: r,
     };
     $('#vs-you-ini').textContent = me ? me.initials : '---';

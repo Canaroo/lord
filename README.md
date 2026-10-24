@@ -255,6 +255,11 @@ The world boards are fair because a score only ranks against people who played *
   everywhere; on a phone it's played upright). Because Tiles loops and speeds up identically for
   everyone, the race compares your score with theirs at the same point of the run, across laps;
   once their run ended, you're racing their final score.
+- **"You've been beaten":** when someone wins a challenge against your score and posts it, you
+  get a message. The next time you open the game, the home screen pops up *YOU'VE BEEN BEATEN!*
+  with who beat you, on which song, and the scores; tap one for a **REMATCH** (as the player who
+  was beaten, if several share the device). Messages are private to your device and cleared once
+  seen. A message can only be sent with a real posted score that's higher than yours.
 - **Players' music:** the Boards tab lists imported songs other players have posted (newest
   first), even ones you don't have. Open one to see its world board. To challenge a score on a
   song you don't have, the versus pop-up asks you to **import your own copy** (any version: a
@@ -344,6 +349,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.21**: "You've been beaten!": players beaten in a challenge get a message the next time they
+  open the game, with a one-tap rematch. Needs the updated `firestore.rules`.
 - **1.20**: players' imported songs: a **Players' music** list under Boards, "import your copy"
   from the versus pop-up (then straight back into the challenge), naming a song before its first
   world post, share links that open the world board's challenge, and version matching that also

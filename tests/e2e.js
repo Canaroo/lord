@@ -511,7 +511,8 @@ const MEMORY_WORLD = () => {
   const boards = new Map(seed.boards || []);
   const scores = new Map(seed.scores || []);
   const songs = new Map(seed.songs || []);
-  window.__world = { boards, scores, songs };
+  const notices = new Map(seed.notices || []);
+  window.__world = { boards, scores, songs, notices };
   window.BeatFretsWorldBackend = {
     uid: 'devA',
     async getBoard(id) { return boards.get(id) || null; },
@@ -523,6 +524,9 @@ const MEMORY_WORLD = () => {
         .sort((a, b) => b.score - a.score).slice(0, limit);
     },
     async above(id, score) { return (await this.top(id, 1e9)).filter((r) => r.score > score).length; },
+    async addNotice(n) { notices.set('n' + notices.size + '_' + Date.now(), { ...n, at: Date.now() }); },
+    async noticesFor(uid) { return [...notices].filter(([, n]) => n.toUid === uid).map(([id, n]) => ({ id, ...n })); },
+    async deleteNotice(id) { notices.delete(id); },
     async getSong(id) { return songs.get(id) || null; },
     async createSong(id, data) { songs.set(id, { ...data, created: Date.now() }); },
     async listSongs(limit) { return [...songs].map(([id, v]) => ({ id, ...v })).sort((a, b) => b.created - a.created).slice(0, limit); },
@@ -664,6 +668,9 @@ async function worldTests(browser) {
   await page.click('#oc-post');
   await page.waitForFunction(() => /CROWN IS YOURS/.test(document.querySelector('#oc-world').textContent), null, { timeout: 5000 }).catch(() => {});
   check(/CROWN IS YOURS/.test(await page.textContent('#oc-world')), 'posting the win takes the crown');
+  await page.waitForFunction(() => window.__world.notices.size > 0, null, { timeout: 5000 }).catch(() => {});
+  const notice = await page.evaluate(() => [...window.__world.notices.values()][0]);
+  check(notice && notice.toUid === 'devA' && notice.from === 'BBB' && notice.toInitials === 'AAA' && notice.fromScore > notice.theirScore, `the beaten player gets a message (${JSON.stringify(notice && { to: notice.toUid, from: notice.from })})`);
   await page.click('#oc-board');
   await screenIs(page, 'board');
   await page.waitForSelector('.score-row .beat-tag', { timeout: 5000 }).catch(() => {});
@@ -715,11 +722,28 @@ async function worldTests(browser) {
   await page.waitForSelector('#outcome', { state: 'visible', timeout: 5000 });
   check(/ZED STILL LEADS/.test(await page.textContent('#oc-title')) && await page.isVisible('#oc-rematch'), 'losing a Tiles challenge offers a rematch');
   await page.click('#oc-close');
+  // Back on A's device: the home screen says who beat them, with a rematch.
+  await page.evaluate(() => {
+    window.BeatFretsWorldBackend.uid = 'devA';
+    const a = BeatFrets.save.profiles.find((p) => p.initials === 'AAA');
+    BeatFrets.save.setActive(a.id);
+    BeatFrets.goHome();
+  });
+  await page.waitForSelector('#inbox', { state: 'visible', timeout: 5000 }).catch(() => {});
+  const inbox = await page.textContent('#inbox');
+  check(/BEATEN/.test(inbox) && /BBB BEAT AAA/.test(inbox) && /REMATCH/.test(inbox), "next time A plays: \"YOU'VE BEEN BEATEN!\" with a rematch");
+  await page.screenshot({ path: path.join(outDir, 'e2e-beaten.png') });
+  await page.click('[data-notice="0"]');
+  await page.waitForSelector('#vs', { state: 'visible', timeout: 10000 });
+  check(/BBB/.test(await page.textContent('#vs-them')) && /AAA/.test(await page.textContent('#vs-you-ini')), 'REMATCH opens the versus pop-up against BBB, as AAA');
+  check(await page.evaluate(() => window.__world.notices.size === 0), 'a message is cleared once seen');
+  await page.click('#btn-vs-cancel');
+
   check(!errors.length, 'no errors on world boards ' + errors.join(' | '));
 
   // Player C, on another device without the song: finds it under Players' music, imports
   // their own copy when asked, and lands straight back in the challenge.
-  const seed = await page.evaluate(() => ({ boards: [...window.__world.boards], scores: [...window.__world.scores], songs: [...window.__world.songs] }));
+  const seed = await page.evaluate(() => ({ boards: [...window.__world.boards], scores: [...window.__world.scores], songs: [...window.__world.songs], notices: [...window.__world.notices] }));
   const runForLink = await page.evaluate(() => BeatFrets.save.data.runs.slice().reverse().find((r) => r.world && r.world.startsWith('chart-') && !r.difficulty.startsWith('tiles')));
   await context.close();
   const c = await newPage(browser);
