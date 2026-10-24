@@ -1001,7 +1001,7 @@ body.touch .group > .btn.touch-only { display: block; }
 /* Players' music, and naming a song before it goes public. */
 .have-tag { flex: none; padding: 3px 6px; border-radius: 4px; background: var(--green); color: var(--ink); font: 700 10px var(--act); }
 #name-pop { z-index: 55; }
-.name-win .oc-title.gold { color: var(--gold); text-shadow: 3px 3px 0 var(--red), 5px 5px 0 var(--ink); }
+.oc-title.gold { color: var(--gold); text-shadow: 3px 3px 0 var(--red), 5px 5px 0 var(--ink); }
 .name-win .linkbox { margin: 8px 0 4px; font-size: 22px; color: var(--text); text-align: center; }
 .name-win .linkbox:focus { outline: 3px solid var(--gold); outline-offset: 2px; }
 
@@ -1025,3 +1025,22 @@ body.touch .group > .btn.touch-only { display: block; }
 .wr-gap.ahead { color: var(--green); }
 .wr-gap.word { font: 700 11px var(--act); }
 .wr-wait, .wr-none { font: 400 17px var(--body); color: var(--muted); }
+
+/* Options: changes wait for SAVE. Pending ones are lit gold and say what they were. */
+.opts label.pending { color: var(--gold); }
+.opts label.pending output { color: var(--gold); }
+.opts label.pending::after { content: attr(data-was); flex-basis: 100%; order: 3; font: 400 16px var(--body); color: var(--muted); }
+.opts label { flex-wrap: wrap; }
+input[type="range"].pending::-webkit-slider-runnable-track { border-color: var(--gold); box-shadow: 0 0 8px rgba(248, 216, 48, 0.5); }
+input[type="range"].pending::-moz-range-track { border-color: var(--gold); }
+.toggle.pending { border-color: var(--gold); box-shadow: 0 3px 0 var(--ink), 0 0 10px rgba(248, 216, 48, 0.35); }
+.toggle.pending small::after { content: " · " attr(data-was); }
+.toggle.pending small { color: var(--gold); }
+.save-bar { align-items: center; box-shadow: 0 -2px 0 var(--gold) inset, 0 -3px 0 var(--gold), 0 -8px 18px rgba(248, 216, 48, 0.25); }
+.save-bar .btn { flex: 0 1 160px; }
+.save-count { flex: 1 1 100%; text-align: center; font: 400 10px var(--pixel); color: var(--gold); animation: blink 1.2s steps(2) infinite; }
+@media (min-width: 560px) { .save-count { flex: 1 1 auto; text-align: left; } }
+#keep-pop { z-index: 56; }
+.keep-list { list-style: none; margin: 4px 0 8px; padding: 0; text-align: left; font-size: 20px; color: var(--muted); }
+.keep-list li { padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.keep-list b { color: var(--gold); font-weight: 400; }

@@ -822,6 +822,43 @@ async function recordTests(browser) {
   check(/YOU HOLD THE RECORD/.test(wr.medium.text) && wr.medium.ahead, 'holding the record shows green');
   check(/NO WORLD RECORD YET/.test(wr.hard.text), 'a tier with no world scores says so');
   check(!errors.length, 'no errors with world records ' + errors.join(' | '));
+
+  // Options: nothing takes effect until SAVE.
+  await page.evaluate(() => BeatFrets.goHome());
+  await page.click('#tabbar [data-go="options"]');
+  await screenIs(page, 'options');
+  const before = await page.evaluate(() => ({ music: BeatFrets.save.settings.music, noFail: BeatFrets.save.settings.noFail }));
+  await page.evaluate(() => { const r = document.querySelector('#opt-music'); r.value = '0.3'; r.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.click('#opt-nofail');
+  const pending = await page.evaluate(() => ({
+    music: BeatFrets.save.settings.music, noFail: BeatFrets.save.settings.noFail,
+    bar: !document.querySelector('#opt-save-bar').hidden, count: document.querySelector('#opt-save-count').textContent,
+    lit: document.querySelector('label[for="opt-music"]').classList.contains('pending') && document.querySelector('#opt-nofail').classList.contains('pending'),
+  }));
+  await page.screenshot({ path: path.join(outDir, 'e2e-options-pending.png') });
+  check(pending.music === before.music && pending.noFail === before.noFail && pending.bar && /2 UNSAVED/.test(pending.count) && pending.lit,
+    `changed options wait for SAVE, lit up, with a save bar (${pending.count})`);
+  await page.click('#tabbar [data-go="main"]');
+  await page.waitForSelector('#keep-pop', { state: 'visible', timeout: 3000 }).catch(() => {});
+  check(await page.isVisible('#keep-pop') && await page.evaluate(() => BeatFrets.screen === 'options') && /Music volume/.test(await page.textContent('#keep-list')),
+    'leaving with unsaved changes asks first, listing them');
+  await page.screenshot({ path: path.join(outDir, 'e2e-options-keep.png') });
+  await page.click('#keep-stay');
+  check(await page.evaluate(() => BeatFrets.screen === 'options' && document.querySelector('#keep-pop').hidden), 'KEEP EDITING stays in Options');
+  await page.click('#tabbar [data-go="main"]');
+  await page.click('#keep-discard');
+  await screenIs(page, 'main');
+  check(await page.evaluate((b) => BeatFrets.save.settings.music === b.music && BeatFrets.save.settings.noFail === b.noFail, before), 'DISCARD throws the changes away');
+  await page.click('#tabbar [data-go="options"]');
+  await page.click('#opt-nofail');
+  await page.click('#opt-undo');
+  check(await page.evaluate(() => document.querySelector('#opt-save-bar').hidden && document.querySelector('#opt-nofail span').textContent === 'OFF'), 'UNDO puts the setting back');
+  await page.click('#opt-nofail');
+  await page.click('#opt-save');
+  check(await page.evaluate(() => BeatFrets.save.settings.noFail === true && document.querySelector('#opt-save-bar').hidden), 'SAVE makes the change take hold');
+  await page.click('#tabbar [data-go="main"]');
+  await screenIs(page, 'main');
+  check(true, 'with everything saved, leaving Options needs no confirmation');
   await context.close();
 }
 
@@ -1106,6 +1143,7 @@ async function recordTests(browser) {
   check((await page.textContent('#opt-overhit span')) === 'ON', 'Overhit penalty is on by default');
   await page.click('#opt-overhit');
   check((await page.textContent('#opt-overhit span')) === 'OFF', 'Overhit penalty can be switched off');
+  await page.click('#opt-save');
   await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
   await screenIs(page, 'song');
   await page.evaluate(() => BeatFrets.play('hard'));

@@ -112,6 +112,11 @@ press a key or a controller button.
   upright), and each lane carries on below it as a big pad down to the bottom edge. Rest your
   thumbs on the pads, below the line, and tap anywhere in a lane's column, so your thumbs never
   cover the notes coming in. A pressed pad lights up.
+- **Options wait for SAVE:** changing a setting (a slider or a switch) doesn't take effect
+  straight away. The change lights up gold with what it was before, and a save bar appears:
+  **UNDO** or **SAVE**. Leaving Options with unsaved changes asks *KEEP YOUR CHANGES?* (save,
+  discard, or keep editing), so a slider nudged by accident changes nothing. Volume changes play
+  a preview while you slide.
 - **Your strike line height:** before your first phone game you can drag the line to where your
   thumbs rest. Change it any time in **Options** (*Strike line, sideways / upright* or *Move
   strike line*). Sideways and upright are saved separately.
@@ -354,6 +359,8 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.23**: options only take effect after SAVE: pending changes light up with their old value, a
+  save bar offers UNDO / SAVE, and leaving with unsaved changes asks to save or discard.
 - **1.22**: records to beat: a ⚔ badge on songs with world records you haven't matched, and each
   difficulty card shows the world record and your gap to it (red behind, green when it's yours).
 - **1.21**: "You've been beaten!": players beaten in a challenge get a message the next time they

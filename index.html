@@ -355,6 +355,11 @@
         <p class="hint" id="pad-status"></p>
         <p class="hint version" id="opt-version"></p>
       </div>
+      <div class="dock save-bar" id="opt-save-bar" hidden>
+        <span id="opt-save-count" class="save-count"></span>
+        <button id="opt-undo" class="btn">UNDO</button>
+        <button id="opt-save" class="btn primary">SAVE</button>
+      </div>
     </section>
 
     <!-- Save data -->
@@ -465,6 +470,20 @@
         <button id="oc-rematch" class="btn primary">REMATCH</button>
         <button id="oc-board" class="btn">BACK TO BOARD</button>
         <button id="oc-close" class="btn">SEE RESULTS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaving Options with unsaved changes -->
+  <div id="keep-pop" class="overlay" hidden>
+    <div class="modal keep-win" role="dialog" aria-labelledby="keep-title">
+      <p id="keep-title" class="oc-title gold">KEEP YOUR CHANGES?</p>
+      <p class="hint">These settings changed but haven't been saved yet:</p>
+      <ul id="keep-list" class="keep-list"></ul>
+      <div class="dock stack">
+        <button id="keep-save" class="btn primary">SAVE CHANGES</button>
+        <button id="keep-discard" class="btn danger">DISCARD</button>
+        <button id="keep-stay" class="btn">KEEP EDITING</button>
       </div>
     </div>
   </div>

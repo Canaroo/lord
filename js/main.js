@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.22';
+  const VERSION = '1.23';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -161,6 +161,12 @@
 
   let updateWaiting = false; // a new version is installed; load it at the next quiet moment
   function show(name, { focus } = {}) {
+    // Unsaved option changes: ask before leaving (calibration and the strike-line
+    // setup are part of Options, so the draft waits for you there).
+    if (screen === 'options' && name !== 'options' && hasDraft() && !['calib', 'strike-setup'].includes(name)) {
+      askKeep(() => show(name, { focus }));
+      return;
+    }
     if (updateWaiting && !game && (name === 'title' || name === 'main')) { location.reload(); return; }
     stopPreview();
     stage.setupMode = name === 'strike-setup';
@@ -183,6 +189,7 @@
   }
 
   function activeRoot() {
+    if (!$('#keep-pop').hidden) return $('#keep-pop');
     if (!$('#inbox').hidden) return $('#inbox');
     if (!$('#name-pop').hidden) return $('#name-pop');
     if (!$('#vs').hidden) return $('#vs');
@@ -239,6 +246,7 @@
   }
 
   function goBack() {
+    if (!$('#keep-pop').hidden) { if (askKeep.cancel) askKeep.cancel(); return; }
     if (!$('#inbox').hidden) { closeInbox(); return; }
     if (!$('#name-pop').hidden) { if (askSongName.cancel) askSongName.cancel(); return; }
     if (!$('#vs').hidden) { closeVersus(true); return; }
@@ -1436,6 +1444,7 @@
       applyBtn.hidden = false;
       applyBtn.onclick = () => {
         save.setSetting(calKey, next);
+        delete draft[calKey];
         renderOptions();
         applyBtn.hidden = true;
         $('#res-timing').textContent = `Timing adjusted to ${next} ms. Change it any time in Options.`;
@@ -2422,60 +2431,133 @@
 
   // ---- options -------------------------------------------------------------------------------------------
 
+  // Options don't take effect straight away: a change is held as a draft (and
+  // lit up), and only SAVE applies it. UNDO, or leaving and choosing DISCARD,
+  // throws it away. That way a slider nudged by accident changes nothing.
+  let draft = {};
+  const hasDraft = () => Object.keys(draft).length > 0;
+  const val = (key) => (key in draft ? draft[key] : settings[key]);
+  const OPT_LABEL = {
+    speed: 'Note speed', calibrationMs: 'Audio offset', calibrationTouchMs: 'Audio offset', music: 'Music volume', sfx: 'Effects volume',
+    tilesLineUp: 'Tiles line', strikeUp4: 'Strike line, sideways', strikeUp2: 'Strike line, upright', crt: 'CRT scanlines',
+    shake: 'Screen shake', noFail: 'No-fail mode', hitSounds: 'Hit sounds', overhit: 'Overhit penalty', vibrate: 'Vibration', autoPost: 'Auto-post',
+  };
+  const lineText = (up, lo, hi) => (up <= lo ? 'LOW' : up >= hi ? 'HIGH' : 'MIDDLE') + ` (${up}%)`;
+  const OPT_SHOW = {
+    speed: (v) => Number(v).toFixed(1) + 'x',
+    calibrationMs: (v) => (v > 0 ? '+' : '') + v + ' ms',
+    calibrationTouchMs: (v) => (v > 0 ? '+' : '') + v + ' ms',
+    music: (v) => Math.round(v * 100) + '%',
+    sfx: (v) => Math.round(v * 100) + '%',
+    tilesLineUp: (v) => lineText(v, 22, 38),
+    strikeUp4: (v) => lineText(v, 22, 34),
+    strikeUp2: (v) => lineText(v, 16, 26),
+  };
+  const showVal = (key, v) => (OPT_SHOW[key] ? OPT_SHOW[key](v) : v ? 'ON' : 'OFF');
+
+  function setDraft(key, v) {
+    if (v === settings[key]) delete draft[key]; else draft[key] = v;
+    if (key === 'music' || key === 'sfx') previewVolume(key);
+    renderOptions();
+  }
+
+  /** Hear a volume change before saving it (the saved volume comes back on UNDO). */
+  let previewAt = 0;
+  function previewVolume(key) {
+    Sfx.setVolumes(val('music'), val('sfx'));
+    if (key === 'sfx' && performance.now() - previewAt > 120) { previewAt = performance.now(); Sfx.tick(); }
+  }
+
+  function saveDraft() {
+    const keys = Object.keys(draft);
+    for (const k of keys) save.setSetting(k, draft[k]);
+    draft = {};
+    Sfx.setVolumes(settings.music, settings.sfx);
+    if (keys.some((k) => k.startsWith('strikeUp'))) applyStrike();
+    renderOptions();
+    if (keys.length) { Sfx.select(); toast(keys.length === 1 ? `${OPT_LABEL[keys[0]] || 'Setting'} saved.` : `${keys.length} settings saved.`); }
+  }
+
+  function undoDraft() {
+    draft = {};
+    Sfx.setVolumes(settings.music, settings.sfx);
+    renderOptions();
+  }
+
   function renderOptions() {
-    $('#opt-speed').value = settings.speed;
-    $('#opt-speed-out').textContent = settings.speed.toFixed(1) + 'x';
-    const cal = settings[calKey()];
-    $('#opt-calib').value = cal;
-    $('#opt-calib-out').textContent = (cal > 0 ? '+' : '') + cal + ' ms';
+    const range = (id, key) => {
+      const v = val(key);
+      $(id).value = v;
+      $(id + '-out').textContent = showVal(key, v);
+      const pending = key in draft;
+      const label = $(`label[for="${id.slice(1)}"]`);
+      label.classList.toggle('pending', pending);
+      $(id).classList.toggle('pending', pending);
+      label.dataset.was = pending ? 'WAS ' + showVal(key, settings[key]) : '';
+    };
+    range('#opt-speed', 'speed');
+    $('#opt-calib').dataset.key = calKey();
+    range('#opt-calib', calKey());
     $('#opt-calib-label').textContent = Input.touch ? 'AUDIO OFFSET (TOUCH)' : 'AUDIO OFFSET';
     $('#opt-vibrate').hidden = !navigator.vibrate;
-    $('#opt-vibrate span').textContent = settings.vibrate ? 'ON' : 'OFF';
-    $('#opt-music').value = settings.music;
-    $('#opt-music-out').textContent = Math.round(settings.music * 100) + '%';
-    $('#opt-sfx').value = settings.sfx;
-    $('#opt-sfx-out').textContent = Math.round(settings.sfx * 100) + '%';
-    $('#opt-crt span').textContent = settings.crt ? 'ON' : 'OFF';
-    $('#opt-shake span').textContent = settings.shake ? 'ON' : 'OFF';
-    $('#opt-nofail span').textContent = settings.noFail ? 'ON' : 'OFF';
-    $('#opt-hits span').textContent = settings.hitSounds ? 'ON' : 'OFF';
-    $('#opt-overhit span').textContent = settings.overhit ? 'ON' : 'OFF';
-    $('#opt-autopost span').textContent = settings.autoPost ? 'ON' : 'OFF';
-    $('#opt-world-group').hidden = !World.available();
-    $('#opt-tiles-line').value = settings.tilesLineUp;
-    $('#opt-tiles-line-out').textContent = (settings.tilesLineUp <= 22 ? 'LOW' : settings.tilesLineUp >= 38 ? 'HIGH' : 'MIDDLE') + ` (${settings.tilesLineUp}%)`;
-    for (const n of [4, 2]) {
-      const up = settings['strikeUp' + n];
-      const [lo, hi] = n === 4 ? [22, 34] : [16, 26];
-      $(`#opt-strike${n}`).value = up;
-      $(`#opt-strike${n}-out`).textContent = (up <= lo ? 'LOW' : up >= hi ? 'HIGH' : 'MIDDLE') + ` (${up}%)`;
+    range('#opt-music', 'music');
+    range('#opt-sfx', 'sfx');
+    range('#opt-tiles-line', 'tilesLineUp');
+    range('#opt-strike4', 'strikeUp4');
+    range('#opt-strike2', 'strikeUp2');
+    for (const [id, key] of TOGGLES) {
+      const b = $(id);
+      const on = !!val(key);
+      $('span', b).textContent = on ? 'ON' : 'OFF';
+      b.classList.toggle('on', on);
+      b.classList.toggle('pending', key in draft);
+      const sm = $('small', b);
+      if (sm) sm.dataset.was = key in draft ? 'WAS ' + (settings[key] ? 'ON' : 'OFF') : '';
     }
+    $('#opt-world-group').hidden = !World.available();
     document.body.classList.toggle('crt', settings.crt);
-    $$('.toggle').forEach((b) => b.classList.toggle('on', $('span', b).textContent === 'ON'));
+    const n = Object.keys(draft).length;
+    $('#opt-save-bar').hidden = !n;
+    $('#opt-save-count').textContent = n === 1 ? '1 UNSAVED CHANGE' : `${n} UNSAVED CHANGES`;
     updateDeviceUI();
   }
 
-  const bindRange = (id, key, parse) => $(id).addEventListener('input', (e) => {
-    save.setSetting(key, parse(e.target.value));
-    if (key === 'music' || key === 'sfx') Sfx.setVolumes(settings.music, settings.sfx);
-    renderOptions();
-  });
+  const TOGGLES = [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-overhit', 'overhit'], ['#opt-vibrate', 'vibrate'], ['#opt-autopost', 'autoPost']];
+  const bindRange = (id, key, parse) => $(id).addEventListener('input', (e) => setDraft(typeof key === 'function' ? key() : key, parse(e.target.value)));
   bindRange('#opt-speed', 'speed', parseFloat);
-  $('#opt-calib').addEventListener('input', (e) => { save.setSetting(calKey(), parseInt(e.target.value, 10)); renderOptions(); });
+  bindRange('#opt-calib', () => calKey(), (x) => parseInt(x, 10));
   bindRange('#opt-music', 'music', parseFloat);
   bindRange('#opt-sfx', 'sfx', parseFloat);
-  for (const n of [4, 2]) {
-    $(`#opt-strike${n}`).addEventListener('input', (e) => {
-      save.setSetting('strikeUp' + n, parseInt(e.target.value, 10));
-      applyStrike();
-      renderOptions();
-    });
-  }
+  bindRange('#opt-strike4', 'strikeUp4', (x) => parseInt(x, 10));
+  bindRange('#opt-strike2', 'strikeUp2', (x) => parseInt(x, 10));
+  bindRange('#opt-tiles-line', 'tilesLineUp', (x) => parseInt(x, 10));
+  for (const [id, key] of TOGGLES) $(id).addEventListener('click', () => setDraft(key, !val(key)));
   $('#btn-strike').addEventListener('click', () => openStrikeSetup('options'));
-  $('#opt-tiles-line').addEventListener('input', (e) => { save.setSetting('tilesLineUp', parseInt(e.target.value, 10)); renderOptions(); });
-  for (const [id, key] of [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-overhit', 'overhit'], ['#opt-vibrate', 'vibrate'], ['#opt-autopost', 'autoPost']]) {
-    $(id).addEventListener('click', () => { save.setSetting(key, !settings[key]); renderOptions(); });
+  $('#opt-save').addEventListener('click', saveDraft);
+  $('#opt-undo').addEventListener('click', () => { Sfx.back(); undoDraft(); });
+
+  /** Leaving Options with unsaved changes: SAVE, DISCARD, or stay. */
+  function askKeep(then) {
+    const n = Object.keys(draft);
+    $('#keep-list').innerHTML = n.map((k) => `<li>${esc(OPT_LABEL[k] || k)}: ${esc(showVal(k, settings[k]))} → <b>${esc(showVal(k, draft[k]))}</b></li>`).join('');
+    $('#keep-pop').hidden = false;
+    Sfx.error();
+    const done = (choice) => {
+      $('#keep-pop').hidden = true;
+      $('#keep-save').onclick = $('#keep-discard').onclick = $('#keep-stay').onclick = null;
+      askKeep.cancel = null;
+      if (choice === 'save') saveDraft();
+      if (choice === 'discard') undoDraft();
+      if (choice !== 'stay') then();
+      else requestAnimationFrame(() => $('#opt-save').focus());
+    };
+    $('#keep-save').onclick = () => done('save');
+    $('#keep-discard').onclick = () => done('discard');
+    $('#keep-stay').onclick = () => done('stay');
+    askKeep.cancel = () => done('stay');
+    requestAnimationFrame(() => $('#keep-save').focus());
   }
+
   /** Keyboard/controller and touch each keep their own timing offset. */
   const calKey = () => (Input.touch ? 'calibrationTouchMs' : 'calibrationMs');
 
@@ -2543,6 +2625,7 @@
         offsets.sort((a, b) => a - b);
         const median = offsets[offsets.length >> 1];
         save.setSetting(calKey(), Math.max(-200, Math.min(200, Math.round(median * 1000))));
+        delete draft[calKey()];
         renderOptions();
         $('#calib-status').textContent = `Done. Offset set to ${settings[calKey()]} ms.`;
       }, (1.0 + COUNT * INTERVAL + 0.6) * 1000);
@@ -2700,6 +2783,7 @@
     const y = stage.toBuffer(0, clientY).y;
     const up = Math.round((1 - y / stage.height) * 100);
     save.setSetting('strikeUp' + n, Math.max(lo, Math.min(hi, up)));
+    delete draft['strikeUp' + n];
     applyStrike();
   }
   let strikeDrag = null;
@@ -2714,6 +2798,7 @@
   $('#btn-strike-reset').addEventListener('click', () => {
     const n = stage.layout === 'touch2' ? 2 : 4;
     save.setSetting('strikeUp' + n, STRIKE_UP[n][2]);
+    delete draft['strikeUp' + n];
     applyStrike();
   });
   $('#btn-strike-done').addEventListener('click', () => {
