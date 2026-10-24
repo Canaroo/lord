@@ -997,3 +997,10 @@ body.touch .group > .btn.touch-only { display: block; }
   .screen.active, .grade.stamp, .blink, .pulse, .flag.new, .slot.cur b { animation: none; }
   body.nav button:focus, button:focus-visible { animation: none; }
 }
+
+/* Players' music, and naming a song before it goes public. */
+.have-tag { flex: none; padding: 3px 6px; border-radius: 4px; background: var(--green); color: var(--ink); font: 700 10px var(--act); }
+#name-pop { z-index: 55; }
+.name-win .oc-title.gold { color: var(--gold); text-shadow: 3px 3px 0 var(--red), 5px 5px 0 var(--ink); }
+.name-win .linkbox { margin: 8px 0 4px; font-size: 22px; color: var(--text); text-align: center; }
+.name-win .linkbox:focus { outline: 3px solid var(--gold); outline-offset: 2px; }

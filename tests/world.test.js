@@ -93,13 +93,13 @@ test('submit keeps each player\'s best and reports the rank', async () => {
     const meta = { kind: 'pack', title: 'Neon', notes: 100 };
     scores.set('b1/other_p', { initials: 'ZZZ', score: 5000 });
     let pk = await World.peek({ id: 'b1', profileId: 'p1', score: 4000 });
-    assert.deepStrictEqual(pk, { best: null, better: true, rank: 2 });
+    assert.deepStrictEqual(pk, { best: null, better: true, exists: false, rank: 2 });
     assert.strictEqual(scores.size, 1, 'peeking posts nothing');
     let r = await World.submit({ id: 'b1', meta, profileId: 'p1', entry: { initials: 'AAA', score: 4000 } });
     assert.deepStrictEqual([r.rank, r.improved], [2, true]);
     assert.ok(boards.has('b1'));
     pk = await World.peek({ id: 'b1', profileId: 'p1', score: 3000 });
-    assert.deepStrictEqual(pk, { best: 4000, better: false, rank: 2 });
+    assert.deepStrictEqual(pk, { best: 4000, better: false, exists: true, rank: 2 });
     r = await World.submit({ id: 'b1', meta, profileId: 'p1', entry: { initials: 'AAA', score: 3000 } });
     assert.deepStrictEqual([r.rank, r.improved, r.best], [2, false, 4000]);
     r = await World.submit({ id: 'b1', meta, profileId: 'p1', entry: { initials: 'AAA', score: 6000 } });
@@ -109,4 +109,22 @@ test('submit keeps each player\'s best and reports the rank', async () => {
   } finally {
     delete globalThis.BeatFretsWorldBackend;
   }
+});
+
+test('tempo keys cover nearby, half and double tempo', () => {
+  const k = World.tempoKeys(120);
+  for (const x of [117, 120, 123, 60, 57, 240, 243]) assert.ok(k.includes(x), String(x));
+  assert.ok(k.length <= 30, 'fits one Firestore "in" query');
+});
+
+test('share links carry the world board, with or without a fingerprint', () => {
+  const SaveData = require('../js/save.js');
+  const run = { initials: 'KID', songKey: 'pack:neon', title: 'Neon', difficulty: 'hard', score: 5000, grade: 'A', accuracy: 91, maxCombo: 40, fullCombo: false, date: '2026-10-24T00:00:00Z', world: 'pack-neon__hard' };
+  const a = SaveData.decodeShare(SaveData.encodeShare(run));
+  assert.strictEqual(a.world, 'pack-neon__hard');
+  assert.strictEqual(a.fp, null);
+  const b = SaveData.decodeShare(SaveData.encodeShare({ ...run, world: 'chart-abc__hard', fp: { du: 90, bpm: 120, sig: '123' } }));
+  assert.deepStrictEqual([b.world, b.fp.sig, b.verified], ['chart-abc__hard', '123', true]);
+  const old = SaveData.decodeShare(SaveData.encodeShare({ ...run, world: undefined }));
+  assert.strictEqual(old.world, null);
 });

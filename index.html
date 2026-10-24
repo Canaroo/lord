@@ -469,6 +469,19 @@
     </div>
   </div>
 
+  <!-- An imported song's first world post: name it -->
+  <div id="name-pop" class="overlay" hidden>
+    <div class="modal name-win" role="dialog" aria-labelledby="name-title">
+      <p id="name-title" class="oc-title gold">NAME THIS SONG</p>
+      <p class="hint">It's the first time this song goes on the world board, and everyone will see its name. Use the real song title so others can find it.</p>
+      <input id="name-input" class="linkbox" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Song name" />
+      <div class="dock stack">
+        <button id="name-ok" class="btn primary">POST TO WORLD</button>
+        <button id="name-cancel" class="btn">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Pause: a pop-up over the game -->
   <div id="pause" class="overlay" hidden>
     <div class="modal pause-win" role="dialog" aria-label="Paused">

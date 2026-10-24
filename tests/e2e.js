@@ -506,9 +506,12 @@ async function touchTests(browser) {
 // ---- World boards: an in-page stand-in for Firebase, two copies of one song ----
 
 const MEMORY_WORLD = () => {
-  const boards = new Map();
-  const scores = new Map();
-  window.__world = { boards, scores };
+  // Another "device" can start from a copy of the world (window.__seed, set first).
+  const seed = window.__seed || {};
+  const boards = new Map(seed.boards || []);
+  const scores = new Map(seed.scores || []);
+  const songs = new Map(seed.songs || []);
+  window.__world = { boards, scores, songs };
   window.BeatFretsWorldBackend = {
     uid: 'devA',
     async getBoard(id) { return boards.get(id) || null; },
@@ -520,6 +523,9 @@ const MEMORY_WORLD = () => {
         .sort((a, b) => b.score - a.score).slice(0, limit);
     },
     async above(id, score) { return (await this.top(id, 1e9)).filter((r) => r.score > score).length; },
+    async getSong(id) { return songs.get(id) || null; },
+    async createSong(id, data) { songs.set(id, { ...data, created: Date.now() }); },
+    async listSongs(limit) { return [...songs].map(([id, v]) => ({ id, ...v })).sort((a, b) => b.created - a.created).slice(0, limit); },
     async findBoards(difficulty, keys) { return [...boards].filter(([, b]) => b.difficulty === difficulty && keys.includes(b.bpmKey)).map(([id, b]) => ({ id, ...b })); },
   };
 };
@@ -593,11 +599,17 @@ async function worldTests(browser) {
   await page.waitForTimeout(1500);
   await page.screenshot({ path: path.join(outDir, 'e2e-results-ask.png') });
   await page.click('#res-post');
+  // First world post of an imported song: name it (the file name is suggested).
+  await page.waitForSelector('#name-pop', { state: 'visible', timeout: 5000 });
+  check(await page.inputValue('#name-input') === 'Drum Song', 'an imported song\'s first post asks for its name, suggesting the file name');
+  await page.fill('#name-input', 'Drum Song Classic');
+  await page.click('#name-ok');
   await page.waitForFunction(() => /WORLD RANK #1/.test(document.querySelector('#res-world').textContent), null, { timeout: 5000 }).catch(() => {});
   check(/POSTED! WORLD RANK #1/.test(await page.textContent('#res-world')) && !(await page.isVisible('#res-post')), 'POST TO WORLD posts the score (rank #1)');
   await page.waitForTimeout(1500);
   await page.screenshot({ path: path.join(outDir, 'e2e-results-new.png') });
   const boardA = await page.evaluate((id) => window.__world.boards.get(id), idA);
+  check(boardA && boardA.title === 'Drum Song Classic' && await page.evaluate((id) => !!window.__world.songs.get(id), idA), 'the board and the songs listing use the chosen name');
   check(boardA && boardA.kind === 'mp3' && typeof boardA.chart === 'string' && boardA.notes > 10, 'imported song\'s world board keeps its chart');
 
   // Player B (another device) has a rip with extra silence at the start. It charts a
@@ -666,6 +678,8 @@ async function worldTests(browser) {
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game.waiting, null, { timeout: 15000 });
   await page.evaluate(() => { BeatFrets.game.lane(0, true, performance.now()); BeatFrets.game.lane(0, false, performance.now()); });
   await page.waitForFunction(() => BeatFrets.screen === 'tiles-results', null, { timeout: 60000 });
+  await page.waitForSelector('#name-pop', { state: 'visible', timeout: 5000 }).catch(() => {});
+  if (await page.isVisible('#name-pop')) await page.click('#name-ok');
   await page.waitForFunction(() => /POSTED/.test(document.querySelector('#tr-world').textContent), null, { timeout: 5000 }).catch(() => {});
   const tw = await page.evaluate(() => {
     const b = [...window.__world.boards].find(([id]) => id.endsWith('__tiles-easy'));
@@ -702,7 +716,52 @@ async function worldTests(browser) {
   check(/ZED STILL LEADS/.test(await page.textContent('#oc-title')) && await page.isVisible('#oc-rematch'), 'losing a Tiles challenge offers a rematch');
   await page.click('#oc-close');
   check(!errors.length, 'no errors on world boards ' + errors.join(' | '));
+
+  // Player C, on another device without the song: finds it under Players' music, imports
+  // their own copy when asked, and lands straight back in the challenge.
+  const seed = await page.evaluate(() => ({ boards: [...window.__world.boards], scores: [...window.__world.scores], songs: [...window.__world.songs] }));
+  const runForLink = await page.evaluate(() => BeatFrets.save.data.runs.slice().reverse().find((r) => r.world && r.world.startsWith('chart-') && !r.difficulty.startsWith('tiles')));
   await context.close();
+  const c = await newPage(browser);
+  await c.page.addInitScript((sd) => { window.__seed = sd; }, seed);
+  await c.page.addInitScript(MEMORY_WORLD);
+  await c.page.goto(url);
+  await screenIs(c.page, 'title');
+  await c.page.evaluate(() => { BeatFrets.save.createProfile('CCC'); window.BeatFretsWorldBackend.uid = 'devC'; document.querySelector('#btn-start').click(); });
+  await c.page.click('#tabbar [data-go="boards"]');
+  await c.page.waitForSelector('[data-remote]', { timeout: 5000 }).catch(() => {});
+  const remote = await c.page.textContent('#remote-songs');
+  check(/PLAYERS' MUSIC/.test(remote) && /DRUM SONG CLASSIC/.test(remote), "Players' music lists songs other players posted");
+  await c.page.screenshot({ path: path.join(outDir, 'e2e-players-music.png') });
+  await c.page.click('[data-remote]:has-text("DRUM SONG CLASSIC")');
+  await screenIs(c.page, 'board');
+  await c.page.waitForSelector('[data-challenge="0"]', { timeout: 5000 });
+  await c.page.click('[data-challenge="0"]');
+  await c.page.waitForFunction(() => document.querySelector('#btn-vs-fight').textContent === 'IMPORT YOUR COPY', null, { timeout: 10000 });
+  await c.page.screenshot({ path: path.join(outDir, 'e2e-need-copy.png') });
+  check(/don't have/.test(await c.page.textContent('#vs-status')), 'without the song, the versus pop-up asks for your own copy');
+  await c.page.click('#btn-vs-fight');
+  await screenIs(c.page, 'import');
+  const importNote = await c.page.textContent('#screen-import');
+  check(/Import your copy of "Drum Song Classic"/.test(importNote), `Your music says which song to import (${importNote.replace(/\s+/g, ' ').slice(0, 160)})`);
+  await c.page.evaluate(async (b) => {
+    const bytes = Uint8Array.from(atob(b), (ch) => ch.charCodeAt(0));
+    await BeatFrets.importFile(new File([bytes], 'drum-song.wav', { type: 'audio/wav' }));
+  }, copyA);
+  await c.page.waitForFunction(() => !document.querySelector('#vs').hidden && !document.querySelector('#btn-vs-fight').disabled && document.querySelector('#btn-vs-fight').textContent === 'FIGHT!', null, { timeout: 30000 });
+  check(await c.page.evaluate(() => BeatFrets.screen === 'board'), 'after importing, it goes straight back to the challenge, ready to FIGHT');
+  await c.page.click('#btn-vs-cancel');
+
+  // A challenge link straight to a world board.
+  const token = await c.page.evaluate((r) => SaveData.encodeShare(r), runForLink);
+  await c.page.goto(url + '#c=' + token);
+  await screenIs(c.page, 'challenge');
+  check(/CHALLENGE/.test(await c.page.textContent('#btn-ch-play')), 'a shared score links to its world board');
+  await c.page.click('#btn-ch-play');
+  await c.page.waitForSelector('#vs', { state: 'visible', timeout: 10000 });
+  check(/HERE COMES/.test(await c.page.textContent('#vs')), 'opening the link goes to the versus pop-up');
+  check(!c.errors.length, 'no errors for player C ' + c.errors.join(' | '));
+  await c.context.close();
 }
 
 (async () => {

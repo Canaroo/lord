@@ -24,6 +24,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   const COLLECTION = 'beatfrets_boards';
+  const SONGS = 'beatfrets_songs'; // a small listing of imported songs' boards (no charts), for browsing
   const MAX_ALIGN_SHIFT = 15; // seconds: different rips can start quite differently
   const GOOD_MATCH = 0.6;
 
@@ -198,6 +199,12 @@
         const q = fs.query(scores(id), fs.where('score', '>', score));
         return (await fs.getCountFromServer(q)).data().count;
       },
+      async getSong(id) { const s = await fs.getDoc(fs.doc(db, SONGS, id)); return s.exists() ? s.data() : null; },
+      async createSong(id, data) { await fs.setDoc(fs.doc(db, SONGS, id), { ...data, created: fs.serverTimestamp() }); },
+      async listSongs(limit) {
+        const q = fs.query(fs.collection(db, SONGS), fs.orderBy('created', 'desc'), fs.limit(limit));
+        return (await fs.getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data(), created: d.data().created && d.data().created.toMillis ? d.data().created.toMillis() : 0 }));
+      },
       async findBoards(difficulty, bpmKeys) {
         const q = fs.query(fs.collection(db, COLLECTION), fs.where('difficulty', '==', difficulty),
           fs.where('bpmKey', 'in', bpmKeys), fs.limit(30));
@@ -226,12 +233,24 @@
     const prev = await b.getScore(id, scoreId(b, profileId));
     const best = prev ? prev.score : null;
     const better = best == null || score > best;
-    return { best, better, rank: (await b.above(id, better ? score : best)) + 1 };
+    const exists = !!(await b.getBoard(id));
+    return { best, better, exists, rank: (await b.above(id, better ? score : best)) + 1 };
   }
 
   async function submit({ id, meta, entry, profileId }) {
     const b = await backend();
     if (!(await b.getBoard(id))) await b.createBoard(id, meta);
+    // Imported songs are listed (without their charts) so others can find them.
+    if (meta.kind === 'mp3' && b.getSong) {
+      try {
+        if (!(await b.getSong(id))) {
+          await b.createSong(id, {
+            title: meta.title, songKey: meta.songKey, difficulty: meta.difficulty,
+            bpm: meta.bpm, duration: meta.duration, notes: meta.notes, fp: meta.fp || null,
+          });
+        }
+      } catch (e) { /* the listing is optional; the score still posts */ }
+    }
     const sid = scoreId(b, profileId);
     const prev = await b.getScore(id, sid);
     const improved = !prev || entry.score > prev.score;
@@ -258,10 +277,36 @@
   async function board(id) { return (await backend()).getBoard(id); }
 
   /** Other imported-song boards that look like the same song, best guess first. */
+  /** Tempos that could be the same song: close by, or at half or double time. */
+  function tempoKeys(bpm) {
+    const k = Math.round(bpm || 0);
+    const set = new Set();
+    for (const c of [k, Math.round(k / 2), k * 2]) for (let d = -3; d <= 3; d++) if (c + d > 0) set.add(c + d);
+    return [...set].slice(0, 30);
+  }
+
+  /**
+   * Imported songs on the world boards, newest first, grouped by song: one entry
+   * per upload, with each difficulty's board.
+   */
+  async function songs(limit = 80) {
+    const b = await backend();
+    if (!b.listSongs) return [];
+    const rows = await b.listSongs(limit);
+    const groups = new Map();
+    for (const r of rows) {
+      const k = (r.songKey || r.id) + '|' + r.title;
+      if (!groups.has(k)) groups.set(k, { key: r.songKey, title: r.title, fp: r.fp || null, bpm: r.bpm, duration: r.duration, created: r.created || 0, boards: {} });
+      const g = groups.get(k);
+      g.boards[r.difficulty] = r.id;
+      g.created = Math.max(g.created, r.created || 0);
+    }
+    return [...groups.values()].sort((a, c) => c.created - a.created);
+  }
+
   async function versions({ difficulty, bpm, fp, title, exclude }) {
     const b = await backend();
-    const k = Math.round(bpm || 0);
-    const found = await b.findBoards(difficulty, [k - 1, k, k + 1]);
+    const found = await b.findBoards(difficulty, tempoKeys(bpm));
     const words = (s) => new Set(String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2));
     const mine = words(title);
     const sim = root.SaveData && fp ? root.SaveData.similarity : null;
@@ -274,7 +319,7 @@
   }
 
   return {
-    available, peek, submit, top, board, versions,
+    available, peek, submit, top, board, versions, songs, tempoKeys,
     boardId, chartHash, packChart, unpackChart, alignShift, alignChart,
     GOOD_MATCH, COLLECTION,
   };

@@ -140,7 +140,7 @@
 
   // The checksum only catches casual URL editing; scores in any browser game can be faked.
   const SALT = 'beat-frets-16bit';
-  const SHARE_FIELDS = ['v', 'n', 'k', 't', 'd', 'sc', 'g', 'a', 'c', 'fc', 'dt', 'fp'];
+  const SHARE_FIELDS = ['v', 'n', 'k', 't', 'd', 'sc', 'g', 'a', 'c', 'fc', 'dt', 'fp', 'w'];
 
   function encodeShare(run) {
     const data = {
@@ -157,6 +157,7 @@
       dt: run.date.slice(0, 10),
     };
     if (run.fp) data.fp = run.fp;
+    if (run.world) { data.w = run.world; if (!('fp' in data)) data.fp = null; } // the world board, for challenges
     const body = JSON.stringify(SHARE_FIELDS.filter((f) => f in data).map((f) => data[f]));
     return b64urlEncode(body) + '.' + hash(SALT + body);
   }
@@ -183,6 +184,7 @@
         fullCombo: !!d.fc,
         date: /^\d{4}-\d{2}-\d{2}$/.test(d.dt) ? d.dt : '',
         fp: d.fp && typeof d.fp.sig === 'string' ? { du: +d.fp.du, bpm: +d.fp.bpm, sig: d.fp.sig.replace(/\D/g, '').slice(0, SIG_LEN) } : null,
+        world: typeof d.w === 'string' && /^[a-z0-9_-]{1,120}$/i.test(d.w) ? d.w : null,
       };
     } catch (e) {
       return null;

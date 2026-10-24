@@ -255,6 +255,15 @@ The world boards are fair because a score only ranks against people who played *
   everywhere; on a phone it's played upright). Because Tiles loops and speeds up identically for
   everyone, the race compares your score with theirs at the same point of the run, across laps;
   once their run ended, you're racing their final score.
+- **Players' music:** the Boards tab lists imported songs other players have posted (newest
+  first), even ones you don't have. Open one to see its world board. To challenge a score on a
+  song you don't have, the versus pop-up asks you to **import your own copy** (any version: a
+  different rip, a remaster); once imported, it goes straight back into the challenge. The game
+  also finds your copy by itself if you already have the song in Your music, matched by sound.
+- **Naming songs:** the first time an imported song goes on the world board, the game asks what
+  it's called (the file name is suggested), because everyone will see that name.
+- **Challenge links:** a shared score links to its world board, so a friend who opens it goes
+  straight to the challenge (importing their copy first, for an imported song).
 - **Imported songs:** a challenge plays the board's own notes over your copy. For an imported song, the
   World tab also lists **other versions of this song** that players have posted. Pick one and
   you play **their exact notes over your own copy** of the song. The game lines their chart up
@@ -335,6 +344,10 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.20**: players' imported songs: a **Players' music** list under Boards, "import your copy"
+  from the versus pop-up (then straight back into the challenge), naming a song before its first
+  world post, share links that open the world board's challenge, and version matching that also
+  finds different tempos (and half or double time). Needs the updated `firestore.rules`.
 - **1.19**: Tiles challenges: ⚔ CHALLENGE on Tiles world boards, the same versus pop-up (upright on
   phones), a live race measured along the run across laps, and the victory or rematch pop-up.
   Tiles scores now save their score-over-time too.

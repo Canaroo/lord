@@ -4,6 +4,17 @@ rules_version = '2';
 // paste the match block below next to that game's rules.
 service cloud.firestore {
   match /databases/{database}/documents {
+    // A small listing of imported songs' boards, so players can find and challenge them.
+    match /beatfrets_songs/{boardId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && exists(/databases/$(database)/documents/beatfrets_boards/$(boardId))
+        && request.resource.data.keys().hasOnly(['title', 'songKey', 'difficulty', 'bpm', 'duration', 'notes', 'fp', 'created'])
+        && request.resource.data.title is string && request.resource.data.title.size() <= 80
+        && request.resource.data.difficulty is string && request.resource.data.difficulty.size() <= 24;
+      allow update, delete: if false;
+    }
+
     match /beatfrets_boards/{boardId} {
       // The most a score can be. Beat Frets: a song has a fixed number of notes.
       // Tiles loops, and each lap's tiles are worth more (lap 1 x1, lap 2 x2, ...),
