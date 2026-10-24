@@ -295,6 +295,7 @@
     const rows = await b.listSongs(limit);
     const groups = new Map();
     for (const r of rows) {
+      if (/^selftest/.test(r.id)) continue; // setup checks run against the live database
       const k = (r.songKey || r.id) + '|' + r.title;
       if (!groups.has(k)) groups.set(k, { key: r.songKey, title: r.title, fp: r.fp || null, bpm: r.bpm, duration: r.duration, created: r.created || 0, boards: {} });
       const g = groups.get(k);
