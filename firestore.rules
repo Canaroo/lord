@@ -31,10 +31,13 @@ service cloud.firestore {
         // Your own entries only (id starts with your sign-in id), and only to raise the score.
         allow create, update: if request.auth != null
           && scoreId.matches(request.auth.uid + '_[A-Za-z0-9]{0,24}')
-          && request.resource.data.keys().hasOnly(['initials', 'score', 'grade', 'accuracy', 'maxCombo', 'fullCombo', 'stars', 'crowns', 'laps', 'topSpeed', 'date', 'ver', 'at'])
+          && request.resource.data.keys().hasOnly(['initials', 'score', 'grade', 'accuracy', 'maxCombo', 'fullCombo', 'stars', 'crowns', 'laps', 'topSpeed', 'tl', 'beat', 'date', 'ver', 'at'])
           && request.resource.data.initials is string && request.resource.data.initials.matches('[A-Z0-9-]{3}')
           && request.resource.data.score is int && request.resource.data.score >= 0
           && request.resource.data.accuracy is number && request.resource.data.accuracy <= 100
+          // Optional: the score through the song (for challengers to race) and who you beat.
+          && (!('tl' in request.resource.data) || (request.resource.data.tl is list && request.resource.data.tl.size() <= 400))
+          && (!('beat' in request.resource.data) || (request.resource.data.beat is string && request.resource.data.beat.size() <= 3))
           && scoreOk(request.resource.data)
           && (resource == null || request.resource.data.score > resource.data.score);
         allow delete: if false;

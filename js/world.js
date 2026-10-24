@@ -235,7 +235,16 @@
     const sid = scoreId(b, profileId);
     const prev = await b.getScore(id, sid);
     const improved = !prev || entry.score > prev.score;
-    if (improved) await b.putScore(id, sid, entry);
+    if (improved) {
+      try {
+        await b.putScore(id, sid, entry);
+      } catch (e) {
+        // Boards whose rules predate race lines turn the extra fields away: post without them.
+        if (!/permission/i.test(String((e && e.code) || e)) || !('tl' in entry || 'beat' in entry)) throw e;
+        const { tl, beat, ...plain } = entry;
+        await b.putScore(id, sid, plain);
+      }
+    }
     const best = improved ? entry.score : prev.score;
     return { rank: (await b.above(id, best)) + 1, improved, best, sid };
   }

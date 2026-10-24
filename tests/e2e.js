@@ -543,6 +543,7 @@ const LANE_BOT = () => {
     const t = g.now();
     while (i < g.notes.length && g.notes[i].t <= t) {
       const n = g.notes[i++];
+      if (window.__skipEvery && i % window.__skipEvery === 0) continue; // a less-than-perfect player
       g.lane(n.lane, true, performance.now());
       setTimeout(() => g.lane(n.lane, false, performance.now()), n.len ? n.len * 1000 + 20 : 60);
     }
@@ -581,6 +582,7 @@ async function worldTests(browser) {
   const idA = await page.evaluate(() => World.boardId(BeatFrets.current.key, 'medium', BeatFrets.current.charts.medium));
   await page.evaluate(() => BeatFrets.play('medium', {}));
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
+  await page.evaluate(() => { window.__skipEvery = 6; });
   await page.evaluate(LANE_BOT);
   await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 60000 });
   // Nothing is posted until the player chooses to.
@@ -612,13 +614,21 @@ async function worldTests(browser) {
     check((await page.textContent('#board-versions')).includes('DRUM SONG'), 'world board offers the other version of the song');
     await page.click('[data-version]');
   }
-  await page.waitForSelector('[data-world-row="0"]', { timeout: 5000 });
-  check((await page.textContent('#board-table')).includes('AAA'), 'world board lists player A');
+  await page.waitForSelector('[data-challenge="0"]', { timeout: 5000 });
+  check((await page.textContent('#board-table')).includes('AAA') && /LEADER/.test(await page.textContent('#board-table .score-row')), 'world board lists player A, wearing the leader\'s crown');
   await page.screenshot({ path: path.join(outDir, 'e2e-world.png') });
 
-  // B taps A's score: plays A's exact notes, lined up to B's own copy.
-  await page.click('[data-world-row="0"]');
+  // B presses CHALLENGE on A's score: the versus pop-up, then FIGHT! plays A's exact notes, lined up to B's copy.
+  await page.click('[data-challenge="0"]');
+  await page.waitForSelector('#vs', { state: 'visible', timeout: 3000 });
+  const vsText = await page.textContent('#vs');
+  check(/NEW CHALLENGER/.test(vsText) && /BBB/.test(vsText) && /AAA/.test(vsText) && /take #1/.test(vsText), 'CHALLENGE opens the versus pop-up: you, them, and the score to beat');
+  await page.waitForFunction(() => !document.querySelector('#btn-vs-fight').disabled, null, { timeout: 10000 });
+  await page.screenshot({ path: path.join(outDir, 'e2e-versus.png') });
+  await page.evaluate(() => { window.__skipEvery = 0; });
+  await page.click('#btn-vs-fight');
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 10000 });
+  check(await page.evaluate(() => !!BeatFrets.game.rival && BeatFrets.game.rival.timeline && BeatFrets.game.rival.timeline.length > 3), 'the race uses A\'s saved score-over-time');
   const theirFirst = World.unpackChart(boardA.chart).notes[0].t;
   const ch = await page.evaluate(() => ({ first: BeatFrets.game.notes[0].t, n: BeatFrets.game.notes.length }));
   check(Math.abs(ch.first - (theirFirst + 2.3)) < 0.02 && ch.n === boardA.notes, `challenge plays their notes, moved onto this copy (${theirFirst.toFixed(3)} → ${ch.first.toFixed(3)})`);
@@ -629,13 +639,23 @@ async function worldTests(browser) {
   await page.click('#btn-pause-close');
   check(await page.evaluate(() => !BeatFrets.game.paused) && !(await page.isVisible('#pause')), 'the pause pop-up\'s close button resumes');
   await page.evaluate(LANE_BOT);
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.now() > 12, null, { timeout: 30000 });
+  const race = await page.evaluate(() => BeatFrets.game._view(BeatFrets.game.now()).hud.race);
+  await page.screenshot({ path: path.join(outDir, 'e2e-race.png') });
+  check(race && race.name === 'AAA' && race.gap > 0 && race.youLead && !race.estimate, `the race shows you ahead of AAA, live (${JSON.stringify(race)})`);
   await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 60000 });
-  await page.waitForTimeout(2600);
-  const flag = await page.textContent('#res-flag');
-  check(/AAA/.test(flag), `results compare with the challenged score ("${flag}")`);
-  await page.waitForSelector('#res-post', { state: 'visible', timeout: 5000 }).catch(() => {});
-  await page.click('#res-post');
-  await page.waitForFunction(() => /WORLD RANK/.test(document.querySelector('#res-world').textContent), null, { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector('#outcome', { state: 'visible', timeout: 5000 });
+  await page.waitForSelector('#oc-post', { state: 'visible', timeout: 5000 }).catch(() => {});
+  await page.screenshot({ path: path.join(outDir, 'e2e-victory.png') });
+  check(/YOU BEAT AAA!/.test(await page.textContent('#oc-title')) && /take #1/.test(await page.textContent('#oc-world')), 'beating the challenger: the victory pop-up offers to post');
+  await page.click('#oc-post');
+  await page.waitForFunction(() => /CROWN IS YOURS/.test(document.querySelector('#oc-world').textContent), null, { timeout: 5000 }).catch(() => {});
+  check(/CROWN IS YOURS/.test(await page.textContent('#oc-world')), 'posting the win takes the crown');
+  await page.click('#oc-board');
+  await screenIs(page, 'board');
+  await page.waitForSelector('.score-row .beat-tag', { timeout: 5000 }).catch(() => {});
+  const top = await page.evaluate(() => document.querySelector('#board-table .score-row').textContent.replace(/\s+/g, ' '));
+  check(/BBB/.test(top) && /BEAT AAA/.test(top) && /LEADER/.test(top), `the board shows the new leader, with a BEAT AAA badge (${top.trim()})`);
   const rows = await page.evaluate((id) => [...window.__world.scores].filter(([k]) => k.startsWith(id + '/')).length, idA);
   check(rows === 2, 'challenge score lands on the same world board');
 

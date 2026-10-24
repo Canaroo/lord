@@ -181,6 +181,13 @@
       { duty: 0.25, vol: 0.2, gap: 0.01 }
     ),
     record: () => seq([[79, 0.07], [83, 0.07], [86, 0.07], [91, 0.25]], { duty: 0.125, vol: 0.2 }),
+    // Challenges: the versus screen sting, and the lead changing hands mid-song.
+    challenger: () => {
+      burst(0.3, 300, 0.25, 'lowpass');
+      seq([[55, 0.08], [58, 0.08], [62, 0.08], [67, 0.08], [70, 0.08], [74, 0.3]], { duty: 0.5, vol: 0.22, gap: 0.01 });
+    },
+    takeLead: () => seq([[84, 0.06], [88, 0.06], [91, 0.06], [96, 0.18]], { duty: 0.125, vol: 0.22, gap: 0.005 }),
+    loseLead: () => seq([[67, 0.08], [62, 0.14]], { duty: 0.5, vol: 0.16 }),
   };
 
   root.Sfx = Sfx;

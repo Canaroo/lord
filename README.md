@@ -240,7 +240,18 @@ The world boards are fair because a score only ranks against people who played *
 - **Imported MP3s** get a board named after their **chart**: a fingerprint of the notes,
   measured from the first note. Two versions of a song (a different rip, a remaster, a cover)
   usually chart differently, so their scores don't mix.
-- **Challenges:** on a world board, tap a score to challenge it. For an imported song, the
+- **Challenges:** on a world board, every other player's score has a red **⚔ CHALLENGE** button
+  (#1 wears the **LEADER** crown). It opens a *HERE COMES A NEW CHALLENGER!* pop-up: you vs them,
+  your rank and theirs, and the score to beat. The song loads behind it, and on a phone it waits
+  for you to turn the phone the right way (Android turns itself where it can; iPhones can't be
+  turned by a web page, so it asks). **FIGHT!** starts a live race: instead of your personal best,
+  the HUD shows who leads (with a crown) and the gap, green when you're ahead and red when behind,
+  measured against their score at the same moment of their run (each posted score saves its
+  score-over-time; older scores use an estimate, marked ~). Win, and a **YOU BEAT …!** pop-up
+  offers to post; posted, you take their place, and your card shows **⚔ BEAT …** for a week.
+  Lose or tie, and it offers a **REMATCH**. Races are only between the same controls: keyboard
+  scores are challenged from a computer, phone scores from a phone. Tiles challenges come later.
+- **Imported songs:** a challenge plays the board's own notes over your copy. For an imported song, the
   World tab also lists **other versions of this song** that players have posted. Pick one and
   you play **their exact notes over your own copy** of the song. The game lines their chart up
   with your audio (any difference in where the song starts, up to 15 seconds), and your score
@@ -320,6 +331,10 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.18**: challenges, redone: ⚔ CHALLENGE buttons and a leader's crown on world boards, a
+  versus pop-up that loads the song and handles turning the phone, a live race against the
+  rival's score-over-time (who leads, and the gap in green or red), and a victory pop-up that
+  posts your win and hands you the crown. Needs the updated `firestore.rules`.
 - **1.17**: phone notes are arcade-button caps (rounded, a lit dome on top, a dark rim and a
   shadow) instead of a block with a white stripe, and they glow as they reach the line. The frets
   on the strike line are arcade buttons too: they sink into their housing and light up the lane

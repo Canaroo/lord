@@ -827,7 +827,7 @@
       const size = portrait && shown.length <= 8 ? 24 : 16;
       const bump = this.scoreBumpAt && nowMs - this.scoreBumpAt < 120;
       const sp = portrait ? 2 : 1; // star pixel size
-      const block = size + 8 + 7 * sp + (h.pace != null ? 11 : 0); // score, stars, pace
+      const block = size + 8 + 7 * sp + (h.race ? 22 : h.pace != null ? 11 : 0); // score, stars, pace or race
       const sy = portrait ? Math.round(HUD_TOP + (HORIZON - HUD_TOP - block) * 0.65) : HUD_TOP + 1;
       this.text(shown, W / 2, sy, bump ? PAL.white : this.multColor(h.mult) === PAL.grey ? PAL.white : this.multColor(h.mult), size, 'center');
       const starsY = sy + size + 4;
@@ -835,7 +835,10 @@
         const fill = i < h.stars ? 1 : i === h.stars ? h.starProgress : 0;
         this.star(W / 2 - (24 + 1) * sp + i * 10 * sp, starsY, fill, sp);
       }
-      if (h.pace != null) {
+      if (h.race) {
+        if (portrait) this.drawRace(h.race, W / 2, starsY + 7 * sp + 4, 'center');
+        else this.drawRace(h.race, W / 2 + 32, starsY - 6, 'left');
+      } else if (h.pace != null) {
         const ahead = h.pace >= 0;
         const paceText = `PB ${ahead ? '+' : '-'}${Math.abs(h.pace).toLocaleString('en-US')}`;
         if (portrait) this.text(paceText, W / 2, starsY + 7 * sp + 4, ahead ? PAL.green : PAL.red, 8, 'center');
@@ -1065,8 +1068,9 @@
       this.window(W - 110, 6, 104, 30);
       this.text('STREAK', W - 104, 11, PAL.grey);
       this.text(String(h.combo), W - 104, 23, h.combo >= 50 ? PAL.gold : PAL.white);
-      // Pace against your personal best.
-      if (h.pace != null) {
+      // Pace against your personal best, or a challenge race.
+      if (h.race) this.drawRace(h.race, W - 104, 38, 'left', 9);
+      else if (h.pace != null) {
         const ahead = h.pace >= 0;
         this.text(`PB ${ahead ? '+' : '-'}${Math.abs(h.pace).toLocaleString('en-US')}`, W - 104, 40, ahead ? PAL.green : PAL.red);
       }
@@ -1164,6 +1168,28 @@
     }
 
     /** A 7×7 pixel star, filled from the bottom by `fill` (0–1). */
+    /** A 7×5 pixel crown: who's leading a challenge. */
+    crown(x, y, color, px = 1) {
+      ['#..#..#', '#.###.#', '#######', '#######', '.#####.'].forEach((row, r) => {
+        for (let c = 0; c < 7; c++) if (row[c] === '#') this.rect(x + c * px, y + r * px, px, px, color);
+      });
+    }
+
+    /**
+     * Challenge race: a crown badge naming who leads right now, and the gap to
+     * the rival, green when you're ahead and red when behind (~ when estimated).
+     */
+    drawRace(r, x, y, align = 'left', gapY = 11) {
+      const lead = r.youLead ? 'YOU LEAD' : `${r.name} LEADS`;
+      const gap = `VS ${r.name} ${r.gap >= 0 ? '+' : '-'}${Math.abs(r.gap).toLocaleString('en-US')}${r.estimate ? '~' : ''}`;
+      const w1 = 10 + lead.length * 8;
+      const x1 = align === 'center' ? Math.round(x - w1 / 2) : x;
+      const leadColor = r.youLead ? PAL.gold : PAL.red;
+      this.crown(x1, y + 1, leadColor);
+      this.text(lead, x1 + 10, y, leadColor, 8, 'left');
+      this.text(gap, x, y + gapY, r.gap >= 0 ? PAL.green : PAL.red, 8, align);
+    }
+
     star(x, y, fill, px = 1) {
       const SHAPE = ['...#...', '...#...', '#######', '.#####.', '..###..', '.##.##.', '##...##'];
       SHAPE.forEach((row, r) => {

@@ -31,6 +31,8 @@
     <symbol id="i-player" viewBox="0 0 10 10"><path d="M4 0h2v1h1v3H6v1H4V4H3V1h1zM2 6h6v1h1v3H1V7h1z"/></symbol>
     <symbol id="i-gear" viewBox="0 0 10 10"><path fill-rule="evenodd" d="M4 0h2v1h1V0h1v2h1v1h1v1H9v2h1v1H9v1H8v2H7V9H6v1H4V9H3v1H2V8H1V7H0V6h1V4H0V3h1V2h1V0h1v1h1zm0 4v2h2V4z"/></symbol>
     <symbol id="i-close" viewBox="0 0 10 10"><path d="M1 1h2v1h1v1h2V2h1V1h2v2H8v1H7v2h1v1h1v2H7V8H6V7H4v1H3v1H1V7h1V6h1V4H2V3H1z"/></symbol>
+    <symbol id="i-crown" viewBox="0 0 10 10"><path d="M0 1h1v1h1v1h1v1h1V1h2v3h1V3h1V2h1V1h1v6H0zM1 8h8v1H1z"/></symbol>
+    <symbol id="i-sword" viewBox="0 0 10 10"><path d="M7 0h3v3H9v1H8v1H7v1H6v1h1v1h1v1H7v1H6V9H5V8H4v1H3v1H1V9H0V7h1V6h1V5H1V4h1v1h1V4h1V3h1V2h1V1h1z"/></symbol>
     <symbol id="i-chev" viewBox="0 0 10 10"><path d="M3 1h2v1h1v1h1v1h1v2H7v1H6v1H5v1H3V7h1V6h1V4H4V3H3z"/></symbol>
   </svg>
 
@@ -428,6 +430,43 @@
     <div class="rotate-phone" aria-hidden="true"><i></i></div>
     <p id="rotate-msg">TURN YOUR PHONE SIDEWAYS</p>
     <button id="btn-rotate-home" class="btn">HOME</button>
+  </div>
+
+  <!-- Challenge: the versus pop-up -->
+  <div id="vs" class="overlay" hidden>
+    <div class="modal vs-win" role="dialog" aria-labelledby="vs-title">
+      <button id="btn-vs-close" class="round close" aria-label="Cancel"><svg><use href="#i-close"/></svg></button>
+      <p id="vs-title" class="vs-title">HERE COMES A<br>NEW CHALLENGER!</p>
+      <div class="vs-row">
+        <div class="vs-side you"><span class="vs-tag">YOU</span><b id="vs-you-ini"></b><span id="vs-you-line"></span></div>
+        <div class="vs-mid">VS</div>
+        <div class="vs-side them" id="vs-them"><span class="vs-tag"><svg class="vs-crown"><use href="#i-crown"/></svg>RIVAL</span><b id="vs-them-ini"></b><span id="vs-them-line"></span></div>
+      </div>
+      <p id="vs-song" class="vs-song"></p>
+      <p id="vs-goal" class="vs-goal"></p>
+      <p id="vs-est" class="hint vs-est" hidden>Their score is older than race tracking, so the race line is an estimate (~).</p>
+      <div id="vs-status" class="vs-status" aria-live="polite"></div>
+      <div class="dock">
+        <button id="btn-vs-cancel" class="btn">CANCEL</button>
+        <button id="btn-vs-fight" class="btn primary">FIGHT!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Challenge: how it ended -->
+  <div id="outcome" class="overlay" hidden>
+    <div class="modal outcome-win" role="dialog" aria-labelledby="oc-title">
+      <div class="oc-crown" aria-hidden="true"><svg><use href="#i-crown"/></svg></div>
+      <p id="oc-title" class="oc-title"></p>
+      <p id="oc-line" class="hint"></p>
+      <p id="oc-world" class="world-line" aria-live="polite"></p>
+      <div class="dock stack">
+        <button id="oc-post" class="btn primary" hidden>POST TO WORLD</button>
+        <button id="oc-rematch" class="btn primary">REMATCH</button>
+        <button id="oc-board" class="btn">BACK TO BOARD</button>
+        <button id="oc-close" class="btn">SEE RESULTS</button>
+      </div>
+    </div>
   </div>
 
   <!-- Pause: a pop-up over the game -->

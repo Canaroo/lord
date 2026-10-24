@@ -8,7 +8,7 @@
  * offline.
  */
 'use strict';
-const CACHE = 'beat-frets-1.17'; // match VERSION in js/main.js
+const CACHE = 'beat-frets-1.18'; // match VERSION in js/main.js
 const SHELL = [
   './',
   'index.html',

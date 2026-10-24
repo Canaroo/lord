@@ -806,6 +806,68 @@ body:not(.touch) input[type="range"]:focus-visible, body.nav input[type="range"]
 .modal .close { position: absolute; top: -16px; right: -12px; --face: #ff4d6a; }
 #pause-msg:empty { display: none; }
 
+/* ---- challenges --------------------------------------------------------------------------------------- */
+
+/* Score cards: the leader's crown and the CHALLENGE button. */
+.score-row .row-acts { grid-column: 2 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.leader { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 2px solid var(--ink); border-radius: 6px; background: linear-gradient(180deg, #fff6b0, var(--gold)); color: var(--ink); font: 700 11px var(--act); }
+.leader svg { width: 14px; height: 14px; fill: var(--ink); }
+.ch-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; margin-bottom: 4px; padding: 7px 12px 6px; font-size: 12px; }
+.ch-btn svg { width: 14px; height: 14px; fill: currentColor; }
+.you-tag { margin-left: 8px; padding: 3px 6px; border-radius: 4px; background: var(--gold); color: var(--ink); font: 700 10px var(--act); vertical-align: middle; }
+.beat-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 3px 6px; border: 2px solid var(--red); border-radius: 4px; color: var(--red); font: 700 10px var(--act); vertical-align: middle; }
+.beat-tag svg { width: 10px; height: 10px; fill: currentColor; }
+
+/* HERE COMES A NEW CHALLENGER! */
+#vs, #outcome { z-index: 50; }
+.vs-win { width: min(460px, 100%); max-height: calc(100% - 16px); overflow-y: auto; padding-top: 20px; box-shadow: inset 0 0 0 2px var(--red), 0 8px 0 rgba(0, 0, 0, 0.5), 0 0 40px rgba(248, 72, 96, 0.35); }
+.vs-win .close { top: 8px; right: 8px; width: 34px; height: 34px; }
+.vs-title { margin: 0 34px 14px; font: 400 15px/1.5 var(--pixel); color: var(--gold); text-shadow: 3px 3px 0 var(--red), 5px 5px 0 var(--ink); animation: blink 0.9s steps(1) 3; }
+.vs-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin-bottom: 10px; }
+.vs-side { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border: 3px solid var(--ink); border-radius: 10px; background: var(--panel); }
+.vs-side.you { box-shadow: inset 0 0 0 2px var(--cyan); }
+.vs-side.them { box-shadow: inset 0 0 0 2px var(--red); }
+.vs-side b { font: 400 26px var(--pixel); text-shadow: 3px 3px 0 var(--ink); }
+.vs-side.you b { color: var(--cyan); }
+.vs-side.them b { color: var(--red); }
+.vs-side > span:last-child { font: 400 18px var(--body); color: var(--muted); }
+.vs-tag { display: inline-flex; align-items: center; gap: 5px; font: 700 10px var(--act); color: var(--muted); letter-spacing: 0.1em; }
+.vs-crown { display: none; width: 12px; height: 12px; fill: var(--gold); }
+.vs-side.them.leads .vs-crown { display: inline; }
+.vs-side.them.leads .vs-tag { color: var(--gold); }
+.vs-mid { font: 400 26px var(--pixel); color: var(--gold); text-shadow: 3px 3px 0 var(--red), 5px 5px 0 var(--ink); }
+.vs-song { margin: 4px 0; font: 700 12px var(--act); color: var(--text); }
+.vs-goal { margin: 6px 0; font: 400 21px var(--body); color: var(--gold); }
+.vs-est { font-size: 17px; margin: 4px auto; }
+.vs-status { min-height: 48px; display: grid; place-items: center; margin: 6px 0 2px; }
+.vs-status p { margin: 0; }
+.vs-wait { color: var(--cyan); animation: blink 1s steps(2) infinite; }
+.vs-warn { color: var(--gold); font-size: 19px; }
+.vs-ready { font: 400 11px var(--pixel); color: var(--green); }
+.vs-turn { display: flex; align-items: center; gap: 14px; font: 400 10px var(--pixel); color: var(--text); }
+.rotate-phone.small { width: 28px; height: 46px; border-width: 3px; border-radius: 5px; }
+.rotate-phone.small i { bottom: 3px; width: 6px; height: 2px; margin-left: -3px; }
+
+/* YOU BEAT AAA! */
+.outcome-win { padding-top: 18px; }
+.oc-crown { display: none; margin: -48px auto 4px; width: 64px; height: 64px; }
+.oc-crown svg { width: 64px; height: 64px; fill: var(--gold); filter: drop-shadow(3px 3px 0 var(--ink)) drop-shadow(0 0 12px rgba(248, 216, 48, 0.7)); }
+#outcome.won .oc-crown { display: block; animation: crown-drop 0.4s steps(4) both; }
+@keyframes crown-drop { from { transform: translateY(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
+.oc-title { margin: 6px 0 8px; font: 400 17px/1.4 var(--pixel); color: var(--red); text-shadow: 3px 3px 0 var(--ink); }
+#outcome.won .oc-title { color: var(--gold); text-shadow: 3px 3px 0 var(--red), 5px 5px 0 var(--ink); animation: flash 0.3s steps(1) 6; }
+@keyframes flash { 50% { color: #ffffff; } }
+#outcome.won .outcome-win { box-shadow: inset 0 0 0 2px var(--gold), 0 8px 0 rgba(0, 0, 0, 0.5), 0 0 40px rgba(248, 216, 48, 0.4); }
+#outcome .world-line { margin: 6px 0 4px; font-size: 20px; }
+@media (max-height: 520px) {
+  .vs-title { font-size: 12px; margin-bottom: 8px; }
+  .vs-side { padding: 6px; gap: 3px; }
+  .vs-side b { font-size: 20px; }
+  .vs-mid { font-size: 20px; }
+  .vs-goal { margin: 2px 0; }
+  .vs-status { min-height: 36px; }
+}
+
 /* ---- keyboard / controller hint bar (desktop) ----------------------------------------------------------------- */
 
 .hints {

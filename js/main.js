@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.17';
+  const VERSION = '1.18';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -38,6 +38,7 @@
   // Which game the player picked on the home screen, and for Beat Frets on a
   // phone, which way up (sideways = 4 lanes, upright = 2 lanes).
   const session = { mode: null, orient: null };
+  let vs = null; // the versus pop-up while it's open (challenges)
 
   /** keys on desktop; on touch, the chosen orientation (or however the phone is held). */
   function layoutMode() {
@@ -72,7 +73,7 @@
   function checkOrientation() {
     const want = wantedOrientation();
     const wrong = !!want && (want === 'landscape') !== (window.innerWidth > window.innerHeight);
-    $('#rotate').hidden = !wrong;
+    $('#rotate').hidden = !wrong || !!vs; // the versus pop-up shows its own "turn your phone"
     $('#rotate-msg').textContent = want === 'landscape' ? 'TURN YOUR PHONE SIDEWAYS' : 'TURN YOUR PHONE UPRIGHT';
     if (game) {
       if (wrong) {
@@ -84,6 +85,7 @@
         $('#btn-resume').disabled = false;
       }
     }
+    if (vs) updateVersus();
     return wrong;
   }
   const tilesMode = () => session.mode === 'tiles';
@@ -180,6 +182,8 @@
   }
 
   function activeRoot() {
+    if (!$('#vs').hidden) return $('#vs');
+    if (!$('#outcome').hidden) return $('#outcome');
     if (!$('#pause').hidden) return $('#pause');
     return screen ? $('#screen-' + screen) : null;
   }
@@ -188,7 +192,7 @@
     const root = activeRoot();
     if (!root) return;
     // The tab bar is part of every top-level screen.
-    const items = focusables(root).concat(root.id !== 'pause' && !$('#tabbar').hidden ? focusables($('#tabbar')) : []);
+    const items = focusables(root).concat(root.classList.contains('screen') && !$('#tabbar').hidden ? focusables($('#tabbar')) : []);
     if (!items.length) return;
     const cur = document.activeElement;
     if (!items.includes(cur)) { items[0].focus(); Sfx.move(); return; }
@@ -232,6 +236,8 @@
   }
 
   function goBack() {
+    if (!$('#vs').hidden) { closeVersus(true); return; }
+    if (!$('#outcome').hidden) { $('#outcome').hidden = true; return; }
     if (!$('#pause').hidden) { if (game) game.resume(); return; }
     if (screen === 'initials') { initials.cancel(); return; }
     if (screen === 'calib') { leaveCalib(); return; }
@@ -529,9 +535,9 @@
   async function loadBonus(id) {
     const list = await fetchBonusIndex();
     const def = list.find((s) => s.id === id);
-    if (!def) { toast('That bonus track is not on this site.'); return; }
+    if (!def) { if (quietLoad) quietDone(new Error('That bonus track is not on this site.')); else toast('That bonus track is not on this site.'); return; }
     ensureAudio();
-    show('loading');
+    if (!quietLoad) show('loading');
     $('#loading-title').textContent = 'LOADING ' + def.title.toUpperCase().slice(0, 40);
     setProgress(0.03, 'Downloading…');
     try {
@@ -573,9 +579,10 @@
         buffer: entry.buffer, analysis: entry.analysis, charts: entry.charts, fp: null, shift: entry.shift,
         matchNote: entry.prebuilt ? null : "This song's chart hasn't been pre-built for this version of the game, so this device made one. Other players' notes may differ slightly.",
       };
-      showSong();
+      if (quietLoad) quietDone(); else showSong();
     } catch (err) {
       console.error(err);
+      if (quietLoad) { quietDone(err); return; }
       renderPack();
       show('pack');
       toast(`"${def.title}" could not be loaded: ${err.message || err}`);
@@ -626,13 +633,14 @@
   function setProgress(fraction, detail) {
     $('#loading-bar').style.width = Math.round(fraction * 100) + '%';
     if (detail) $('#loading-detail').textContent = detail;
+    if (vs && !vs.loaded && quietLoad) { vs.status = `Loading the stage… ${Math.round(fraction * 100)}%`; updateVersus(); }
   }
 
   async function loadPack(id) {
     const def = SongPack.SONGS.find((s) => s.id === id);
-    if (!def) return;
+    if (!def) { if (quietLoad) quietDone(new Error('That song is not in the pack.')); return; }
     ensureAudio();
-    show('loading');
+    if (!quietLoad) show('loading');
     $('#loading-title').textContent = 'LOADING ' + def.title.toUpperCase();
     setProgress(0.2, 'Writing the charts…');
     const built = SongPack.build(def);
@@ -644,9 +652,10 @@
       const buffer = await packBuffer(id, (k) => setProgress(0.45 + 0.5 * k, `Playing the sound chip… ${Math.round(k * 100)}%`));
       setProgress(1, 'Ready');
       current = { key: SongPack.keyFor(def), title: def.title, kind: 'pack', packId: id, buffer, analysis, charts, fp: null, matchNote: null };
-      showSong();
+      if (quietLoad) quietDone(); else showSong();
     } catch (err) {
       console.error(err);
+      if (quietLoad) { quietDone(err); return; }
       show('pack');
       toast('That song could not be loaded: ' + (err.message || err));
     }
@@ -900,12 +909,6 @@
     }).join('');
     updateDeviceUI();
     show('song', { focus: `[data-diff="${idFor(parseId(lastDifficulty).difficulty)}"]` });
-    // Arrived from a world-board challenge on a song that had to load first.
-    if (pendingChallenge && pendingChallenge.key === current.key) {
-      const c = pendingChallenge;
-      pendingChallenge = null;
-      play(c.diff, { key: c.key, target: c.target });
-    }
   }
 
   $('#diffs').addEventListener('click', (e) => {
@@ -974,6 +977,7 @@
       hitSounds: settings.hitSounds,
       playerColor: save.active ? save.active.color : '#58f8f8',
       best: !playOpts.chart && save.active ? save.pace(save.active.id, current.key, difficulty) : null,
+      rival: playOpts.target ? { initials: playOpts.target.initials, score: playOpts.target.score, timeline: playOpts.target.timeline || null } : null,
       intro: { title: current.title.toUpperCase().slice(0, 40), sub: playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : LABEL(difficulty) },
       onEnd: (res) => {
         game = null;
@@ -1365,10 +1369,14 @@
     const flagEl = $('#res-flag');
     flagEl.textContent = '';
     flagEl.className = 'flag';
-    worldPanel('res', world, p && !res.failed ? {
+    const won = !!target && !res.failed && res.score > target.score;
+    const panel = worldPanel('res', world, p && !res.failed ? {
       initials: p.initials, score: Math.round(res.score), grade: res.grade, accuracy: +res.accuracy.toFixed(2),
       maxCombo: res.maxCombo, fullCombo: !!res.fullCombo, stars: res.stars || 0,
       date: new Date().toISOString().slice(0, 10), ver: VERSION,
+      // The score through the song, so later challengers can race it.
+      tl: (res.timeline || []).slice(0, 400).map((x) => Math.round(x)),
+      ...(won ? { beat: target.initials } : {}),
     } : null);
     show('results');
 
@@ -1394,6 +1402,7 @@
         if (celebrate) { flagEl.classList.add('new'); Sfx.record(); }
         if (res.grade === 'S') Sfx.fanfare();
       }, 300);
+      if (target) setTimeout(() => { if (screen === 'results') openOutcome(res, target, panel); }, 900);
     };
     requestAnimationFrame(step);
   }
@@ -1563,37 +1572,47 @@
     btn.disabled = false;
     line.textContent = '';
     box.hidden = !(p && entry && World.available());
-    if (box.hidden) return;
+    const ctl = { peek: Promise.resolve(null), post: null, onPosted: [] };
+    if (box.hidden) return ctl;
     const fmt = (n) => Number(n).toLocaleString('en-US');
-    const post = () => {
+    let posting = null;
+    ctl.post = () => {
+      if (posting) return posting;
       btn.disabled = true;
       line.textContent = 'Posting…';
-      World.submit({ id: world.id, meta: world.meta, profileId: p.id, entry }).then((r) => {
-        if (seq !== postSeq) return;
-        btn.hidden = true;
-        line.textContent = `POSTED! WORLD RANK #${r.rank}`;
-        Sfx.select();
+      posting = World.submit({ id: world.id, meta: world.meta, profileId: p.id, entry }).then((r) => {
+        if (seq === postSeq) {
+          btn.hidden = true;
+          line.textContent = `POSTED! WORLD RANK #${r.rank}`;
+          Sfx.select();
+          ctl.onPosted.forEach((f) => f(r));
+        }
+        return r;
       }).catch((e) => {
         console.warn(e);
-        if (seq !== postSeq) return;
-        btn.disabled = false;
-        line.textContent = "Couldn't reach the world board. Try again?";
+        posting = null;
+        if (seq === postSeq) { btn.disabled = false; line.textContent = "Couldn't reach the world board. Try again?"; }
+        throw e;
       });
+      return posting;
     };
-    btn.onclick = post;
+    btn.onclick = () => ctl.post().catch(() => {});
     line.textContent = 'Checking the world board…';
-    World.peek({ id: world.id, profileId: p.id, score: entry.score }).then((r) => {
-      if (seq !== postSeq) return;
-      if (!r.better) { line.textContent = `Your world best is still ${fmt(r.best)} (#${r.rank}).`; return; }
-      if (settings.autoPost) { post(); return; }
+    ctl.peek = World.peek({ id: world.id, profileId: p.id, score: entry.score }).then((r) => {
+      if (seq !== postSeq) return r;
+      if (!r.better) { line.textContent = `Your world best is still ${fmt(r.best)} (#${r.rank}).`; return r; }
+      if (settings.autoPost) { ctl.post().catch(() => {}); return r; }
       line.textContent = r.best == null
         ? `Not on the world board yet. This run would rank #${r.rank}.`
         : `Beats your world best of ${fmt(r.best)}. This run would rank #${r.rank}.`;
       btn.hidden = false;
+      return r;
     }).catch((e) => {
       console.warn(e);
       if (seq === postSeq) line.textContent = "Couldn't reach the world board. Your score is saved on this device.";
+      return null;
     });
+    return ctl;
   }
 
   /** The world board id for a board screen, if we can tell (imported songs need their chart). */
@@ -1623,10 +1642,11 @@
       if (seq !== worldSeq) return;
       worldRows = rows;
       const tiles = parseId(diff).tiles;
-      table.innerHTML = rows.length ? rows.map((r, i) => scoreCard(r, i, { mine: r.mine, tap: !tiles })).join('')
+      const can = canChallenge(diff);
+      table.innerHTML = rows.length ? rows.map((r, i) => scoreCard(r, i, { mine: r.mine, crown: i === 0, challenge: can === true && !r.mine })).join('')
         : boardMsg(`No world scores for ${esc(LABEL(diff))} yet. Be the first.`);
-      pinYou(rows, (r) => r.mine);
-      if (rows.length && !tiles) $('#board-note').textContent = 'Tap a score to challenge it.';
+      pinYou(rows, (r) => r.mine, true);
+      if (rows.length) $('#board-note').textContent = can === true ? 'Press CHALLENGE on any score to race it, live.' : can;
       // Imported songs: other people's versions of the same song have boards of their own.
       if (!tiles && !/^(pack|bonus):/.test(key) && current && current.kind === 'mp3') {
         const list = await World.versions({ difficulty: diff, bpm: current.analysis.bpm, fp: current.fp, title: current.title, exclude: id });
@@ -1640,45 +1660,6 @@
       if (seq === worldSeq) table.innerHTML = boardMsg("Couldn't reach the world board. Check your connection.");
     }
   }
-
-  /**
-   * Play a world board. Built-in songs just play (with a score to beat);
-   * imported songs play the board's own notes, lined up to the copy that's open.
-   */
-  async function challengeWorld(target) {
-    const { key, diff } = boardState;
-    const note = $('#board-note');
-    lastDifficulty = diff;
-    if (/^(pack|bonus):/.test(key)) {
-      songOrigin = 'boards';
-      if (current && current.key === key) { play(diff, { key, target }); return; }
-      pendingChallenge = { key, diff, target };
-      if (key.startsWith('pack:')) loadPack(key.slice(5)); else loadBonus(key.slice(6));
-      return;
-    }
-    if (!current || current.kind !== 'mp3') {
-      note.textContent = 'Open your copy of this song first (YOUR MUSIC), then come back to its board.';
-      return;
-    }
-    const id = worldBoardFor(key, diff);
-    note.textContent = 'Getting their notes…';
-    try {
-      const b = await World.board(id);
-      if (!b || !b.chart) throw new Error('this board has no notes saved.');
-      const fit = World.alignChart(World.unpackChart(b.chart), current.charts[diff] || current.charts[ChartGen.ALL_IDS[0]]);
-      if (!fit.good && boardState.forceAlign !== id) {
-        boardState.forceAlign = id;
-        note.textContent = `Their notes only match ${Math.round(fit.match * 100)}% of your copy, so it may be a different version. Tap again to play anyway.`;
-        return;
-      }
-      songOrigin = 'boards';
-      play(diff, { key: current.key, chart: fit.chart, boardId: id, target });
-    } catch (e) {
-      console.warn(e);
-      note.textContent = "Couldn't load their notes: " + (e.message || e);
-    }
-  }
-  let pendingChallenge = null;
 
   $('#board-scope').addEventListener('click', (e) => {
     const b = e.target.closest('[data-board-scope]');
@@ -1699,15 +1680,199 @@
     requestAnimationFrame(() => $('#btn-board-play').focus());
   });
 
-  function onWorldRow(e) {
-    const tr = e.target.closest('[data-world-row]');
-    if (!tr || (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ')) return;
-    e.preventDefault();
-    const r = worldRows[+tr.dataset.worldRow];
-    if (r) challengeWorld({ initials: r.initials, score: Number(r.score) });
+  $('#board-table').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-challenge]');
+    if (b && worldRows[+b.dataset.challenge]) openVersus(worldRows[+b.dataset.challenge]);
+  });
+
+  /**
+   * Whether this device can challenge scores on a tier: true, or why not.
+   * Races are only fair on the same controls: keyboard scores from a computer,
+   * touch scores from a phone (Sideways or Upright). Tiles comes later.
+   */
+  function canChallenge(diff) {
+    const t = parseId(diff);
+    if (t.tiles) return 'Tiles challenges are coming soon.';
+    if (Input.touch && !t.touch) return 'These scores were played on a keyboard. Play on a computer to challenge them.';
+    if (!Input.touch && t.touch) return 'These scores were played on a phone. Play on a phone to challenge them.';
+    return true;
   }
-  $('#board-table').addEventListener('click', onWorldRow);
-  $('#board-table').addEventListener('keydown', onWorldRow);
+
+  // ---- challenges: the versus pop-up -------------------------------------------------------------------
+
+  /**
+   * HERE COMES A NEW CHALLENGER! Shows you against them, loads the song (and,
+   * for imported songs, lines their notes up with your copy) behind the pop-up,
+   * waits for the phone to be turned the right way, then FIGHT! starts the race.
+   */
+  function openVersus(r) {
+    const { key, diff } = boardState;
+    const t = parseId(diff);
+    const me = save.active;
+    const mine = worldRows.find((x) => x.mine);
+    const rank = r ? worldRows.indexOf(r) + 1 : 0;
+    const fmt = (n) => Number(n).toLocaleString('en-US');
+    vs = {
+      key, diff,
+      id: worldBoardFor(key, diff),
+      want: Input.touch && t.touch ? (t.lanes === 4 ? 'landscape' : 'portrait') : null,
+      prevWant: orientation.wanted,
+      target: r ? { initials: r.initials, score: Number(r.score), timeline: Array.isArray(r.tl) && r.tl.length > 1 ? r.tl : null, rank } : null,
+      loaded: false, error: null, status: 'Loading the stage…', opts: null, match: null,
+    };
+    $('#vs-you-ini').textContent = me ? me.initials : '---';
+    $('#vs-you-line').textContent = mine ? `#${worldRows.indexOf(mine) + 1} · ${fmt(mine.score)}` : 'NOT RANKED YET';
+    $('#vs-them-ini').textContent = r ? r.initials : '???';
+    $('#vs-them').classList.toggle('leads', rank === 1);
+    $('#vs-them-line').textContent = r ? `#${rank} · ${fmt(r.score)}` : 'EMPTY BOARD';
+    const layout = t.touch ? (t.lanes === 4 ? 'Sideways · 4 lanes' : 'Upright · 2 lanes') : 'Keys';
+    $('#vs-song').textContent = `${boardState.title} · ${BASE_LABEL(t.difficulty)} · ${layout}`;
+    $('#vs-goal').textContent = !r ? 'Set the first score on this board!'
+      : mine && Number(mine.score) > Number(r.score) ? `You're already ahead of ${r.initials}. Friendly rematch!`
+        : `Beat ${fmt(r.score)} to take #${rank}${rank === 1 ? ' and the crown' : ''}!`;
+    $('#vs-est').hidden = !(r && !vs.target.timeline);
+    $('#vs').hidden = false;
+    ensureAudio();
+    Sfx.challenger();
+    if (vs.want) orientation.want(vs.want);
+    updateVersus();
+    requestAnimationFrame(() => $('#btn-vs-cancel').focus());
+    prepareVersus(vs);
+  }
+
+  async function prepareVersus(v) {
+    try {
+      if (/^(pack|bonus):/.test(v.key)) {
+        if (!current || current.key !== v.key) await loadQuietly(v.key);
+        v.opts = { key: v.key, target: v.target };
+      } else {
+        if (!current || current.kind !== 'mp3') throw new Error('Open your copy of this song first (PICK A SONG → YOUR MUSIC), then come back to this board.');
+        v.status = v.target ? `Lining up ${v.target.initials}'s notes with your copy…` : 'Getting their notes…';
+        updateVersus();
+        const b = await World.board(v.id);
+        if (!b || !b.chart) throw new Error('This board has no notes saved.');
+        const fit = World.alignChart(World.unpackChart(b.chart), chartFor(v.diff) || current.charts[ChartGen.ALL_IDS[0]]);
+        v.match = fit;
+        v.opts = { key: current.key, chart: fit.chart, boardId: v.id, target: v.target };
+      }
+      v.loaded = true;
+    } catch (e) {
+      console.warn(e);
+      v.error = e.message || String(e);
+    }
+    if (vs === v) updateVersus();
+  }
+
+  /** Song loading behind the versus pop-up: no loading screen, progress shown in the pop-up. */
+  let quietLoad = null;
+  function loadQuietly(key) {
+    return new Promise((resolve, reject) => {
+      quietLoad = { resolve, reject };
+      if (key.startsWith('pack:')) loadPack(key.slice(5)); else loadBonus(key.slice(6));
+    });
+  }
+  function quietDone(err) {
+    const q = quietLoad;
+    quietLoad = null;
+    if (err) q.reject(err); else q.resolve();
+  }
+
+  function updateVersus() {
+    const v = vs;
+    if (!v) return;
+    const turned = !v.want || (v.want === 'landscape') === (window.innerWidth > window.innerHeight);
+    let html;
+    if (v.error) html = `<p class="vs-warn">${esc(v.error)}</p>`;
+    else if (!v.loaded) html = `<p class="vs-wait">${esc(v.status)}</p>`;
+    else if (!turned) html = `<div class="vs-turn"><div class="rotate-phone small" aria-hidden="true"><i></i></div><p>TURN YOUR PHONE ${v.want === 'landscape' ? 'SIDEWAYS' : 'UPRIGHT'}</p></div>`;
+    else {
+      html = v.match && !v.match.good ? `<p class="vs-warn">Their notes only match ${Math.round(v.match.match * 100)}% of your copy. It may be a different version.</p>` : '';
+      html += '<p class="vs-ready">READY? PRESS FIGHT!</p>';
+    }
+    $('#vs-status').innerHTML = html;
+    const ok = v.loaded && turned && !v.error;
+    $('#btn-vs-fight').disabled = !ok;
+    if (ok && document.activeElement === $('#btn-vs-cancel')) $('#btn-vs-fight').focus();
+  }
+
+  function closeVersus(cancelled) {
+    const v = vs;
+    vs = null;
+    $('#vs').hidden = true;
+    if (!v) return;
+    if (cancelled) {
+      Sfx.back();
+      if (v.prevWant) orientation.want(v.prevWant); else orientation.release();
+    }
+  }
+
+  $('#btn-vs-cancel').addEventListener('click', () => closeVersus(true));
+  $('#btn-vs-close').addEventListener('click', () => closeVersus(true));
+  $('#btn-vs-fight').addEventListener('click', () => {
+    const v = vs;
+    if (!v || !v.loaded) return;
+    closeVersus(false);
+    if (v.want) {
+      session.mode = 'frets';
+      session.orient = v.want;
+      orientation.want(v.want);
+      applyLayout();
+    }
+    songOrigin = 'boards';
+    lastDifficulty = v.diff;
+    play(v.diff, v.opts);
+  });
+
+  // ---- challenges: how it ended --------------------------------------------------------------------------
+
+  /** After a challenge: YOU BEAT AAA! (with POST), a tie, or a rematch offer. */
+  function openOutcome(res, target, panel) {
+    const fmt = (n) => Number(n).toLocaleString('en-US');
+    const won = !res.failed && res.score > target.score;
+    const tie = !res.failed && res.score === target.score;
+    const box = $('#outcome');
+    box.classList.toggle('won', won);
+    $('#oc-title').textContent = won ? `YOU BEAT ${target.initials}!` : tie ? `TIED WITH ${target.initials}!` : `${target.initials} STILL LEADS`;
+    $('#oc-line').textContent = res.failed ? 'The song ended early. Try again!'
+      : won ? `${fmt(res.score)} vs ${fmt(target.score)}: you won by ${fmt(res.score - target.score)}.`
+        : tie ? `Both ${fmt(res.score)}. Beat it to take the lead!`
+          : `${fmt(target.score)} vs your ${fmt(res.score)}: ${fmt(target.score - res.score)} to go.`;
+    const post = $('#oc-post');
+    const line = $('#oc-world');
+    post.hidden = true;
+    line.textContent = '';
+    $('#oc-rematch').hidden = won;
+    const posted = (r) => {
+      post.hidden = true;
+      line.textContent = r.rank === 1 ? "POSTED! YOU'RE #1. THE CROWN IS YOURS!" : `POSTED! YOU'RE #${r.rank} IN THE WORLD.`;
+      if (r.rank === 1) Sfx.fanfare();
+    };
+    if (won && panel.post) {
+      line.textContent = 'Checking the world board…';
+      panel.onPosted.push(posted);
+      panel.peek.then((r) => {
+        if ($('#outcome').hidden || !r) { if (!r) line.textContent = ''; return; }
+        if (!r.better) { line.textContent = `Your world best is still ${fmt(r.best)}.`; return; }
+        if (settings.autoPost) { line.textContent = 'Posting…'; return; }
+        line.textContent = `Post now to take #${r.rank}${r.rank === 1 ? ' and the crown' : ''}!`;
+        post.hidden = false;
+        post.focus();
+      });
+      post.onclick = () => { line.textContent = 'Posting…'; post.hidden = true; panel.post().catch(() => { line.textContent = "Couldn't reach the world board. Try again?"; post.hidden = false; }); };
+    }
+    box.hidden = false;
+    if (won) Sfx.record();
+    requestAnimationFrame(() => (won && !post.hidden ? post : won ? $('#oc-close') : $('#oc-rematch')).focus());
+  }
+  const closeOutcome = () => { $('#outcome').hidden = true; };
+  $('#oc-close').addEventListener('click', closeOutcome);
+  $('#oc-rematch').addEventListener('click', () => { closeOutcome(); play(lastDifficulty); });
+  $('#oc-board').addEventListener('click', () => {
+    closeOutcome();
+    const board = playOpts.boardId;
+    openBoard(current.key, current.title, lastDifficulty, 'results', 'world');
+    if (board && board !== World.boardId(current.key, lastDifficulty, chartFor(lastDifficulty))) { boardState.worldId = board; renderBoard(); }
+  });
 
   // ---- leaderboards ------------------------------------------------------------------------------------
 
@@ -1739,22 +1904,30 @@
     show('board', { focus: '#board-scope .on' });
   }
 
-  /** One score as a card: medal, initials, score, then details; your own is lit gold. */
-  function scoreCard(r, i, { mine, tap, tag } = {}) {
-    const attrs = tap ? ` tap" data-world-row="${i}" tabindex="0"` : '"';
-    return `<div class="score-row${i < 3 ? ' r' + (i + 1) : ''}${mine ? ' me' : ''}${attrs}>
+  /**
+   * One score as a card: medal, initials, score, then details; your own is lit
+   * gold. On world boards #1 wears the leader's crown, and other players' scores
+   * have a CHALLENGE button.
+   */
+  function scoreCard(r, i, { mine, tag, challenge, crown } = {}) {
+    const recentBeat = r.beat && r.date && Date.now() - Date.parse(r.date) < 7 * 864e5;
+    const tags = (mine ? '<span class="you-tag">YOU</span>' : '') +
+      (tag ? ` <span class="tag">${tag}</span>` : '') +
+      (recentBeat ? `<span class="beat-tag"><svg><use href="#i-sword"/></svg>BEAT ${esc(r.beat)}</span>` : '');
+    return `<div class="score-row${i < 3 ? ' r' + (i + 1) : ''}${mine ? ' me' : ''}">
       <span class="rank">${i + 1}</span>
-      <span class="who">${esc(r.initials)}${tag ? ` <span class="tag">${tag}</span>` : ''}</span>
+      <span class="who">${esc(r.initials)}${tags}</span>
       <span class="pts">${Number(r.score).toLocaleString('en-US')}</span>
       <span class="sub">${r.laps != null ? `${r.laps} lap${r.laps === 1 ? '' : 's'} · x${Number(r.topSpeed || 1).toFixed(2)} speed` : `${Number(r.accuracy).toFixed(1)}% · ${r.maxCombo} streak`} · ${esc(fmtDate(r.date))}</span>
       <span class="gr">${esc(r.grade)}${r.fullCombo ? ' FC' : ''}</span>
+      ${crown || challenge ? `<span class="row-acts">${crown ? '<span class="leader"><svg><use href="#i-crown"/></svg>LEADER</span>' : ''}${challenge ? `<button class="btn small primary ch-btn" data-challenge="${i}"><svg><use href="#i-sword"/></svg>CHALLENGE</button>` : ''}</span>` : ''}
     </div>`;
   }
 
   /** Your best, pinned under the list. */
-  function pinYou(rows, isMine) {
+  function pinYou(rows, isMine, world = false) {
     const i = rows.findIndex(isMine);
-    $('#board-you').innerHTML = i < 0 ? '' : '<span class="you">YOUR BEST</span>' + scoreCard(rows[i], i, { mine: true });
+    $('#board-you').innerHTML = i < 0 ? '' : '<span class="you">YOUR BEST</span>' + scoreCard(rows[i], i, { mine: true, crown: world && i === 0 });
   }
 
   function renderBoard() {
@@ -1807,7 +1980,7 @@
 
   $('#btn-board-play').addEventListener('click', () => {
     const { key, title, diff } = boardState;
-    if (boardState.worldId) { challengeWorld(null); return; }
+    if (boardState.worldId) { openVersus(worldRows[0] || null); return; }
     lastDifficulty = diff;
     if (key.startsWith('pack:')) { songOrigin = 'boards'; loadPack(key.slice(5)); }
     else if (key.startsWith('bonus:')) { songOrigin = 'boards'; loadBonus(key.slice(6)); }

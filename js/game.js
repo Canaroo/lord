@@ -62,6 +62,8 @@
      * @param {boolean} o.vibrate      short buzzes on misses and level-ups (phones)
      * @param {string}  o.playerColor  the guitarist's colour
      * @param {{score:number, timeline:number[]}|null} o.best  personal best, for pace
+     * @param {{initials:string, score:number, timeline:number[]|null}|null} o.rival
+     *        a challenge: race this score instead of your personal best
      * @param {{title:string, sub:string}} o.intro
      * @param {(results:object)=>void} o.onEnd
      * @param {(paused:boolean)=>void} o.onPauseChange
@@ -84,13 +86,24 @@
       this.win = { perfect: WINDOWS.perfect * ws, good: WINDOWS.good * ws, ok: WINDOWS.ok * ws };
       this.vibrate = !!o.vibrate && typeof navigator !== 'undefined' && !!navigator.vibrate;
       this.playerColor = o.playerColor || '#58f8f8';
-      this.best = o.best && o.best.timeline && o.best.timeline.length ? o.best : null;
+      this.rival = o.rival && typeof o.rival.score === 'number' ? o.rival : null;
+      this.best = !this.rival && o.best && o.best.timeline && o.best.timeline.length ? o.best : null;
+      this.raceLead = null; // true while you're ahead of the rival
       this.intro = o.intro;
       this.onEnd = o.onEnd;
       this.onPauseChange = o.onPauseChange || (() => {});
       this.duration = o.buffer.duration;
       this.lastNoteT = this.notes.reduce((m, n) => Math.max(m, n.t + n.len), 0);
       this.maxScore = maxScore(this.notes);
+      if (this.rival) {
+        // Without the rival's own score-over-time, estimate it: their final score,
+        // earned in step with how much this chart allows by each moment.
+        let cum = 0;
+        this.rivalCurve = this.notes.map((n, i) => {
+          cum += 100 * Math.min(4, 1 + Math.floor(i / 10)) + (n.len || 0) * HOLD_POINTS_PER_SEC * 4;
+          return [n.t + (n.len || 0), cum];
+        });
+      }
 
       this.score = 0;
       this.combo = 0;
@@ -482,6 +495,35 @@
       return tl[i] + (tl[i + 1] - tl[i]) * (x - i);
     }
 
+    /** Where the rival stood at song time t: their saved timeline, or the estimate. */
+    _rivalAt(t) {
+      const r = this.rival;
+      const tl = r.timeline;
+      if (tl && tl.length > 1) {
+        const x = t / PACE_STEP;
+        const i = Math.floor(x);
+        if (i < 0) return 0;
+        if (i >= tl.length - 1) return Math.max(tl[tl.length - 1], t >= this.lastNoteT ? r.score : 0);
+        return tl[i] + (tl[i + 1] - tl[i]) * (x - i);
+      }
+      const c = this.rivalCurve;
+      if (!c.length || !this.maxScore) return 0;
+      let lo = 0, hi = c.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (c[mid][0] <= t) lo = mid + 1; else hi = mid; }
+      return lo ? r.score * Math.min(1, c[lo - 1][1] / this.maxScore) : 0;
+    }
+
+    /** Challenges: announce it when the lead changes hands. */
+    _race(t) {
+      if (!this.rival || t < 4) return;
+      const ahead = this.score > this._rivalAt(t);
+      if (this.raceLead === null) { this.raceLead = ahead; return; }
+      if (ahead === this.raceLead) return;
+      this.raceLead = ahead;
+      if (ahead) { this._banner('YOU TAKE THE LEAD!', '#f8d830', 'VS ' + this.rival.initials); Sfx.takeLead(); }
+      else { this._banner(`${this.rival.initials} TAKES THE LEAD`, '#f84848'); Sfx.loseLead(); }
+    }
+
     // ---- loop ------------------------------------------------------------------------
 
     _frame() {
@@ -501,6 +543,7 @@
         this.lastT = t;
         this.highT = Math.max(this.highT, t);
         while (t >= 0 && this.timeline.length <= Math.floor(t / PACE_STEP)) this.timeline.push(Math.round(this.score));
+        this._race(t);
         const danger = this.rock < 0.3 ? (0.3 - this.rock) / 0.3 : 0;
         if (Math.abs(danger - this.lastDanger) > 0.04 || (danger === 0 && this.lastDanger !== 0)) {
           this.lastDanger = danger;
@@ -570,6 +613,12 @@
           stars: st.stars,
           starProgress: st.next ? Math.min(1, score / st.next) : 1,
           pace: this.best && t > PACE_STEP ? Math.round(score - this._bestAt(t)) : null,
+          race: this.rival && t > 1 ? {
+            name: this.rival.initials,
+            gap: Math.round(score - this._rivalAt(t)),
+            youLead: this.raceLead === null ? score >= this._rivalAt(t) : this.raceLead,
+            estimate: !(this.rival.timeline && this.rival.timeline.length > 1),
+          } : null,
         },
       };
     }
