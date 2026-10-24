@@ -500,6 +500,128 @@ async function touchTests(browser) {
   await context.close();
 }
 
+// ---- World boards: an in-page stand-in for Firebase, two copies of one song ----
+
+const MEMORY_WORLD = () => {
+  const boards = new Map();
+  const scores = new Map();
+  window.__world = { boards, scores };
+  window.BeatFretsWorldBackend = {
+    uid: 'devA',
+    async getBoard(id) { return boards.get(id) || null; },
+    async createBoard(id, meta) { boards.set(id, meta); },
+    async getScore(id, sid) { return scores.get(id + '/' + sid) || null; },
+    async putScore(id, sid, e) { scores.set(id + '/' + sid, e); },
+    async top(id, limit) {
+      return [...scores].filter(([k]) => k.startsWith(id + '/')).map(([k, v]) => ({ id: k.split('/')[1], ...v }))
+        .sort((a, b) => b.score - a.score).slice(0, limit);
+    },
+    async above(id, score) { return (await this.top(id, 1e9)).filter((r) => r.score > score).length; },
+    async findBoards(difficulty, keys) { return [...boards].filter(([, b]) => b.difficulty === difficulty && keys.includes(b.bpmKey)).map(([id, b]) => ({ id, ...b })); },
+  };
+};
+
+function wavBase64(samples, sr) {
+  const buf = Buffer.alloc(44 + samples.length * 2);
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + samples.length * 2, 4); buf.write('WAVE', 8);
+  buf.write('fmt ', 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(sr, 24); buf.writeUInt32LE(sr * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34);
+  buf.write('data', 36); buf.writeUInt32LE(samples.length * 2, 40);
+  for (let i = 0; i < samples.length; i++) buf.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(samples[i] * 30000))), 44 + i * 2);
+  return buf.toString('base64');
+}
+
+// Hits every note through the game's own input call.
+const LANE_BOT = () => {
+  const g = BeatFrets.game;
+  let i = 0;
+  const loop = () => {
+    if (!g.running) return;
+    const t = g.now();
+    while (i < g.notes.length && g.notes[i].t <= t) {
+      const n = g.notes[i++];
+      g.lane(n.lane, true, performance.now());
+      setTimeout(() => g.lane(n.lane, false, performance.now()), n.len ? n.len * 1000 + 20 : 60);
+    }
+    requestAnimationFrame(loop);
+  };
+  loop();
+};
+
+async function worldTests(browser) {
+  const { synthSong } = require('./synth.js');
+  const World = require('../js/world.js');
+  const sections = [['k', 4], ['khs', 6], ['h', 3], ['khs', 5]];
+  const song = synthSong({ bpm: 120, sr: 22050, sections });
+  const pad = new Float32Array(Math.round(2.3 * 22050) + song.samples.length);
+  pad.set(song.samples, Math.round(2.3 * 22050));
+  const copyA = wavBase64(song.samples, 22050);
+  const copyB = wavBase64(pad, 22050); // the same song, another rip: 2.3 s of silence first
+
+  const { page, errors, context } = await newPage(browser);
+  await page.addInitScript(MEMORY_WORLD);
+  await page.goto(url);
+  await screenIs(page, 'title');
+  await page.click('#btn-start');
+  await screenIs(page, 'initials');
+  await page.keyboard.type('aaa');
+  await page.keyboard.press('Enter');
+  await screenIs(page, 'main');
+  const importCopy = (b64, name) => page.evaluate(async ([b, n]) => {
+    const bytes = Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
+    await BeatFrets.importFile(new File([bytes], n + '.wav', { type: 'audio/wav' }));
+  }, [b64, name]);
+
+  // Player A: their copy, a perfect run, first on the world board.
+  await importCopy(copyA, 'Drum Song');
+  await screenIs(page, 'song');
+  const idA = await page.evaluate(() => World.boardId(BeatFrets.current.key, 'medium', BeatFrets.current.charts.medium));
+  await page.evaluate(() => BeatFrets.play('medium', {}));
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
+  await page.evaluate(LANE_BOT);
+  await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 60000 });
+  await page.waitForFunction(() => /WORLD RANK #1/.test(document.querySelector('#res-world').textContent), null, { timeout: 5000 }).catch(() => {});
+  check(/WORLD RANK #1/.test(await page.textContent('#res-world')), 'results post to the world board (rank #1)');
+  const boardA = await page.evaluate((id) => window.__world.boards.get(id), idA);
+  check(boardA && boardA.kind === 'mp3' && typeof boardA.chart === 'string' && boardA.notes > 10, 'imported song\'s world board keeps its chart');
+
+  // Player B (another device) has a rip with extra silence at the start. It charts a
+  // little differently, so it gets its own board, and A's shows up as another version.
+  await page.evaluate(() => { BeatFrets.save.createProfile('BBB'); window.BeatFretsWorldBackend.uid = 'devB'; });
+  await importCopy(copyB, 'drum song (my rip)');
+  await screenIs(page, 'song');
+  const idB = await page.evaluate(() => World.boardId(BeatFrets.current.key, 'medium', BeatFrets.current.charts.medium));
+  console.log('     world boards', idA, idB);
+  await page.evaluate(() => BeatFrets.openBoard(BeatFrets.current.key, BeatFrets.current.title, 'medium', 'song'));
+  await screenIs(page, 'board');
+  await page.click('[data-board-scope="world"]');
+  if (idA !== idB) {
+    await page.waitForSelector('[data-version]', { timeout: 5000 });
+    check((await page.textContent('#board-versions')).includes('DRUM SONG'), 'world board offers the other version of the song');
+    await page.click('[data-version]');
+  }
+  await page.waitForSelector('[data-world-row="0"]', { timeout: 5000 });
+  check((await page.textContent('#board-table')).includes('AAA'), 'world board lists player A');
+  await page.screenshot({ path: path.join(outDir, 'e2e-world.png') });
+
+  // B taps A's score: plays A's exact notes, lined up to B's own copy.
+  await page.click('[data-world-row="0"]');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 10000 });
+  const theirFirst = World.unpackChart(boardA.chart).notes[0].t;
+  const ch = await page.evaluate(() => ({ first: BeatFrets.game.notes[0].t, n: BeatFrets.game.notes.length }));
+  check(Math.abs(ch.first - (theirFirst + 2.3)) < 0.02 && ch.n === boardA.notes, `challenge plays their notes, moved onto this copy (${theirFirst.toFixed(3)} → ${ch.first.toFixed(3)})`);
+  await page.evaluate(LANE_BOT);
+  await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 60000 });
+  await page.waitForTimeout(2600);
+  const flag = await page.textContent('#res-flag');
+  check(/AAA/.test(flag), `results compare with the challenged score ("${flag}")`);
+  await page.waitForFunction(() => /WORLD/.test(document.querySelector('#res-world').textContent), null, { timeout: 5000 }).catch(() => {});
+  const rows = await page.evaluate((id) => [...window.__world.scores].filter(([k]) => k.startsWith(id + '/')).length, idA);
+  check(rows === 2, 'challenge score lands on the same world board');
+  check(!errors.length, 'no errors on world boards ' + errors.join(' | '));
+  await context.close();
+}
+
 (async () => {
   const server = await serve();
   url = `http://127.0.0.1:${server.address().port}/`;
@@ -507,6 +629,14 @@ async function touchTests(browser) {
     executablePath: process.env.CHROMIUM_PATH || undefined,
     args: ['--autoplay-policy=no-user-gesture-required'],
   });
+  if (process.env.E2E_ONLY === 'world') {
+    await worldTests(browser);
+    await browser.close();
+    server.close();
+    if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }
+    console.log('\nPASS');
+    return;
+  }
   if (process.env.E2E_ONLY === 'touch') {
     await touchTests(browser);
     await browser.close();
@@ -816,6 +946,7 @@ async function touchTests(browser) {
   check(!errors.length, 'no page errors ' + errors.join(' | '));
 
   await touchTests(browser);
+  await worldTests(browser);
 
   await browser.close();
   server.close();

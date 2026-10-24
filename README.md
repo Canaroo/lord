@@ -90,8 +90,10 @@ press a key or a controller button.
   thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
   holds a long note, the other hand plays everything else. The timing window is slightly wider
   than on keys, and the overhit penalty is off, since a thumb can brush the glass.
-- **Big tap pads, raised strike line:** on phones the notes are long blocks that run along the
-  highway, centred on the beat, so the strike line passes through the middle of each one; the
+- **Big tap pads, raised strike line:** on phones the notes are short, wide blocks centred on
+  the beat, so the strike line passes through the middle of each one. A note's length doesn't
+  change how easy it is to hit (the whole lane is the target), so blocks stay short and shrink
+  further when notes in a lane come close together, always leaving a dark gap between them. The
   frets are lane-wide strike plates. The line sits about 72% of the way down when sideways (80%
   upright), and each lane carries on below it as a big pad down to the bottom edge. Rest your
   thumbs on the pads, below the line, and tap anywhere in a lane's column, so your thumbs never
@@ -182,7 +184,8 @@ Bluetooth headphones usually need this.
 
 ## Leaderboards and sharing
 
-Everything is saved in your browser on this device. Nothing is uploaded.
+Everything is saved in your browser on this device. If world boards are switched on (see
+below), your initials and best scores are also posted there.
 
 - **Players:** each person enters arcade-style initials and gets their own scores. Switch
   players from the main menu.
@@ -201,6 +204,42 @@ Everything is saved in your browser on this device. Nothing is uploaded.
 
 Share links have a checksum, so a hand-edited link shows as **unverified**. Like any browser
 game, a determined player could still fake a score, so treat rival scores as friendly bragging.
+
+### World leaderboards
+
+Every board has two tabs: **This device** and **World**. Finished runs post your initials and
+best score to the world board (one entry per player per board, and only ever raised).
+
+The world boards are fair because a score only ranks against people who played **the same notes**:
+
+- **Song pack and bonus tracks** have identical charts for everyone, so each song and tier has
+  one world board.
+- **Imported MP3s** get a board named after their **chart**: a fingerprint of the notes,
+  measured from the first note. Two versions of a song (a different rip, a remaster, a cover)
+  usually chart differently, so their scores don't mix.
+- **Challenges:** on a world board, tap a score to challenge it. For an imported song, the
+  World tab also lists **other versions of this song** that players have posted. Pick one and
+  you play **their exact notes over your own copy** of the song. The game lines their chart up
+  with your audio (any difference in where the song starts, up to 15 seconds), and your score
+  goes on their board. Nobody sends an MP3. If their notes don't match your copy well, the game
+  warns you that it may be a different version.
+
+**Turning them on** (they're off until a Firebase project is connected):
+
+1. In the [Firebase console](https://console.firebase.google.com/), use an existing project or
+   create one, then add a **Web app** and copy its config.
+2. Paste the config into `js/firebase-config.js` (`window.BEAT_FRETS_FIREBASE = { … }`).
+3. **Build → Firestore Database:** create the database, then paste `firestore.rules` into the
+   **Rules** tab and publish. If the project already serves another game, add the
+   `beatfrets_boards` block next to that game's rules rather than replacing them.
+4. **Build → Authentication → Sign-in method:** enable **Anonymous**. Each device signs in
+   silently; no accounts or emails are involved.
+5. **Authentication → Settings → Authorized domains:** make sure the site's domain (for example
+   `canaroo.github.io`) is listed.
+
+The Firebase web config is safe to publish; the security rules are what protect the data. They
+only let a device write its own entries, only raise a score, and cap scores by the chart's note
+count. Scores can still be faked by someone determined, as in any browser game.
 
 ## Bonus tracks
 
@@ -258,6 +297,10 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.14**: shorter phone notes. Blocks are about half as long and shrink further when notes in
+  a lane are close together, so they never run into each other. **World leaderboards**
+  (Firebase), with fair boards for imported MP3s (keyed by chart) and challenges that play
+  someone else's exact notes over your own copy of the song.
 - **1.13**: six new songs in the pack, grouped by theme: Spooky (*Haunted Hallway*, *Graveyard
   Shift*), Rock (*Power Chord Party*, *Amp Overload*) and Epic adventure (*Hero's Dawn*, *Final
   Quest*), each with its own sounds: wobbly organ, distorted power-chord guitar, brass and timpani.
@@ -307,6 +350,8 @@ js/sfx.js        chiptune sound effects, volume buses, reactive music filters
 js/library.js    imported songs saved in the browser (IndexedDB)
 js/save.js       players, scores, leaderboards, share links, song matching
 js/share.js      score card image and challenge links
+js/world.js      world leaderboards (Firebase): chart-keyed boards, chart alignment for challenges
+js/firebase-config.js   paste your Firebase web config here; firestore.rules has the matching rules
 js/main.js       menus and app flow
 ```
 
@@ -316,6 +361,7 @@ npm test                          # unit tests (plain Node, no dependencies)
 npm run build-charts              # build charts for MP3s in songs/
 npm i -D playwright && npm run e2e -- [song.mp3]   # full browser test
 E2E_ONLY=touch npm run e2e        # just the phone checks
+E2E_ONLY=world npm run e2e        # just the world boards (with an in-page stand-in for Firebase)
 ```
 
 The end-to-end test drives the game with a simulated Xbox controller. It enters initials,
@@ -329,6 +375,5 @@ turns the phone mid-song.
 ### Ideas for next steps
 
 - More chiptune tracks. Each one is a small block of pattern data in `js/songs.js`.
-- An online leaderboard. Scores are already structured for it; it needs a small hosted
-  database such as Supabase.
+- World boards for Tiles mode.
 - Button remapping.

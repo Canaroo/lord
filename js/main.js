@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.13';
+  const VERSION = '1.14';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -880,11 +880,17 @@
     }).join('');
     updateDeviceUI();
     show('song', { focus: `[data-diff="${idFor(parseId(lastDifficulty).difficulty)}"]` });
+    // Arrived from a world-board challenge on a song that had to load first.
+    if (pendingChallenge && pendingChallenge.key === current.key) {
+      const c = pendingChallenge;
+      pendingChallenge = null;
+      play(c.diff, { key: c.key, target: c.target });
+    }
   }
 
   $('#diffs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-diff]');
-    if (b) play(b.dataset.diff);
+    if (b) play(b.dataset.diff, {});
   });
   $('#btn-song-back').addEventListener('click', () => { if (songOrigin === 'import') renderImport(); show(songOrigin); });
 
@@ -892,9 +898,14 @@
 
   let gameLayout = 'keys';
   let pendingPlay = null;
+  // Set by a world-board challenge: { key, chart, boardId, target:{initials, score} }.
+  // Kept for PLAY AGAIN; picking a tier on the song screen clears it.
+  let playOpts = {};
 
-  async function play(difficulty) {
+  async function play(difficulty, opts) {
     if (!current) return;
+    if (opts) playOpts = opts;
+    if (playOpts.key && playOpts.key !== current.key) playOpts = {};
     const tier = parseId(difficulty);
     if (tier.tiles) { playTiles(difficulty); return; }
     // First touch game: let the player put the strike line where their thumbs rest...
@@ -925,7 +936,7 @@
     gameLayout = tier.touch ? 'touch' + tier.lanes : 'keys';
     stage.setLayout(gameLayout, window.innerWidth / window.innerHeight);
     wakeLock.acquire();
-    const chart = current.charts[difficulty];
+    const chart = playOpts.chart || current.charts[difficulty];
     Input.setGameplay(true, chart.lanes);
     game = new Game({
       audioCtx,
@@ -943,14 +954,14 @@
       vibrate: tier.touch && settings.vibrate,
       hitSounds: settings.hitSounds,
       playerColor: save.active ? save.active.color : '#58f8f8',
-      best: save.active ? save.pace(save.active.id, current.key, difficulty) : null,
-      intro: { title: current.title.toUpperCase().slice(0, 40), sub: LABEL(difficulty) },
+      best: !playOpts.chart && save.active ? save.pace(save.active.id, current.key, difficulty) : null,
+      intro: { title: current.title.toUpperCase().slice(0, 40), sub: playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : LABEL(difficulty) },
       onEnd: (res) => {
         game = null;
         wakeLock.release();
         Input.setGameplay(false);
         applyLayout();
-        showResults(difficulty, res);
+        showResults(difficulty, res, chart);
       },
       onPauseChange: (paused) => {
         $('#pause').hidden = !paused;
@@ -1206,8 +1217,9 @@
     });
   }
 
-  function showResults(difficulty, res) {
+  function showResults(difficulty, res, chart) {
     const p = save.active;
+    const world = worldFor(difficulty, chart);
     const run = {
       profileId: p ? p.id : null,
       initials: p ? p.initials : '---',
@@ -1225,8 +1237,10 @@
       goldStars: res.goldStars,
       timeline: res.timeline,
       fp: current.kind === 'mp3' ? current.fp : undefined,
+      world: world.id,
     };
-    const outcome = p ? save.addRun(run) : null;
+    // A challenge is someone else's chart, so it goes on their world board only.
+    const outcome = p && !playOpts.chart ? save.addRun(run) : null;
     lastRun = outcome ? outcome.entry : { ...run, date: new Date().toISOString() };
 
     $('#res-title').textContent = `${current.title.toUpperCase().slice(0, 40)} · ${LABEL(difficulty)}`;
@@ -1298,9 +1312,35 @@
       else if (outcome.rank) flag = `RANK #${outcome.rank} ON THIS BOARD`;
       if (res.fullCombo) flag += (flag ? ' · ' : '') + 'FULL COMBO!';
     }
+    const target = playOpts.target;
+    if (target && !res.failed) {
+      flag = res.score > target.score ? `YOU BEAT ${target.initials}!`
+        : res.score === target.score ? `TIED WITH ${target.initials}!`
+          : `${target.initials} LEADS BY ${(target.score - res.score).toLocaleString('en-US')}`;
+      celebrate = res.score > target.score;
+      if (res.fullCombo) flag += ' · FULL COMBO!';
+    }
     const flagEl = $('#res-flag');
     flagEl.textContent = '';
     flagEl.className = 'flag';
+    const worldEl = $('#res-world');
+    worldEl.textContent = '';
+    if (p && !res.failed && World.available()) {
+      worldEl.textContent = 'Sending to the world board…';
+      World.submit({
+        id: world.id, meta: world.meta, profileId: p.id,
+        entry: {
+          initials: p.initials, score: Math.round(res.score), grade: res.grade, accuracy: +res.accuracy.toFixed(2),
+          maxCombo: res.maxCombo, fullCombo: !!res.fullCombo, stars: res.stars || 0,
+          date: new Date().toISOString().slice(0, 10), ver: VERSION,
+        },
+      }).then((r) => {
+        worldEl.textContent = r.improved ? `WORLD RANK #${r.rank}` : `World best ${r.best.toLocaleString('en-US')} · rank #${r.rank}`;
+      }).catch((e) => {
+        console.warn(e);
+        worldEl.textContent = "Couldn't reach the world board. Your score is saved on this device.";
+      });
+    }
     show('results');
 
     // Count the score up, then stamp the grade. Any key or button skips ahead.
@@ -1463,9 +1503,145 @@
   }
   window.addEventListener('hashchange', checkHash);
 
+  // ---- world boards ------------------------------------------------------------------------------------
+
+  /** The world board a run belongs on, and what's stored with the board the first time. */
+  function worldFor(difficulty, chart) {
+    const id = playOpts.boardId || World.boardId(current.key, difficulty, chart);
+    const meta = {
+      kind: current.kind, title: current.title.slice(0, 80), songKey: current.key.slice(0, 80), difficulty,
+      lanes: chart.lanes, notes: chart.notes.length,
+      bpm: Math.round(current.analysis.bpm * 10) / 10, bpmKey: Math.round(current.analysis.bpm),
+      duration: Math.round(current.analysis.duration),
+    };
+    // Imported songs keep their chart, so anyone with a copy can play these exact notes.
+    if (current.kind === 'mp3') { meta.chart = World.packChart(chart); meta.fp = current.fp; }
+    return { id, meta };
+  }
+
+  /** The world board id for a board screen, if we can tell (imported songs need their chart). */
+  function worldBoardFor(key, diff) {
+    if (boardState.worldId) return boardState.worldId;
+    if (/^(pack|bonus):/.test(key)) return World.boardId(key, diff);
+    if (current && current.key === key && current.charts[diff]) return World.boardId(key, diff, current.charts[diff]);
+    const run = save.data.runs.slice().reverse().find((r) => r.songKey === key && r.difficulty === diff && r.world);
+    return run ? run.world : null;
+  }
+
+  const BOARD_HEAD = '<tr><th>#</th><th>PLAYER</th><th class="num">SCORE</th><th>GRADE</th><th class="num">ACC</th><th class="num">STREAK</th><th>DATE</th></tr>';
+  const boardMsg = (html) => BOARD_HEAD + `<tr><td colspan="7" class="hint">${html}</td></tr>`;
+  let worldSeq = 0;
+  let worldRows = [];
+
+  async function renderWorldBoard() {
+    const { key, diff } = boardState;
+    const seq = ++worldSeq;
+    const table = $('#board-table');
+    worldRows = [];
+    if (!World.available()) { table.innerHTML = boardMsg("World boards aren't switched on for this copy of the game yet."); return; }
+    if (String(diff).startsWith('tiles:')) { table.innerHTML = boardMsg('Tiles mode scores stay on this device for now.'); return; }
+    const id = worldBoardFor(key, diff);
+    if (!id) { table.innerHTML = boardMsg(`Play ${esc(LABEL(diff))} once to find this song's world board.`); return; }
+    table.innerHTML = boardMsg('Loading…');
+    try {
+      const rows = await World.top(id, 25);
+      if (seq !== worldSeq) return;
+      worldRows = rows;
+      table.innerHTML = rows.length ? BOARD_HEAD + rows.map((r, i) => `<tr class="${i === 0 ? 'top ' : ''}${r.mine ? 'me ' : ''}tap" data-world-row="${i}" tabindex="0">
+        <td>${i + 1}</td>
+        <td>${esc(r.initials)}</td>
+        <td class="num">${Number(r.score).toLocaleString('en-US')}</td>
+        <td>${esc(r.grade)}${r.fullCombo ? ' FC' : ''}</td>
+        <td class="num">${Number(r.accuracy).toFixed(1)}%</td>
+        <td class="num">${r.maxCombo}</td>
+        <td>${esc(fmtDate(r.date))}</td></tr>`).join('')
+        : boardMsg(`No world scores for ${esc(LABEL(diff))} yet. Be the first.`);
+      if (rows.length) $('#board-note').textContent = 'Tap a score to challenge it.';
+      // Imported songs: other people's versions of the same song have boards of their own.
+      if (!/^(pack|bonus):/.test(key) && current && current.kind === 'mp3') {
+        const list = await World.versions({ difficulty: diff, bpm: current.analysis.bpm, fp: current.fp, title: current.title, exclude: id });
+        if (seq !== worldSeq || !list.length) return;
+        $('#board-versions').innerHTML = '<p class="eyebrow">OTHER VERSIONS OF THIS SONG</p>' +
+          '<p class="hint">Play their notes over your copy, so your scores compare fairly.</p>' +
+          list.map((v) => `<button data-version="${esc(v.id)}" data-title="${esc(v.title)}">${esc(v.title.toUpperCase().slice(0, 32))} · ${fmtTime(v.duration || 0)} · ${v.notes} NOTES</button>`).join('');
+      }
+    } catch (e) {
+      console.warn(e);
+      if (seq === worldSeq) table.innerHTML = boardMsg("Couldn't reach the world board. Check your connection.");
+    }
+  }
+
+  /**
+   * Play a world board. Built-in songs just play (with a score to beat);
+   * imported songs play the board's own notes, lined up to the copy that's open.
+   */
+  async function challengeWorld(target) {
+    const { key, diff } = boardState;
+    const note = $('#board-note');
+    lastDifficulty = diff;
+    if (/^(pack|bonus):/.test(key)) {
+      songOrigin = 'boards';
+      if (current && current.key === key) { play(diff, { key, target }); return; }
+      pendingChallenge = { key, diff, target };
+      if (key.startsWith('pack:')) loadPack(key.slice(5)); else loadBonus(key.slice(6));
+      return;
+    }
+    if (!current || current.kind !== 'mp3') {
+      note.textContent = 'Open your copy of this song first (YOUR MUSIC), then come back to its board.';
+      return;
+    }
+    const id = worldBoardFor(key, diff);
+    note.textContent = 'Getting their notes…';
+    try {
+      const b = await World.board(id);
+      if (!b || !b.chart) throw new Error('this board has no notes saved.');
+      const fit = World.alignChart(World.unpackChart(b.chart), current.charts[diff] || current.charts[ChartGen.ALL_IDS[0]]);
+      if (!fit.good && boardState.forceAlign !== id) {
+        boardState.forceAlign = id;
+        note.textContent = `Their notes only match ${Math.round(fit.match * 100)}% of your copy, so it may be a different version. Tap again to play anyway.`;
+        return;
+      }
+      songOrigin = 'boards';
+      play(diff, { key: current.key, chart: fit.chart, boardId: id, target });
+    } catch (e) {
+      console.warn(e);
+      note.textContent = "Couldn't load their notes: " + (e.message || e);
+    }
+  }
+  let pendingChallenge = null;
+
+  $('#board-scope').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-board-scope]');
+    if (!b) return;
+    boardState.scope = b.dataset.boardScope;
+    boardState.worldId = null;
+    boardState.title = boardState.songTitle;
+    renderBoard();
+    requestAnimationFrame(() => { const el = $(`[data-board-scope="${boardState.scope}"]`); if (el) el.focus(); });
+  });
+
+  $('#board-versions').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-version]');
+    if (!b) return;
+    boardState.worldId = b.dataset.version;
+    boardState.title = b.dataset.title;
+    renderBoard();
+    requestAnimationFrame(() => $('#btn-board-play').focus());
+  });
+
+  function onWorldRow(e) {
+    const tr = e.target.closest('[data-world-row]');
+    if (!tr || (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    const r = worldRows[+tr.dataset.worldRow];
+    if (r) challengeWorld({ initials: r.initials, score: Number(r.score) });
+  }
+  $('#board-table').addEventListener('click', onWorldRow);
+  $('#board-table').addEventListener('keydown', onWorldRow);
+
   // ---- leaderboards ------------------------------------------------------------------------------------
 
-  let boardState = { key: null, title: '', diff: 'easy', back: 'boards' };
+  let boardState = { key: null, title: '', songTitle: '', diff: 'easy', back: 'boards', scope: 'local', worldId: null };
 
   function renderBoards() {
     const pack = SongPack.SONGS.map((s) => ({ key: SongPack.keyFor(s), title: s.title, pack: true }));
@@ -1485,8 +1661,8 @@
     if (b) openBoard(b.dataset.boardKey, b.dataset.title, idFor('easy'), 'boards');
   });
 
-  function openBoard(key, title, diff, back) {
-    boardState = { key, title, diff, back };
+  function openBoard(key, title, diff, back, scope = boardState.scope) {
+    boardState = { key, title, songTitle: title, diff, back, scope, worldId: null };
     $('#screen-board').dataset.back = back;
     renderBoard();
     show('board', { focus: `[data-board-diff="${diff}"]` });
@@ -1500,9 +1676,15 @@
       Object.entries(FAMILIES).map(([f, label]) => `<button data-board-family="${f}" class="${f === fam ? 'on' : ''}">${label}</button>`).join('') +
       '<span class="tab-break"></span>' +
       idsFor(fam).map((d) => `<button data-board-diff="${d}" class="${d === diff ? 'on' : ''}">${BASE_LABEL(parseId(d).difficulty)}</button>`).join('');
+    $('#board-scope').innerHTML = ['local', 'world'].map((sc) =>
+      `<button data-board-scope="${sc}" class="${sc === boardState.scope ? 'on' : ''}">${sc === 'local' ? 'THIS DEVICE' : 'WORLD'}</button>`).join('');
+    $('#board-versions').innerHTML = '';
+    $('#board-note').textContent = '';
+    $('#btn-board-play').textContent = boardState.worldId ? 'PLAY THEIR NOTES' : 'PLAY THIS SONG';
+    if (boardState.scope === 'world') { renderWorldBoard(); return; }
     const rows = save.leaderboard(key, diff, 25);
     const me = save.active;
-    $('#board-table').innerHTML = '<tr><th>#</th><th>PLAYER</th><th class="num">SCORE</th><th>GRADE</th><th class="num">ACC</th><th class="num">STREAK</th><th>DATE</th></tr>' +
+    $('#board-table').innerHTML = BOARD_HEAD +
       (rows.length ? rows.map((r, i) => `<tr class="${i === 0 ? 'top ' : ''}${!r.rival && me && r.profileId === me.id ? 'me' : ''}">
         <td>${i + 1}</td>
         <td>${esc(r.initials)}${r.rival ? ` <span class="tag">${r.verified === false ? 'UNVERIFIED' : 'RIVAL'}</span>` : ''}</td>
@@ -1515,6 +1697,8 @@
   }
 
   $('#board-tabs').addEventListener('click', (e) => {
+    // Another version's board is one chart, at one tier: other tabs go back to this song.
+    if (boardState.worldId) { boardState.worldId = null; boardState.title = boardState.songTitle; }
     const f = e.target.closest('[data-board-family]');
     if (f) {
       // Same tier, other input: 'hard' ↔ 'touch4:hard' ↔ 'touch2:hard'.
@@ -1534,6 +1718,7 @@
 
   $('#btn-board-play').addEventListener('click', () => {
     const { key, title, diff } = boardState;
+    if (boardState.worldId) { challengeWorld(null); return; }
     lastDifficulty = diff;
     if (key.startsWith('pack:')) { songOrigin = 'boards'; loadPack(key.slice(5)); }
     else if (key.startsWith('bonus:')) { songOrigin = 'boards'; loadBonus(key.slice(6)); }
@@ -1989,6 +2174,7 @@
     loadBonus,
     loadSaved,
     importFile,
+    openBoard,
     Library,
   };
 })();

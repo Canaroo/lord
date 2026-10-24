@@ -1,0 +1,33 @@
+rules_version = '2';
+// Beat Frets world leaderboards. Publish in the Firebase console
+// (Firestore Database → Rules). If the project is shared with another game,
+// paste the match block below next to that game's rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /beatfrets_boards/{boardId} {
+      // Anyone can read a board; a signed-in player can create it once. It never changes.
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['kind', 'title', 'songKey', 'difficulty', 'lanes', 'notes', 'bpm', 'bpmKey', 'duration', 'fp', 'chart', 'created'])
+        && request.resource.data.title is string && request.resource.data.title.size() <= 80
+        && request.resource.data.difficulty is string && request.resource.data.difficulty.size() <= 24
+        && request.resource.data.notes is int && request.resource.data.notes <= 5000
+        && (!('chart' in request.resource.data) || (request.resource.data.chart is string && request.resource.data.chart.size() <= 400000));
+      allow update, delete: if false;
+
+      match /scores/{scoreId} {
+        allow read: if true;
+        // Your own entries only (id starts with your sign-in id), and only to raise the score.
+        allow create, update: if request.auth != null
+          && scoreId.matches(request.auth.uid + '_[A-Za-z0-9]{0,24}')
+          && request.resource.data.keys().hasOnly(['initials', 'score', 'grade', 'accuracy', 'maxCombo', 'fullCombo', 'stars', 'date', 'ver', 'at'])
+          && request.resource.data.initials is string && request.resource.data.initials.matches('[A-Z0-9-]{3}')
+          && request.resource.data.score is int && request.resource.data.score >= 0
+          && request.resource.data.score <= get(/databases/$(database)/documents/beatfrets_boards/$(boardId)).data.notes * 2000
+          && request.resource.data.accuracy is number && request.resource.data.accuracy <= 100
+          && (resource == null || request.resource.data.score > resource.data.score);
+        allow delete: if false;
+      }
+    }
+  }
+}

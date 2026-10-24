@@ -283,6 +283,11 @@ table.board { width: 100%; border-collapse: collapse; margin: 8px 0; }
 .board td { padding: 4px 8px; font-size: 21px; border-bottom: 1px solid rgba(138, 144, 216, 0.25); }
 .board td.num { text-align: right; }
 .board tr.top td:first-child { color: var(--gold); }
+.board tr.tap { cursor: pointer; }
+.board tr.tap:hover td, .board tr.tap:focus td { background: rgba(88, 248, 248, 0.12); }
+.board tr.tap:focus { outline: none; }
+#res-world { margin: 2px 0 0; min-height: 1em; }
+#board-versions button { font-size: 10px; }
 
 .stats-box { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; margin: 10px 0; }
 .stats-box div { background: rgba(8, 8, 26, 0.4); padding: 6px 8px; border-radius: 4px; }

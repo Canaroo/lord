@@ -8,7 +8,7 @@
  * offline.
  */
 'use strict';
-const CACHE = 'beat-frets-1.13'; // match VERSION in js/main.js
+const CACHE = 'beat-frets-1.14'; // match VERSION in js/main.js
 const SHELL = [
   './',
   'index.html',
@@ -17,7 +17,7 @@ const SHELL = [
   'icons/icon-180.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
-  ...['analyzer', 'chartgen', 'songs', 'bonus', 'save', 'library', 'sfx', 'input', 'render', 'game', 'tiles', 'share', 'main'].map((f) => `js/${f}.js`),
+  ...['analyzer', 'chartgen', 'songs', 'bonus', 'save', 'library', 'sfx', 'input', 'render', 'game', 'tiles', 'share', 'firebase-config', 'world', 'main'].map((f) => `js/${f}.js`),
 ];
 
 self.addEventListener('install', (e) => {

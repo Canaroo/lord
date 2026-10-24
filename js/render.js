@@ -23,9 +23,13 @@
   const PERSPECTIVE = 3;
   // Phones: a note is a block this many seconds long along the highway, centred on
   // its beat, so the strike line runs through it for about the whole PERFECT window.
-  // Sideways the highway is short on screen, so notes are a little longer in time
-  // (still shorter than the 0.22 s minimum between notes in one lane).
-  const NOTE_TIME = { touch4: 0.18, touch2: 0.12 };
+  // Phone notes are short blocks: length doesn't change how easy a note is to hit
+  // (the whole lane-wide pad is the target), it only has to read clearly. Each one
+  // is also capped to NOTE_GAP of the time to its lane neighbours, so a dark gap
+  // always shows between close notes, and kept at least NOTE_MIN_PX tall near you.
+  const NOTE_TIME = { touch4: 0.085, touch2: 0.08 };
+  const NOTE_GAP = 0.6;
+  const NOTE_MIN_PX = 4;
   const FONT = '"Press Start 2P", monospace';
 
   const PAL = {
@@ -602,6 +606,20 @@
         this.rect(x0, y - Math.ceil(t / 2), x1 - x0, t, v.odActive ? PAL.cyan : PAL.white);
         this.g.globalAlpha = 1;
       }
+      // Time to the nearest note in the same lane, for capping block length.
+      const room = new Map();
+      if (LAYOUT !== 'keys') {
+        const last = {};
+        for (const [n] of vis) {
+          const p = last[n.lane];
+          if (p && n.t > p.t) {
+            const gap = n.t - p.t;
+            room.set(p, Math.min(room.get(p) ?? Infinity, gap));
+            room.set(n, Math.min(room.get(n) ?? Infinity, gap));
+          }
+          last[n.lane] = n;
+        }
+      }
       for (let i = vis.length - 1; i >= 0; i--) {
         const [n, z] = vis[i];
         const s = geo.scale(z);
@@ -609,7 +627,11 @@
         let y = geo.yAt(z);
         const rx = Math.max(1.5, geo.laneW * 0.36 * s);
         const ry = rx * 0.55;
-        if (LAYOUT !== 'keys') { this.drawBar(n, geo, z, (NOTE_TIME[LAYOUT] || 0.12) / v.lookahead, v.odActive); continue; }
+        if (LAYOUT !== 'keys') {
+          const len = Math.min(NOTE_TIME[LAYOUT] || 0.08, (room.get(n) ?? Infinity) * NOTE_GAP);
+          this.drawBar(n, geo, z, len / v.lookahead, v.odActive);
+          continue;
+        }
         if (n.judged === 'miss') {
           this.g.globalAlpha = 0.5;
           this.ellipse(x, y, rx + 1, ry + 1, PAL.ink);
@@ -645,15 +667,18 @@
       this.text('DRAG THE LINE', W / 2, Math.min(H - 10, hy + 14), PAL.white, 8, 'center');
     }
 
-    /** Phones: a note is a flat bar almost as wide as its lane, like the pad it's aimed at. */
     /**
-     * Phones: a note is a block stretched along the highway (it points at you),
+     * Phones: a note is a short block almost as wide as its lane,
      * drawn scanline by scanline in perspective. Its bright front edge leads, and
      * the strike line passes through its middle on the beat.
      */
     drawBar(n, geo, z, dz, od) {
-      const yNear = Math.round(geo.yAt(Math.max(-0.2, z - dz / 2)));
-      const yFar = Math.round(geo.yAt(z + dz / 2));
+      let yNear = Math.round(geo.yAt(Math.max(-0.2, z - dz / 2)));
+      let yFar = Math.round(geo.yAt(z + dz / 2));
+      // Never thinner than a few pixels (less toward the horizon, where it's small anyway).
+      const yMid = geo.yAt(z);
+      const minPx = Math.max(2, Math.round(NOTE_MIN_PX * (yMid - HORIZON) / (HIT_Y - HORIZON)));
+      if (yNear - yFar < minPx) { yFar = Math.round(yMid - minPx / 2); yNear = yFar + minPx; }
       if (yNear <= yFar) return;
       const g = this.g;
       const span = yNear - yFar;
