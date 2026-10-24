@@ -25,6 +25,8 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 function serve() {
   const server = http.createServer((req, res) => {
     const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
+    // Never post test scores to the real world boards: they're off unless a test supplies its own backend.
+    if (rel === 'js/firebase-config.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end('window.BEAT_FRETS_FIREBASE = null;'); return; }
     const file = rel.startsWith('songs/') ? path.join(SONGS_DIR, rel.slice(6)) : path.join(ROOT, rel);
     if (!file.startsWith(ROOT) && !file.startsWith(SONGS_DIR)) { res.writeHead(403); res.end(); return; }
     fs.readFile(file, (err, data) => {
@@ -164,26 +166,27 @@ async function touchTests(browser) {
   await page.tap('#btn-initials-ok');
   await screenIs(page, 'main');
 
-  // Every menu has a BACK button you can reach, and the phone's own Back steps back one menu.
-  const missing = await page.evaluate(() => [...document.querySelectorAll('.screen')]
-    // Main is the top menu; results and calibration leave by SONG and DONE.
-    .filter((s) => s.dataset.back && !['screen-main', 'screen-results', 'screen-calib'].includes(s.id))
-    .filter((s) => !s.querySelector('[data-back-btn], [data-go]'))
-    .map((s) => s.id));
-  check(!missing.length, 'every menu has an on-screen way back ' + missing.join(' '));
-  for (const go of ['boards', 'players', 'options', 'data']) {
-    await page.tap(`#screen-main [data-go="${go}"]`);
+  // Top-level screens are tabs along the bottom; every screen below them has a back
+  // button in the top bar; and the phone's own Back steps back one screen.
+  for (const go of ['boards', 'players', 'options']) {
+    await page.tap(`#tabbar [data-go="${go}"]`);
     await screenIs(page, go);
-    await page.tap(`#screen-${go} [data-back-btn]`);
-    await screenIs(page, 'main');
+    check(await page.isVisible(`#tabbar [data-tab-btn="${go}"].on`) && !(await page.isVisible('#btn-back')), `${go} is a tab, lit in the tab bar`);
   }
-  check(true, 'BACK buttons return to the main menu');
-  await page.tap('#screen-main [data-go="options"]');
+  await page.tap('#screen-options [data-go="data"]');
+  await screenIs(page, 'data');
+  check(await page.isVisible('#btn-back') && !(await page.isVisible('#tabbar')), 'a screen below a tab has a back button instead of tabs');
+  await page.tap('#btn-back');
+  await screenIs(page, 'options');
+  await page.tap('#tabbar [data-go="main"]');
+  await screenIs(page, 'main');
+  check(true, 'tabs and BACK buttons find their way home');
+  await page.tap('#tabbar [data-go="options"]');
   await screenIs(page, 'options');
   await page.goBack();
   await screenIs(page, 'main');
   check(true, "the phone's Back button goes back one menu");
-  await page.tap('#screen-main [data-go="boards"]');
+  await page.tap('#tabbar [data-go="boards"]');
   await screenIs(page, 'boards');
   await page.goBack();
   await screenIs(page, 'main');
@@ -260,7 +263,7 @@ async function touchTests(browser) {
   await page.tap('#btn-res-board');
   await screenIs(page, 'board');
   const tabs = await page.evaluate(() => [...document.querySelectorAll('[data-board-family]')].map((b) => b.textContent).join('|'));
-  check(/TOUCH 4/.test(tabs) && /TOUCH 2/.test(tabs) && /KEYS/.test(tabs), `leaderboard has keys / touch tabs (${tabs})`);
+  check(/SIDEWAYS/.test(tabs) && /UPRIGHT/.test(tabs) && /KEYS/.test(tabs), `leaderboard has keys / sideways / upright filters (${tabs})`);
 
   // Upright: HOME → Beat Frets → UPRIGHT · 2 LANES. Chosen while the phone is
   // sideways, it asks to turn the phone until it is.
@@ -489,7 +492,7 @@ async function touchTests(browser) {
   check(/TILES/.test(await page.textContent('#board-tabs')), 'Tiles scores have their own leaderboard tab');
   await page.goBack();
   await screenIs(page, 'tiles-results');
-  await page.tap('#screen-tiles-results [data-back-btn]');
+  await page.tap('#btn-back');
   await screenIs(page, 'song');
 
   // The keyboard takes over as soon as it's used.
@@ -582,6 +585,8 @@ async function worldTests(browser) {
   await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 60000 });
   await page.waitForFunction(() => /WORLD RANK #1/.test(document.querySelector('#res-world').textContent), null, { timeout: 5000 }).catch(() => {});
   check(/WORLD RANK #1/.test(await page.textContent('#res-world')), 'results post to the world board (rank #1)');
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(outDir, 'e2e-results-new.png') });
   const boardA = await page.evaluate((id) => window.__world.boards.get(id), idA);
   check(boardA && boardA.kind === 'mp3' && typeof boardA.chart === 'string' && boardA.notes > 10, 'imported song\'s world board keeps its chart');
 
@@ -610,6 +615,12 @@ async function worldTests(browser) {
   const theirFirst = World.unpackChart(boardA.chart).notes[0].t;
   const ch = await page.evaluate(() => ({ first: BeatFrets.game.notes[0].t, n: BeatFrets.game.notes.length }));
   check(Math.abs(ch.first - (theirFirst + 2.3)) < 0.02 && ch.n === boardA.notes, `challenge plays their notes, moved onto this copy (${theirFirst.toFixed(3)} → ${ch.first.toFixed(3)})`);
+  // The pause pop-up: dimmed game behind, a close button that resumes.
+  await page.evaluate(() => BeatFrets.game.pause());
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: path.join(outDir, 'e2e-pause.png') });
+  await page.click('#btn-pause-close');
+  check(await page.evaluate(() => !BeatFrets.game.paused) && !(await page.isVisible('#pause')), 'the pause pop-up\'s close button resumes');
   await page.evaluate(LANE_BOT);
   await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 60000 });
   await page.waitForTimeout(2600);
@@ -934,7 +945,7 @@ async function worldTests(browser) {
     const info = await page.evaluate(() => ({ key: BeatFrets.current.key, notes: BeatFrets.current.charts.hard.notes.length }));
     check(info.key.startsWith('mp3:') && info.notes > 10, `MP3 imported and charted (${info.notes} hard notes)`);
     // It's saved in the browser: the Your Music screen lists it, one click to play.
-    await page.click('#btn-song-back');
+    await page.click('#btn-back');
     await screenIs(page, 'import');
     await page.waitForSelector('[data-saved]', { timeout: 5000 });
     check((await page.textContent('#recent-list')).includes('TEST LOOP'), 'imported song is saved for next time');

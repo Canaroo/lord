@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.14';
+  const VERSION = '1.15';
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -31,7 +31,7 @@
   };
   const SHORT_BASE = { easy: 'E', medium: 'M', mediumplus: 'M+', hard: 'H', duo: 'DUO' };
   const SHORT = new Proxy({}, { get: (_, id) => { const p = parseId(String(id)); return (p.tiles ? 'T' : '') + (SHORT_BASE[p.difficulty] || id) + (p.touch ? p.lanes : ''); } });
-  const FAMILIES = { keys: 'KEYS', touch4: 'TOUCH 4', touch2: 'TOUCH 2', tiles: 'TILES' };
+  const FAMILIES = { keys: 'KEYS', touch4: 'SIDEWAYS', touch2: 'UPRIGHT', tiles: 'TILES' };
   const familyOf = (id) => { const p = parseId(id); return p.tiles ? 'tiles' : p.touch ? 'touch' + p.lanes : 'keys'; };
   const idsFor = (family) => (family === 'keys' ? DIFFS : family === 'tiles' ? TILES_IDS : ChartGen.TOUCH_TIERS.map((d) => family + ':' + d));
 
@@ -163,11 +163,12 @@
     stopPreview();
     stage.setupMode = name === 'strike-setup';
     if (name === 'main' || name === 'title') leaveMode();
-    renderCrumbs(name);
     screen = name;
+    renderCrumbs(name);
     $('#panel').classList.toggle('hidden', !name);
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
     $('#hints').hidden = !name;
+    document.body.classList.toggle('has-hints', !!name);
     if (name && name !== 'title') guardHistory();
     if (!name) return;
     const el = $('#screen-' + name);
@@ -186,7 +187,8 @@
   function moveFocus(dir) {
     const root = activeRoot();
     if (!root) return;
-    const items = focusables(root);
+    // The tab bar is part of every top-level screen.
+    const items = focusables(root).concat(root.id !== 'pause' && !$('#tabbar').hidden ? focusables($('#tabbar')) : []);
     if (!items.length) return;
     const cur = document.activeElement;
     if (!items.includes(cur)) { items[0].focus(); Sfx.move(); return; }
@@ -239,7 +241,13 @@
       if (strikeReturn === 'options') { renderOptions(); show('options'); } else showSong();
       return;
     }
-    if (screen === 'song') { Sfx.back(); show(songOrigin); return; }
+    if (screen === 'song') {
+      Sfx.back();
+      if (songOrigin === 'import') renderImport();
+      if (songOrigin === 'boards') renderBoards();
+      show(songOrigin);
+      return;
+    }
     const el = screen && $('#screen-' + screen);
     const target = el && el.dataset.back;
     if (target) {
@@ -352,7 +360,7 @@
 
   function renderMain() {
     const p = save.active;
-    $('#main-player').textContent = p ? p.initials : 'none';
+    $('#main-player').textContent = p ? p.initials : '---';
   }
 
   const initials = (() => {
@@ -433,6 +441,16 @@
     return parts.length ? 'STARS ' + parts.join(' · ') : 'Not played yet';
   }
 
+  /** A song as a list row: title and details on the left, your best stars and a › on the right. */
+  function songRow(title, detail, key) {
+    const p = save.active;
+    let best = 0;
+    if (p) for (const d of tierIds()) best = Math.max(best, d.startsWith('tiles:') ? 0 : save.bestStars(p.id, key, d).stars);
+    const stars = p && !tilesMode() ? `<span class="row-stars">${'★'.repeat(best)}<span class="off">${'★'.repeat(5 - best)}</span></span>` : '';
+    return `<span class="row-main"><b>${esc(title.toUpperCase())}</b><small>${esc(detail)}</small></span>` +
+      `<span class="row-side">${stars}</span><svg class="chev"><use href="#i-chev"/></svg>`;
+  }
+
   function renderPack() {
     // Grouped by theme, each with a heading.
     const THEMES = [['classic', 'CHIPTUNE CLASSICS'], ['spooky', 'SPOOKY'], ['rock', 'ROCK'], ['epic', 'EPIC ADVENTURE']];
@@ -440,16 +458,16 @@
     $('#pack-list').innerHTML = THEMES.map(([theme, heading]) => {
       const songs = SongPack.SONGS.filter((s) => (s.theme || 'classic') === theme);
       if (!songs.length) return '';
-      return `<p class="eyebrow theme-${theme}">${heading}</p><div class="menu">` + songs.map((s) => {
+      return `<p class="label theme-${theme}">${heading}</p><div class="list theme-${theme}">` + songs.map((s) => {
         const auto = first ? 'data-autofocus' : '';
         first = false;
-        return `<button data-pack="${esc(s.id)}" ${auto}>${esc(s.title.toUpperCase())} <small>${s.bpm} BPM · ${esc(s.blurb)}<br>${esc(bestLine(SongPack.keyFor(s)))}</small></button>`;
+        return `<button data-pack="${esc(s.id)}" ${auto}>${songRow(s.title, `${s.bpm} BPM · ${s.blurb}`, SongPack.keyFor(s))}</button>`;
       }).join('') + '</div>';
     }).join('');
     fetchBonusIndex().then((list) => {
       $('#bonus-section').hidden = !list.length;
       $('#bonus-list').innerHTML = list.map((s) =>
-        `<button data-bonus="${esc(s.id)}">${esc(s.title.toUpperCase().slice(0, 40))} <small>${esc(s.artist || 'Bonus track')}<br>${esc(bestLine(BonusPack.keyFor(s.id)))}</small></button>`
+        `<button data-bonus="${esc(s.id)}">${songRow(s.title.slice(0, 40), s.artist || 'Bonus track', BonusPack.keyFor(s.id))}</button>`
       ).join('');
     });
   }
@@ -571,9 +589,9 @@
     box.innerHTML = note ? `<p class="match">${esc(note)}</p>` : '';
     Library.list().then((songs) => {
       if (!songs.length) return;
-      box.innerHTML = (note ? `<p class="match">${esc(note)}</p>` : '') + '<p class="eyebrow">YOUR SAVED SONGS</p>' +
+      box.innerHTML = (note ? `<p class="match">${esc(note)}</p>` : '') + '<p class="label">YOUR SAVED SONGS</p>' +
         songs.map((m) => `<div class="lib-row">
-          <button data-saved="${esc(m.key)}">${esc(m.title.toUpperCase().slice(0, 36))} <small>${esc(bestLine(m.key))} · ${fmtSize(m.size)}</small></button>
+          <button data-saved="${esc(m.key)}">${songRow(m.title.slice(0, 36), fmtSize(m.size), m.key)}</button>
           <button class="del" data-del="${esc(m.key)}" aria-label="Delete ${esc(m.title)}">DELETE</button>
         </div>`).join('');
     });
@@ -862,6 +880,7 @@
             <span class="keys" data-keys="4">${Input.touch ? '<span class="lanes-tag">4 COLUMNS</span>' : ''}</span>
             <span class="stats">${c.notes.length} tiles a lap</span>
             ${tilesBest(d)}
+            <span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span>
           </button>
           <ol class="mini-board">${miniBoard(current.key, d)}</ol>
         </div>`;
@@ -874,6 +893,7 @@
           <span class="keys" data-keys="${c.lanes}">${mode === 'keys' ? '' : `<span class="lanes-tag">${c.lanes} LANES</span>`}</span>
           <span class="stats">${n} notes · ${(n / Math.max(1, current.analysis.duration)).toFixed(1)}/sec${holds ? ` · ${holds} long` : ''}</span>
           ${cardStars(d)}
+          <span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span>
         </button>
         <ol class="mini-board">${miniBoard(current.key, d)}</ol>
       </div>`;
@@ -892,7 +912,6 @@
     const b = e.target.closest('[data-diff]');
     if (b) play(b.dataset.diff, {});
   });
-  $('#btn-song-back').addEventListener('click', () => { if (songOrigin === 'import') renderImport(); show(songOrigin); });
 
   // ---- playing --------------------------------------------------------------------------------------
 
@@ -1131,14 +1150,29 @@
     renderMain();
     show('main');
   }
+  /** The marquee bar: back, what this screen is and where you are, then home or your player. */
   function renderCrumbs(name) {
-    const IN_MODE = ['frets-setup', 'pack', 'import', 'song', 'results', 'tiles-results', 'board', 'share', 'strike-setup', 'calib-offer', 'calib'];
-    const visible = !!session.mode && IN_MODE.includes(name);
-    $('#crumbs').hidden = !visible;
-    if (!visible) return;
-    const parts = [MODE_LABEL[session.mode] + (session.mode === 'frets' && session.orient ? (session.orient === 'landscape' ? ' · 4 LANES' : ' · 2 LANES') : '')];
-    if (name !== 'frets-setup') parts.push('SONGS');
-    if (current && !['frets-setup', 'pack', 'import'].includes(name)) parts.push(current.title.toUpperCase().slice(0, 22));
+    const el = name && $('#screen-' + name);
+    const title = el && el.dataset.title;
+    const bar = $('#crumbs');
+    bar.hidden = !title;
+    const tab = el && el.dataset.tab;
+    $('#tabbar').hidden = !tab;
+    $$('#tabbar [data-tab-btn]').forEach((b) => b.classList.toggle('on', b.dataset.tabBtn === tab));
+    document.body.classList.toggle('has-top', !!title);
+    document.body.classList.toggle('has-tabs', !!tab);
+    if (!title) return;
+    bar.classList.toggle('home', name === 'main');
+    $('#btn-back').hidden = !!tab;
+    $('#btn-home').hidden = !!tab;
+    $('#btn-player-chip').hidden = !tab;
+    $('#topbar-title').textContent = name === 'main' ? 'BEAT FRETS' : title;
+    const IN_MODE = ['frets-setup', 'pack', 'import', 'song', 'results', 'tiles-results', 'board', 'share', 'calib-offer'];
+    const parts = [];
+    if (session.mode && IN_MODE.includes(name)) {
+      parts.push(MODE_LABEL[session.mode] + (session.mode === 'frets' && session.orient ? (session.orient === 'landscape' ? ' · 4 LANES' : ' · 2 LANES') : ''));
+      if (current && !['frets-setup', 'pack', 'import'].includes(name)) parts.push(current.title.toUpperCase().slice(0, 28));
+    } else if (name === 'board' && boardState.title) parts.push(boardState.title.toUpperCase().slice(0, 28));
     $('#crumbs-path').textContent = parts.join(' › ');
   }
   $('#btn-mode-frets').addEventListener('click', () => enterMode('frets'));
@@ -1160,6 +1194,7 @@
   $('#btn-rotate-home').addEventListener('click', goHome);
 
   $('#btn-resume').addEventListener('click', () => game && game.resume());
+  $('#btn-pause-close').addEventListener('click', () => game && game.resume());
   $('#btn-restart').addEventListener('click', () => { $('#pause').hidden = true; play(lastDifficulty); });
   $('#btn-quit').addEventListener('click', () => {
     if (game) game.stop();
@@ -1380,7 +1415,6 @@
   window.addEventListener('pointerdown', () => { if (screen === 'results' && resultsAnim) resultsAnim(); }, true);
 
   $('#btn-retry').addEventListener('click', () => play(lastDifficulty));
-  $('#btn-res-back').addEventListener('click', showSong);
   $('#btn-res-board').addEventListener('click', () => openBoard(current.key, current.title, lastDifficulty, 'results'));
 
   // ---- share ----------------------------------------------------------------------------------------
@@ -1528,8 +1562,7 @@
     return run ? run.world : null;
   }
 
-  const BOARD_HEAD = '<tr><th>#</th><th>PLAYER</th><th class="num">SCORE</th><th>GRADE</th><th class="num">ACC</th><th class="num">STREAK</th><th>DATE</th></tr>';
-  const boardMsg = (html) => BOARD_HEAD + `<tr><td colspan="7" class="hint">${html}</td></tr>`;
+  const boardMsg = (html) => `<div class="score-row empty">${html}</div>`;
   let worldSeq = 0;
   let worldRows = [];
 
@@ -1547,23 +1580,17 @@
       const rows = await World.top(id, 25);
       if (seq !== worldSeq) return;
       worldRows = rows;
-      table.innerHTML = rows.length ? BOARD_HEAD + rows.map((r, i) => `<tr class="${i === 0 ? 'top ' : ''}${r.mine ? 'me ' : ''}tap" data-world-row="${i}" tabindex="0">
-        <td>${i + 1}</td>
-        <td>${esc(r.initials)}</td>
-        <td class="num">${Number(r.score).toLocaleString('en-US')}</td>
-        <td>${esc(r.grade)}${r.fullCombo ? ' FC' : ''}</td>
-        <td class="num">${Number(r.accuracy).toFixed(1)}%</td>
-        <td class="num">${r.maxCombo}</td>
-        <td>${esc(fmtDate(r.date))}</td></tr>`).join('')
+      table.innerHTML = rows.length ? rows.map((r, i) => scoreCard(r, i, { mine: r.mine, tap: true })).join('')
         : boardMsg(`No world scores for ${esc(LABEL(diff))} yet. Be the first.`);
+      pinYou(rows, (r) => r.mine);
       if (rows.length) $('#board-note').textContent = 'Tap a score to challenge it.';
       // Imported songs: other people's versions of the same song have boards of their own.
       if (!/^(pack|bonus):/.test(key) && current && current.kind === 'mp3') {
         const list = await World.versions({ difficulty: diff, bpm: current.analysis.bpm, fp: current.fp, title: current.title, exclude: id });
         if (seq !== worldSeq || !list.length) return;
-        $('#board-versions').innerHTML = '<p class="eyebrow">OTHER VERSIONS OF THIS SONG</p>' +
+        $('#board-versions').innerHTML = '<p class="label">OTHER VERSIONS OF THIS SONG</p>' +
           '<p class="hint">Play their notes over your copy, so your scores compare fairly.</p>' +
-          list.map((v) => `<button data-version="${esc(v.id)}" data-title="${esc(v.title)}">${esc(v.title.toUpperCase().slice(0, 32))} · ${fmtTime(v.duration || 0)} · ${v.notes} NOTES</button>`).join('');
+          list.map((v) => `<button data-version="${esc(v.id)}" data-title="${esc(v.title)}" style="--acc:var(--magenta)"><span class="row-main"><b>${esc(v.title.toUpperCase().slice(0, 32))}</b><small>${fmtTime(v.duration || 0)} · ${v.notes} notes</small></span><svg class="chev"><use href="#i-chev"/></svg></button>`).join('');
       }
     } catch (e) {
       console.warn(e);
@@ -1641,7 +1668,7 @@
 
   // ---- leaderboards ------------------------------------------------------------------------------------
 
-  let boardState = { key: null, title: '', songTitle: '', diff: 'easy', back: 'boards', scope: 'local', worldId: null };
+  let boardState = { key: null, title: '', songTitle: '', diff: 'easy', back: 'boards', scope: World.available() ? 'world' : 'local', worldId: null };
 
   function renderBoards() {
     const pack = SongPack.SONGS.map((s) => ({ key: SongPack.keyFor(s), title: s.title, pack: true }));
@@ -1649,11 +1676,12 @@
     if (!bonusIndex) fetchBonusIndex().then((l) => { if (l.length && screen === 'boards') renderBoards(); });
     const played = save.playedSongs().filter((s) => s.key.startsWith('mp3:'))
       .map((s) => ({ key: s.key, title: save.songTitle(s.key) || s.title, pack: false }));
+    const row = (b, i, acc) => `<button data-board-key="${esc(b.key)}" data-title="${esc(b.title)}" style="--acc:${acc}" ${i === 0 && acc === 'var(--gold)' ? 'data-autofocus' : ''}>` +
+      `<svg class="ico"><use href="#i-trophy"/></svg><span class="row-main"><b>${esc(b.title.toUpperCase().slice(0, 40))}</b></span><svg class="chev"><use href="#i-chev"/></svg></button>`;
     $('#boards-list').innerHTML =
-      '<p class="eyebrow">SONG PACK</p>' +
-      pack.map((s, i) => `<button data-board-key="${esc(s.key)}" data-title="${esc(s.title)}" ${i === 0 ? 'data-autofocus' : ''}>${esc(s.title.toUpperCase())}</button>`).join('') +
-      (bonus.length ? '<p class="eyebrow">BONUS TRACKS</p>' + bonus.map((s) => `<button data-board-key="${esc(s.key)}" data-title="${esc(s.title)}">${esc(s.title.toUpperCase().slice(0, 40))}</button>`).join('') : '') +
-      (played.length ? '<p class="eyebrow">YOUR MUSIC</p>' + played.map((s) => `<button data-board-key="${esc(s.key)}" data-title="${esc(s.title)}">${esc(s.title.toUpperCase().slice(0, 40))}</button>`).join('') : '');
+      '<p class="label">SONG PACK</p>' + pack.map((b, i) => row(b, i, 'var(--gold)')).join('') +
+      (bonus.length ? '<p class="label">BONUS TRACKS</p>' + bonus.map((b, i) => row(b, i, 'var(--cyan)')).join('') : '') +
+      (played.length ? '<p class="label">YOUR MUSIC</p>' + played.map((b, i) => row(b, i, 'var(--magenta)')).join('') : '');
   }
 
   $('#boards-list').addEventListener('click', (e) => {
@@ -1665,7 +1693,25 @@
     boardState = { key, title, songTitle: title, diff, back, scope, worldId: null };
     $('#screen-board').dataset.back = back;
     renderBoard();
-    show('board', { focus: `[data-board-diff="${diff}"]` });
+    show('board', { focus: '#board-scope .on' });
+  }
+
+  /** One score as a card: medal, initials, score, then details; your own is lit gold. */
+  function scoreCard(r, i, { mine, tap, tag } = {}) {
+    const attrs = tap ? ` tap" data-world-row="${i}" tabindex="0"` : '"';
+    return `<div class="score-row${i < 3 ? ' r' + (i + 1) : ''}${mine ? ' me' : ''}${attrs}>
+      <span class="rank">${i + 1}</span>
+      <span class="who">${esc(r.initials)}${tag ? ` <span class="tag">${tag}</span>` : ''}</span>
+      <span class="pts">${Number(r.score).toLocaleString('en-US')}</span>
+      <span class="sub">${Number(r.accuracy).toFixed(1)}% · ${r.maxCombo} streak · ${esc(fmtDate(r.date))}</span>
+      <span class="gr">${esc(r.grade)}${r.fullCombo ? ' FC' : ''}</span>
+    </div>`;
+  }
+
+  /** Your best, pinned under the list. */
+  function pinYou(rows, isMine) {
+    const i = rows.findIndex(isMine);
+    $('#board-you').innerHTML = i < 0 ? '' : '<span class="you">YOUR BEST</span>' + scoreCard(rows[i], i, { mine: true });
   }
 
   function renderBoard() {
@@ -1673,27 +1719,24 @@
     $('#board-title').textContent = title;
     const fam = familyOf(diff);
     $('#board-tabs').innerHTML =
-      Object.entries(FAMILIES).map(([f, label]) => `<button data-board-family="${f}" class="${f === fam ? 'on' : ''}">${label}</button>`).join('') +
-      '<span class="tab-break"></span>' +
-      idsFor(fam).map((d) => `<button data-board-diff="${d}" class="${d === diff ? 'on' : ''}">${BASE_LABEL(parseId(d).difficulty)}</button>`).join('');
-    $('#board-scope').innerHTML = ['local', 'world'].map((sc) =>
+      '<div class="chips">' + Object.entries(FAMILIES).map(([f, label]) => `<button data-board-family="${f}" class="${f === fam ? 'on' : ''}">${label}</button>`).join('') + '</div>' +
+      `<div class="picker"><button class="round prev" data-board-step="-1" aria-label="Easier"><svg><use href="#i-chev"/></svg></button>` +
+      `<div class="val" data-board-diff="${diff}"><small>DIFFICULTY</small>${BASE_LABEL(parseId(diff).difficulty)}</div>` +
+      `<button class="round" data-board-step="1" aria-label="Harder"><svg><use href="#i-chev"/></svg></button></div>`;
+    $('#board-scope').innerHTML = ['world', 'local'].map((sc) =>
       `<button data-board-scope="${sc}" class="${sc === boardState.scope ? 'on' : ''}">${sc === 'local' ? 'THIS DEVICE' : 'WORLD'}</button>`).join('');
     $('#board-versions').innerHTML = '';
+    $('#board-you').innerHTML = '';
     $('#board-note').textContent = '';
     $('#btn-board-play').textContent = boardState.worldId ? 'PLAY THEIR NOTES' : 'PLAY THIS SONG';
     if (boardState.scope === 'world') { renderWorldBoard(); return; }
     const rows = save.leaderboard(key, diff, 25);
     const me = save.active;
-    $('#board-table').innerHTML = BOARD_HEAD +
-      (rows.length ? rows.map((r, i) => `<tr class="${i === 0 ? 'top ' : ''}${!r.rival && me && r.profileId === me.id ? 'me' : ''}">
-        <td>${i + 1}</td>
-        <td>${esc(r.initials)}${r.rival ? ` <span class="tag">${r.verified === false ? 'UNVERIFIED' : 'RIVAL'}</span>` : ''}</td>
-        <td class="num">${r.score.toLocaleString('en-US')}</td>
-        <td>${esc(r.grade)}${r.fullCombo ? ' FC' : ''}</td>
-        <td class="num">${Number(r.accuracy).toFixed(1)}%</td>
-        <td class="num">${r.maxCombo}</td>
-        <td>${esc(fmtDate(r.date))}</td></tr>`).join('')
-        : `<tr><td colspan="7" class="hint">No ${LABEL(diff)} scores yet. Be the first.</td></tr>`);
+    const isMine = (r) => !r.rival && me && r.profileId === me.id;
+    $('#board-table').innerHTML = rows.length
+      ? rows.map((r, i) => scoreCard(r, i, { mine: isMine(r), tag: r.rival ? (r.verified === false ? 'UNVERIFIED' : 'RIVAL') : '' })).join('')
+      : boardMsg(`No ${esc(LABEL(diff))} scores on this device yet. Be the first.`);
+    pinYou(rows, isMine);
   }
 
   $('#board-tabs').addEventListener('click', (e) => {
@@ -1709,11 +1752,14 @@
       requestAnimationFrame(() => { const el = $(`[data-board-family="${f.dataset.boardFamily}"]`); if (el) el.focus(); });
       return;
     }
-    const b = e.target.closest('[data-board-diff]');
-    if (!b) return;
-    boardState.diff = b.dataset.boardDiff;
+    const step = e.target.closest('[data-board-step]');
+    if (!step) return;
+    // ◀ ▶ through the tiers of this family, wrapping around.
+    const ids = idsFor(familyOf(boardState.diff));
+    const i = ids.indexOf(boardState.diff);
+    boardState.diff = ids[(i + +step.dataset.boardStep + ids.length) % ids.length];
     renderBoard();
-    requestAnimationFrame(() => { const el = $(`[data-board-diff="${boardState.diff}"]`); if (el) el.focus(); });
+    requestAnimationFrame(() => { const el = $(`[data-board-step="${step.dataset.boardStep}"]`); if (el) el.focus(); });
   });
 
   $('#btn-board-play').addEventListener('click', () => {
@@ -1741,9 +1787,11 @@
     deleteArmed = false;
     $('#btn-delete-player').textContent = 'DELETE';
     const active = save.active;
-    $('#players-list').innerHTML = save.profiles.map((p) =>
-      `<button data-player="${esc(p.id)}" ${active && p.id === active.id ? 'data-autofocus' : ''}><span style="color:${esc(p.color)}">${esc(p.initials)}</span>${active && p.id === active.id ? ' <small>Playing now</small>' : ' <small>Switch to this player</small>'}</button>`
-    ).join('') || '<p class="hint">No players yet.</p>';
+    $('#players-list').innerHTML = save.profiles.map((p) => {
+      const on = active && p.id === active.id;
+      return `<button data-player="${esc(p.id)}" style="--acc:${esc(p.color)}" ${on ? 'data-autofocus' : ''}><span class="player-dot" style="background:${esc(p.color)}"></span>` +
+        `<span class="row-main"><b>${esc(p.initials)}</b><small>${on ? 'Playing now' : 'Tap to switch to this player'}</small></span>${on ? '<span class="badge">ACTIVE</span>' : ''}</button>`;
+    }).join('') || '<p class="hint">No players yet.</p>';
     if (active) {
       const s = save.stats(active.id);
       $('#player-stats').innerHTML = `<div><b>PLAYS</b>${s.plays}</div><div><b>NOTES HIT</b>${s.notesHit.toLocaleString('en-US')}</div><div><b>FULL COMBOS</b>${s.fullCombos}</div><div><b>BEST STREAK</b>${s.bestCombo}</div><div><b>STARS</b>${s.stars}★</div>`;
@@ -1813,6 +1861,7 @@
       $(`#opt-strike${n}-out`).textContent = (up <= lo ? 'LOW' : up >= hi ? 'HIGH' : 'MIDDLE') + ` (${up}%)`;
     }
     document.body.classList.toggle('crt', settings.crt);
+    $$('.toggle').forEach((b) => b.classList.toggle('on', $('span', b).textContent === 'ON'));
     updateDeviceUI();
   }
 

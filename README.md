@@ -69,10 +69,24 @@ menu, or the **TILES** switch on any song's screen.
 
 ## Getting around
 
-The home screen has the two games, **Beat Frets** and **Tiles**, as big cards, with Player,
-Leaderboards, Options and Save data below. Pick a game, then a song (Song pack or Your music), then
-a difficulty. A bar across the top shows where you are (*BEAT FRETS · 4 LANES › SONGS › …*) with a
-**HOME** button; BACK always goes up one step. After a song, **SONGS** takes you back to the list.
+The menus look like an early-90s arcade cabinet, and every screen fills the display:
+
+- **Tabs along the bottom:** **Play** (the two games, Beat Frets and Tiles, as big cards),
+  **Boards**, **Player** and **Options**. Save data lives inside Options.
+- **The marquee across the top** says what screen you're on and where you are
+  (*BEAT FRETS · 4 LANES › PIXEL OVERTURE*), with a round **◀ back** button on the left and a
+  red **home** button on the right.
+- **The screen's actions sit in a dock at the bottom**, within thumb reach. The main one is red
+  (PLAY AGAIN, PLAY THIS SONG); the others are blue.
+- **What you can press always looks pressable:** arcade buttons with a bevel that push down,
+  list rows with a **›**, lit switches and chips for filters, and ◀ ▶ pickers. Headings are flat
+  gold text and section labels are small cyan caps between lines, so they never look like buttons.
+- **Leaderboards** open on the **World** board (when it's switched on), with chips for how the
+  song was played (Keys, Sideways, Upright, Tiles) and a ◀ ▶ difficulty picker. Scores are cards
+  with gold, silver and bronze medals, and your own best is pinned under the list.
+
+Pick a game, then a song (Song pack or Your music), then a difficulty. After a song, **SONGS**
+takes you back to the list.
 
 ## Playing on a phone or tablet
 
@@ -297,6 +311,11 @@ The version number shows on the title screen and at the bottom of **Options**, s
 which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
 cache name in `sw.js` together.
 
+- **1.15**: menus redesigned as an arcade cabinet. Every screen is full-screen, with a lit marquee
+  bar (back, where you are, home), a tab bar for Play / Boards / Player / Options, and actions in
+  a dock at the bottom. Buttons, list rows, switches and headings each have their own look (and
+  buttons their own font, Silkscreen). Leaderboards are cards with medals, filter chips, a
+  difficulty picker and your best pinned. Pause is a pop-up with a close button.
 - **1.14**: shorter phone notes. Blocks are about half as long and shrink further when notes in
   a lane are close together, so they never run into each other. **World leaderboards**
   (Firebase), with fair boards for imported MP3s (keyed by chart) and challenges that play
