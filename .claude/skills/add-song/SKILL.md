@@ -68,8 +68,9 @@ loudness and build time, and saves an MP3 to listen to. Rendering takes 10–60 
 several ids in one call. The pack's songs sit around rms 0.12–0.17 with peaks under 1; a song far
 outside that will sound noticeably quieter or louder than its neighbours.
 
-For a new theme, also run `npm run e2e` (or check the song list in a screenshot) to make sure the
-new heading and colours show.
+For a new theme, also run `E2E_ONLY=records npm run e2e` (about a minute) and look at a
+screenshot of the song list to make sure the new category, its heading colour and summary show.
+The full browser run isn't needed for a song.
 
 ## 5. Stop for review
 
