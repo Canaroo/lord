@@ -356,9 +356,14 @@ works offline). A song is rebuilt automatically if its composition changes.
 ## Versions
 
 The version number shows on the title screen and at the bottom of **Options**, so you can tell
-which build a phone is running. When publishing an update, bump `VERSION` in `js/main.js` and the
-cache name in `sw.js` together.
+which build a phone is running. When publishing an update, bump the version in all four places:
+`VERSION` in `js/main.js`, `V` in `sw.js`, `data-v` and every `?v=` in `index.html`, and
+`package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
+matching set of files, even on a slow connection.
 
+- **1.24**: fix: on a slow connection an update could half-load (some files new, some old), and the
+  highway played music with no notes. Code and style are now versioned so an update always
+  loads as a matching set, and a mismatched page reloads itself once.
 - **1.23**: options only take effect after SAVE: pending changes light up with their old value, a
   save bar offers UNDO / SAVE, and leaving with unsaved changes asks to save or discard.
 - **1.22**: records to beat: a ⚔ badge on songs with world records you haven't matched, and each

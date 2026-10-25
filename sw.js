@@ -8,16 +8,21 @@
  * offline.
  */
 'use strict';
-const CACHE = 'beat-frets-1.23'; // match VERSION in js/main.js
+// The game's code and style are versioned (index.html asks for js/main.js?v=…), so
+// an update loads as one matching set: a page from the new version never picks up
+// an old file from the cache, or the other way round. Keep these in step with
+// VERSION in js/main.js and the ?v= in index.html (npm test checks).
+const V = '1.24';
+const CACHE = 'beat-frets-' + V;
 const SHELL = [
   './',
   'index.html',
-  'css/style.css',
   'manifest.webmanifest',
   'icons/icon-180.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
-  ...['analyzer', 'chartgen', 'songs', 'bonus', 'save', 'library', 'sfx', 'input', 'render', 'game', 'tiles', 'share', 'firebase-config', 'world', 'main'].map((f) => `js/${f}.js`),
+  'css/style.css?v=' + V,
+  ...['analyzer', 'chartgen', 'songs', 'bonus', 'save', 'library', 'sfx', 'input', 'render', 'game', 'tiles', 'share', 'firebase-config', 'world', 'main'].map((f) => `js/${f}.js?v=${V}`),
 ];
 
 self.addEventListener('install', (e) => {
@@ -40,8 +45,16 @@ self.addEventListener('fetch', (e) => {
   const isFont = /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
   if (!sameOrigin && !isFont) return;
 
-  // Game code, pages and the bonus-track list: network first (if it answers within
-  // a few seconds), cache as fallback.
+  // Versioned code and style (…?v=1.24): that exact file never changes, so the cached
+  // copy is used if there is one, otherwise the network (and it's kept). A cached file
+  // from another version never matches, so versions can't mix.
+  if (sameOrigin && /[?&]v=/.test(url.search) && /\.(js|css)$/.test(url.pathname)) {
+    e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => { if (res.ok) putCache(req, res.clone()); return res; })));
+    return;
+  }
+
+  // Pages and the bonus-track list: network first (if it answers within a few
+  // seconds), cache as fallback.
   const isCode = sameOrigin && (req.mode === 'navigate' || /(\/|\.html|\.js|\.css|\.webmanifest|\/songs\/index\.json)$/.test(url.pathname));
   if (isCode) {
     e.respondWith(networkFirst(req));
