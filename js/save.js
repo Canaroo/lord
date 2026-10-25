@@ -30,11 +30,10 @@
     hitSounds: false,
     calibrationTouchMs: 0, // touch screens have their own delay
     vibrate: false,
-    touchCalibOffered: false,
+    touchSetupTip: false, // the results screen has offered the timing test / strike line
     // Phones: strike line height, in % of the screen above the bottom edge.
     strikeUp4: 28, // sideways (4 lanes)
     strikeUp2: 20, // upright (2 lanes)
-    strikeOffered: false,
     playMode: 'frets', // 'frets' (the highway) or 'tiles'
     tilesLineUp: 30, // Tiles: line height, % of the board above the bottom edge
     autoPost: false, // world boards: post new bests without asking

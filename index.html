@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-v="1.28">
+<html lang="en" data-v="1.29">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&family=VT323&display=swap" />
-  <link rel="stylesheet" href="css/style.css?v=1.28" />
+  <link rel="stylesheet" href="css/style.css?v=1.29" />
 </head>
 <body class="crt">
   <canvas id="stage" aria-label="Game stage"></canvas>
@@ -54,12 +54,13 @@
     <section id="screen-initials" class="screen" data-back="title" data-title="YOUR INITIALS">
       <div class="scroll">
         <h2 class="head">ENTER YOUR INITIALS</h2>
-        <p class="hint">These go on the leaderboard. <span class="kbd-only">Type letters, or use ▲▼ to change, ◀▶ to move.</span><span class="touch-only">Tap ▲ and ▼ to change each letter.</span></p>
+        <p class="hint">These go on the leaderboard. <span class="kbd-only">Type letters, or use ▲▼ to change, ◀▶ to move.</span><span class="touch-only">Tap the letters below.</span></p>
         <div class="initials" id="initials" role="group" aria-label="Initials">
           <div class="slot" data-i="0"><span class="up">▲</span><b>A</b><span class="dn">▼</span></div>
           <div class="slot" data-i="1"><span class="up">▲</span><b>A</b><span class="dn">▼</span></div>
           <div class="slot" data-i="2"><span class="up">▲</span><b>A</b><span class="dn">▼</span></div>
         </div>
+        <div class="letter-grid touch-only" id="letter-grid" role="group" aria-label="Letters"></div>
       </div>
       <div class="dock"><button id="btn-initials-ok" class="btn primary" data-autofocus>OK</button></div>
     </section>
@@ -146,6 +147,11 @@
           <h2 id="song-name" class="head"></h2>
           <p id="song-tier" class="song-tier"></p>
           <p id="song-meta" class="hint"></p>
+          <div id="lane-switch" class="seg lane-switch touch-only" role="group" aria-label="How you hold the phone">
+            <button data-lanes="landscape"><span class="mini-phone side" aria-hidden="true"></span>SIDEWAYS · 4 LANES</button>
+            <button data-lanes="portrait"><span class="mini-phone" aria-hidden="true"></span>UPRIGHT · 2 LANES</button>
+          </div>
+          <p id="lane-hint" class="lane-hint" hidden></p>
           <p id="song-match" class="match" hidden></p>
           <p id="song-credit" class="hint" hidden></p>
         </div>
@@ -185,6 +191,10 @@
         <canvas id="res-graph" class="res-graph" width="288" height="44" aria-label="Accuracy through the song"></canvas>
         <p id="res-timing" class="hint"></p>
         <button id="btn-apply-offset" class="btn small" hidden>ADJUST TIMING</button>
+        <div id="res-setup" class="res-setup" hidden>
+          <p id="res-setup-msg"></p>
+          <div class="res-setup-btns"><button id="btn-res-calib" class="btn small">TIMING TEST</button><button id="btn-res-line" class="btn small">MOVE THE LINE</button></div>
+        </div>
         <p id="res-suggest" class="match"></p>
       </div>
       <div class="dock">
@@ -431,7 +441,10 @@
   <div id="rotate" hidden>
     <div class="rotate-phone" aria-hidden="true"><i></i></div>
     <p id="rotate-msg">TURN YOUR PHONE SIDEWAYS</p>
-    <button id="btn-rotate-home" class="btn">HOME</button>
+    <div class="rotate-actions">
+      <button id="btn-rotate-swap" class="btn primary">PLAY UPRIGHT INSTEAD</button>
+      <button id="btn-rotate-back" class="btn">BACK TO THE SONG</button>
+    </div>
   </div>
 
   <!-- Challenge: the versus pop-up -->
@@ -527,20 +540,20 @@
   <div id="hints" class="hints" aria-hidden="true"></div>
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script src="js/analyzer.js?v=1.28"></script>
-  <script src="js/chartgen.js?v=1.28"></script>
-  <script src="js/songs.js?v=1.28"></script>
-  <script src="js/bonus.js?v=1.28"></script>
-  <script src="js/save.js?v=1.28"></script>
-  <script src="js/library.js?v=1.28"></script>
-  <script src="js/sfx.js?v=1.28"></script>
-  <script src="js/input.js?v=1.28"></script>
-  <script src="js/render.js?v=1.28"></script>
-  <script src="js/game.js?v=1.28"></script>
-  <script src="js/tiles.js?v=1.28"></script>
-  <script src="js/share.js?v=1.28"></script>
-  <script src="js/firebase-config.js?v=1.28"></script>
-  <script src="js/world.js?v=1.28"></script>
-  <script src="js/main.js?v=1.28"></script>
+  <script src="js/analyzer.js?v=1.29"></script>
+  <script src="js/chartgen.js?v=1.29"></script>
+  <script src="js/songs.js?v=1.29"></script>
+  <script src="js/bonus.js?v=1.29"></script>
+  <script src="js/save.js?v=1.29"></script>
+  <script src="js/library.js?v=1.29"></script>
+  <script src="js/sfx.js?v=1.29"></script>
+  <script src="js/input.js?v=1.29"></script>
+  <script src="js/render.js?v=1.29"></script>
+  <script src="js/game.js?v=1.29"></script>
+  <script src="js/tiles.js?v=1.29"></script>
+  <script src="js/share.js?v=1.29"></script>
+  <script src="js/firebase-config.js?v=1.29"></script>
+  <script src="js/world.js?v=1.29"></script>
+  <script src="js/main.js?v=1.29"></script>
 </body>
 </html>

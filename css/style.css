@@ -708,10 +708,11 @@ body.nav button:focus, body:not(.touch) button:focus-visible, body:not(.touch) .
 .diff[data-diff$="mediumplus"] { --acc: var(--gold); }
 .diff[data-diff$="hard"] { --acc: var(--red); }
 .diff[data-diff$="duo"] { --acc: var(--magenta); }
-.diff strong { font-weight: 700; font-size: 18px; margin-top: 6px; color: var(--text); text-shadow: 2px 2px 0 var(--ink); }
+.diff strong { font-weight: 700; font-size: 18px; margin-top: 4px; color: var(--text); text-shadow: 2px 2px 0 var(--ink); }
 .diff .what { font: 400 18px/1 var(--body); color: var(--cyan); }
 .diff .stats { font: 400 18px/1.1 var(--body); color: var(--muted); }
-.diff .play-tag { align-self: flex-end; margin-top: auto; font-size: 12px; color: var(--acc); display: flex; align-items: center; gap: 6px; }
+.diff-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+.diff .play-tag { flex: none; padding: 5px 8px; border-radius: 6px; background: var(--acc); color: var(--ink); font-size: 11px; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 0 var(--ink); }
 .diff .play-tag svg { width: 12px; height: 12px; fill: currentColor; }
 .keys { display: flex; gap: 4px; flex-wrap: wrap; }
 kbd {
@@ -868,6 +869,11 @@ body:not(.touch) input[type="range"]:focus-visible, body.nav input[type="range"]
 .slot .up, .slot .dn { font-size: 12px; visibility: hidden; cursor: pointer; padding: 8px 12px; color: var(--cyan); }
 .slot.cur b { color: var(--gold); border-color: var(--gold); animation: blink 0.8s steps(1) infinite; }
 .slot.cur .up, .slot.cur .dn { visibility: visible; }
+.letter-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; width: min(100%, 420px); margin: 14px auto 0; }
+.letter-grid button { min-height: 46px; padding: 0; border: 2px solid var(--line-hi); border-radius: 8px; background: linear-gradient(180deg, var(--panel-2), var(--panel)); box-shadow: 0 3px 0 var(--ink); color: var(--text); font: 400 15px var(--pixel); }
+.letter-grid button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); background: var(--gold); color: var(--ink); }
+.letter-grid .del { grid-column: span 2; color: var(--red); font-size: 18px; }
+body.touch .slot .up, body.touch .slot .dn { display: none; }
 #screen-initials .scroll { text-align: center; }
 #screen-initials .hint { margin-inline: auto; }
 
@@ -1013,6 +1019,8 @@ body:not(.touch).has-hints { --hint-h: 30px; }
   background: var(--cab); color: var(--text); font-family: var(--pixel); font-size: 12px; text-align: center; padding: 20px;
 }
 #rotate[hidden] { display: none; }
+.rotate-actions { display: flex; flex-direction: column; gap: 12px; width: min(100%, 300px); }
+.rotate-actions .btn { width: 100%; }
 .rotate-phone {
   width: 54px; height: 92px; border: 5px solid var(--text); border-radius: 9px; box-shadow: 0 0 0 3px var(--ink);
   position: relative; animation: turn-phone 2.4s steps(1) infinite;
@@ -1026,7 +1034,31 @@ html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent
 #stage { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 body.touch .hints { display: none; }
 body.touch .mini-board { display: none; }
-body.touch .diffs { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+body.touch .diffs { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }
+/* Phones: compact cards that all fit with their PLAY in view. Lanes come from the switch above. */
+body.touch .diff { gap: 5px; padding: 10px 12px 10px; }
+body.touch .diff .stats, body.touch .diff .keys, body.touch .wr-note { display: none; }
+body.touch .diff strong { font-size: 15px; }
+body.touch .diff .what { font-size: 17px; }
+body.touch .card-stars { font-size: 16px; }
+body.touch .wr { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding-top: 4px; }
+body.touch .song-head .label { display: none; }
+body.touch #song-name { font-size: 15px; margin: 2px 0; }
+body.touch .song-head { margin-bottom: 2px; }
+body.touch .song-head .hint, body.touch .song-tier { margin-block: 2px; }
+.lane-switch { margin: 8px auto 2px; }
+.lane-switch[hidden] { display: none !important; }
+.lane-switch button { display: inline-flex; align-items: center; gap: 7px; }
+.mini-phone { display: inline-block; width: 8px; height: 13px; border: 2px solid currentColor; border-radius: 2px; }
+.mini-phone.side { width: 13px; height: 8px; }
+.lane-hint { margin: 4px auto 0; font: 700 10px var(--act); color: var(--gold); }
+@media (orientation: landscape) and (max-height: 500px) {
+  body.touch .diffs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  body.touch .song-head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 12px; text-align: left; }
+  body.touch .song-head > * { margin-inline: 0 !important; grid-column: 1; }
+  body.touch .song-head .lane-switch { grid-column: 2; grid-row: 1 / span 3; margin: 0; }
+  body.touch .frets-help { display: none; }
+}
 
 /* Wording that only fits one kind of input. */
 .touch-only { display: none; }
@@ -1151,3 +1183,19 @@ input[type="range"].pending::-moz-range-track { border-color: var(--gold); }
 .song-tier:empty { display: none; }
 
 #screen-song.tiles .frets-help { display: none !important; }
+
+/* Results on a phone: offer the timing test and moving the strike line when they'd help. */
+.res-setup { margin: 10px 0 4px; padding: 10px 12px; border: 2px dashed var(--gold); border-radius: 10px; background: rgba(248, 216, 48, 0.07); }
+.res-setup[hidden] { display: none; }
+.res-setup p { margin: 0 0 8px; font: 400 18px/1.15 var(--body); color: var(--text); }
+.res-setup-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.res-setup-btns .btn { flex: 1; min-width: 130px; }
+
+body.touch .letter-grid.touch-only { display: grid; }
+.lane-switch { flex-wrap: nowrap; }
+.lane-switch button { white-space: nowrap; }
+body.touch .lane-switch button { font-size: 10px; padding: 9px 11px; gap: 6px; }
+body.touch .diff .play-tag { padding: 4px 6px; font-size: 10px; gap: 4px; }
+body.touch .diff-top { gap: 4px; }
+body.touch .lane-switch.touch-only { display: flex; }
+@media (orientation: landscape) and (max-height: 500px) { body.touch #screen-song .frets-help { display: none !important; } }

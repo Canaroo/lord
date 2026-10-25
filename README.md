@@ -103,10 +103,13 @@ takes you back to the list.
 The game switches to touch controls on its own when you tap the screen, and back again if you
 press a key or a controller button.
 
-- **Beat Frets asks how you'll hold the phone:** *Sideways · 4 lanes* or *Upright · 2 lanes*.
-  The game then locks the phone that way until you go back Home. Tiles is always upright. Where
-  the phone can't be locked (iPhone, or a browser tab), a "turn your phone" screen shows until
-  it's held the right way, and a song pauses if you turn it mid-song.
+- **Beat Frets follows how you hold the phone:** sideways is 4 lanes, upright is 2. No question
+  asked: turn the phone and the song screen switches. A **SIDEWAYS · 4 LANES / UPRIGHT · 2 LANES**
+  switch on the song screen shows which you're on; tap the other to change (an installed app turns
+  the screen for you; otherwise a hint asks you to turn the phone). Tiles is always upright.
+- **Menus work either way up.** Only a song in progress needs the phone held its way: turn it
+  mid-song and the song pauses, offering **PLAY UPRIGHT/SIDEWAYS INSTEAD** (the same song on the
+  lanes for how you're holding it now) or **BACK TO THE SONG**.
 
 - **Sideways: 4 lanes.** Tap the frets along the bottom with your fingers or thumbs.
 - **Upright: 2 lanes**, one per thumb, like Duo.
@@ -127,8 +130,8 @@ press a key or a controller button.
   **UNDO** or **SAVE**. Leaving Options with unsaved changes asks *KEEP YOUR CHANGES?* (save,
   discard, or keep editing), so a slider nudged by accident changes nothing. Volume changes play
   a preview while you slide.
-- **Your strike line height:** before your first phone game you can drag the line to where your
-  thumbs rest. Change it any time in **Options** (*Strike line, sideways / upright* or *Move
+- **Your strike line height:** drag the line to where your thumbs rest (offered after your first
+  phone game). Change it any time in **Options** (*Strike line, sideways / upright* or *Move
   strike line*). Sideways and upright are saved separately.
 - **Long notes on a phone:** once you've grabbed one, that thumb can **slide anywhere**, off to
   the side or down off the frets, and it keeps holding. A glowing ring under your thumb, tied to
@@ -159,8 +162,9 @@ press a key or a controller button.
 - **Turning the phone mid-song** pauses it until you turn it back, because the lanes would change.
 - Touch scores have their own leaderboards (**TOUCH 4** and **TOUCH 2** tabs), so thumbs never
   compete against keyboards.
-- **First game:** the game offers a quick tap-along timing check. Phone speakers and Bluetooth
-  earbuds lag differently, so it's worth doing; redo it any time in **Options**.
+- **First game:** starts straight away. Afterwards the results offer a 10-second **TIMING TEST**
+  (phone speakers and Bluetooth earbuds lag differently) and **MOVE THE LINE** (to where your
+  thumbs rest); they come back whenever a game's hits go astray. Both are in **Options** too.
 - **Vibration** on misses and streaks can be turned on in **Options** (Android only).
 - The screen stays awake while you play, and **Press Start** goes full screen.
 - **iPhone:** if there's no sound, flip the silent switch off.
@@ -219,7 +223,8 @@ Bluetooth headphones usually need this.
 Everything is saved in your browser on this device. If world boards are switched on (see
 below), your initials and best scores are also posted there.
 
-- **Players:** each person enters arcade-style initials and gets their own scores. Switch
+- **Players:** each person enters arcade-style initials (on a phone, from a grid of big letters)
+  and gets their own scores. Switch
   players from the main menu.
 - **Leaderboards:** each song and tier has its own board with every player's best score.
   Failed runs don't count.
@@ -399,6 +404,11 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.29**: easier on a phone. Beat Frets follows how you hold the phone (no "how will you hold
+  it?" screen) with a sideways/upright switch on the song screen; menus work either way up, and
+  turning the phone mid-song offers to carry on the other way; compact difficulty cards with PLAY
+  always in view; the first game starts straight away (timing test and strike line are offered on
+  the results); initials from a grid of big letters.
 - **1.28**: a ▶ **preview** button on every song: it fills up while the song is made, blinks
   READY, and plays 15 seconds of the chorus. The overhit penalty is gone: stray presses never
   cost anything.

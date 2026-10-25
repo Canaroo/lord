@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.28';
+  const VERSION = '1.29';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -61,20 +61,23 @@
     wanted: null,
     want(o) {
       this.wanted = o || null;
-      if (o && Input.touch && screen.orientation && screen.orientation.lock) screen.orientation.lock(o).catch(() => { /* not allowed here: the prompt covers it */ });
+      this.locked = false;
+      if (o && Input.touch && screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock(o).then(() => { if (this.wanted === o) this.locked = true; }).catch(() => { /* not allowed here: the prompt covers it */ });
+      }
       checkOrientation();
     },
     release() {
       this.wanted = null;
+      this.locked = false;
       try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { /* nothing locked */ }
       checkOrientation();
     },
   };
+  // Menus work either way up; only a song in progress needs the phone held its way.
   function wantedOrientation() {
-    if (!Input.touch) return null;
-    if (orientation.wanted) return orientation.wanted;
-    if (game && gameLayout !== 'keys') return gameLayout === 'touch4' ? 'landscape' : 'portrait';
-    return null;
+    if (!Input.touch || !game || !game.running || gameLayout === 'keys') return null;
+    return gameLayout === 'touch4' ? 'landscape' : 'portrait';
   }
   /** Show the "turn your phone" prompt (and pause a song) while it's held the wrong way. */
   function checkOrientation() {
@@ -82,6 +85,10 @@
     const wrong = !!want && (want === 'landscape') !== (window.innerWidth > window.innerHeight);
     $('#rotate').hidden = !wrong || !!vs; // the versus pop-up shows its own "turn your phone"
     $('#rotate-msg').textContent = want === 'landscape' ? 'TURN YOUR PHONE SIDEWAYS' : 'TURN YOUR PHONE UPRIGHT';
+    // Beat Frets can carry on the way the phone is held: 2 lanes upright, 4 sideways.
+    const swap = $('#btn-rotate-swap');
+    swap.hidden = gameLayout === 'tiles';
+    swap.textContent = want === 'landscape' ? 'PLAY UPRIGHT INSTEAD' : 'PLAY SIDEWAYS INSTEAD';
     if (game) {
       if (wrong) {
         if (!game.paused) game.pause();
@@ -421,6 +428,26 @@
       $('b', slot).addEventListener('click', () => { cur = i; paint(); });
     });
     $('#btn-initials-ok').addEventListener('click', done);
+    // Phones: an arcade-style grid of big letters. Each fills the lit box and moves on;
+    // ⌫ goes back one.
+    let full = false;
+    $('#letter-grid').innerHTML = [...CHARS].map((c) => `<button data-ch="${c}">${c}</button>`).join('') +
+      '<button data-ch="del" class="del" aria-label="Back one letter">⌫</button>';
+    $('#letter-grid').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-ch]');
+      if (!b) return;
+      if (b.dataset.ch === 'del') {
+        if (!full) cur = Math.max(0, cur - 1);
+        chars[cur] = 'A';
+        full = false;
+      } else {
+        chars[cur] = b.dataset.ch;
+        full = cur === 2;
+        cur = Math.min(2, cur + 1);
+      }
+      Sfx.move();
+      paint();
+    });
     window.addEventListener('keydown', (e) => {
       if (screen !== 'initials' || e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toUpperCase();
@@ -436,6 +463,7 @@
       open(start, cb, back = screen || 'title') {
         chars = (start || 'AAA').padEnd(3, 'A').slice(0, 3).split('').map((c) => (CHARS.includes(c) ? c : 'A'));
         cur = 0;
+        full = false;
         onDone = cb;
         returnTo = back;
         paint();
@@ -1097,11 +1125,13 @@
     $('#song-credit').hidden = !credit;
     $('#song-credit').textContent = credit;
     const mode = layoutMode();
-    if (mode !== 'keys') {
-      $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · ~${Math.round(current.analysis.bpm)} BPM · ` + (mode === 'touch4'
-        ? (session.orient ? '4 lanes, sideways.' : '4 lanes. Turn your phone upright for 2.')
-        : (session.orient ? '2 lanes, upright.' : '2 lanes. Turn your phone sideways for 4.'));
-    }
+    if (mode !== 'keys') $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · ~${Math.round(current.analysis.bpm)} BPM`;
+    // Sideways (4 lanes) or upright (2): lit for how the phone is held; tap the other to switch.
+    $('#lane-switch').hidden = mode === 'keys' || tilesMode();
+    for (const b of $$('#lane-switch [data-lanes]')) b.classList.toggle('on', (b.dataset.lanes === 'landscape') === (mode === 'touch4'));
+    const turned = mode !== 'keys' && !tilesMode() && (mode === 'touch4') !== (window.innerWidth > window.innerHeight);
+    $('#lane-hint').hidden = !turned;
+    $('#lane-hint').textContent = turned ? (mode === 'touch4' ? 'Turn your phone sideways to play on 4 lanes.' : 'Turn your phone upright to play on 2 lanes.') : '';
     $('#screen-song').classList.toggle('tiles', tilesMode());
     if (tilesMode()) $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · Tap each tile as it reaches the line. Two hearts, and every lap gets faster.`;
     $('#song-match').hidden = !current.matchNote;
@@ -1111,13 +1141,12 @@
       if (tilesMode()) {
         const base = parseId(d).difficulty;
         return `<div class="diff-col">
-          <button class="diff" data-diff="${d}"><strong>${BASE_LABEL(base)}</strong>
+          <button class="diff" data-diff="${d}"><span class="diff-top"><strong>${BASE_LABEL(base)}</strong><span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span></span>
             <span class="what">${esc(WHAT_TILES[base])}</span>
             <span class="keys" data-keys="4">${Input.touch ? '<span class="lanes-tag">4 COLUMNS</span>' : ''}</span>
             <span class="stats">${c.notes.length} tiles a lap</span>
             ${tilesBest(d)}
             <span class="wr" data-wr="${d}"></span>
-            <span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span>
           </button>
           <ol class="mini-board">${miniBoard(current.key, d)}</ol>
         </div>`;
@@ -1125,13 +1154,12 @@
       const n = c.notes.length;
       const holds = c.notes.filter((x) => x.len).length;
       return `<div class="diff-col">
-        <button class="diff" data-diff="${d}"><strong>${BASE_LABEL(parseId(d).difficulty)}</strong>
+        <button class="diff" data-diff="${d}"><span class="diff-top"><strong>${BASE_LABEL(parseId(d).difficulty)}</strong><span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span></span>
           <span class="what">${esc((mode === 'keys' ? WHAT : WHAT_TOUCH)[parseId(d).difficulty] || '')}</span>
           <span class="keys" data-keys="${c.lanes}">${mode === 'keys' ? '' : `<span class="lanes-tag">${c.lanes} LANES</span>`}</span>
           <span class="stats">${n} notes · ${(n / Math.max(1, current.analysis.duration)).toFixed(1)}/sec${holds ? ` · ${holds} long` : ''}</span>
           ${cardStars(d)}
           <span class="wr" data-wr="${d}"></span>
-          <span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span>
         </button>
         <ol class="mini-board">${miniBoard(current.key, d)}</ol>
       </div>`;
@@ -1300,6 +1328,18 @@
     }
   }
 
+  $('#lane-switch').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lanes]');
+    if (!b || b.classList.contains('on')) return;
+    // Lock the screen that way where the phone allows it (an installed app); otherwise
+    // the hint asks the player to turn it, and the game follows when they do.
+    session.orient = b.dataset.lanes;
+    orientation.want(session.orient);
+    applyLayout();
+    showSong();
+    renderCrumbs(screen);
+  });
+
   $('#diffs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-diff]');
     if (b) play(b.dataset.diff, {});
@@ -1319,20 +1359,8 @@
     if (playOpts.key && playOpts.key !== current.key) playOpts = {};
     const tier = parseId(difficulty);
     if (tier.tiles) { playTiles(difficulty); return; }
-    // First touch game: let the player put the strike line where their thumbs rest...
-    if (tier.touch && !settings.strikeOffered) {
-      save.setSetting('strikeOffered', true);
-      pendingPlay = difficulty;
-      openStrikeSetup('play');
-      return;
-    }
-    // ...then offer a quick timing check, since phone audio delay varies a lot.
-    if (tier.touch && !settings.touchCalibOffered) {
-      save.setSetting('touchCalibOffered', true);
-      pendingPlay = difficulty;
-      show('calib-offer');
-      return;
-    }
+    // The first game starts straight away; moving the strike line and the timing test are
+    // offered on the results screen when they'd help.
     lastDifficulty = difficulty;
     stopPreview();
     restartHold.cancel();
@@ -1528,13 +1556,13 @@
       goSongs();
       return;
     }
-    if (Input.touch) { show('frets-setup'); return; }
+    // Beat Frets on a phone follows how it's held: sideways is 4 lanes, upright 2.
+    applyLayout();
     goSongs();
   }
   function goSongs(which = 'pack') {
-    const back = session.mode === 'frets' && Input.touch ? 'frets-setup' : 'main';
-    $('#screen-pack').dataset.back = back;
-    $('#screen-import').dataset.back = back;
+    $('#screen-pack').dataset.back = 'main';
+    $('#screen-import').dataset.back = 'main';
     if (which === 'import') renderImport(); else renderPack();
     show(which);
   }
@@ -1578,7 +1606,8 @@
     const IN_MODE = ['frets-setup', 'pack', 'import', 'song', 'results', 'tiles-results', 'board', 'share', 'calib-offer'];
     const parts = [];
     if (session.mode && IN_MODE.includes(name)) {
-      parts.push(MODE_LABEL[session.mode] + (session.mode === 'frets' && session.orient ? (session.orient === 'landscape' ? ' · 4 LANES' : ' · 2 LANES') : ''));
+      const lm = layoutMode();
+      parts.push(MODE_LABEL[session.mode] + (session.mode === 'frets' && lm !== 'keys' ? (lm === 'touch4' ? ' · 4 LANES' : ' · 2 LANES') : ''));
       if (current && !['frets-setup', 'pack', 'import'].includes(name)) parts.push(current.title.toUpperCase().slice(0, 28));
     } else if (name === 'board' && boardState.title) parts.push(boardState.title.toUpperCase().slice(0, 28));
     $('#crumbs-path').textContent = parts.join(' › ');
@@ -1599,12 +1628,8 @@
     if (e.target.closest('[data-go-songs]')) goSongs(songOrigin === 'import' ? 'import' : 'pack');
   });
   $('#btn-home').addEventListener('click', goHome);
-  $('#btn-rotate-home').addEventListener('click', goHome);
-
-  $('#btn-resume').addEventListener('click', () => game && game.resume());
-  $('#btn-pause-close').addEventListener('click', () => game && game.resume());
-  $('#btn-restart').addEventListener('click', () => { $('#pause').hidden = true; play(lastDifficulty); });
-  $('#btn-quit').addEventListener('click', () => {
+  /** Stop the song in progress and go back to the song screen. */
+  function quitToSong() {
     if (game) game.stop();
     game = null;
     wakeLock.release();
@@ -1612,7 +1637,24 @@
     applyLayout();
     $('#pause').hidden = true;
     showSong();
+  }
+  $('#btn-rotate-back').addEventListener('click', quitToSong);
+  // Held the other way mid-song: start it again on the lanes for how the phone is held now.
+  $('#btn-rotate-swap').addEventListener('click', () => {
+    const base = parseId(lastDifficulty).difficulty;
+    if (game) game.stop();
+    game = null;
+    session.orient = null;
+    orientation.release();
+    applyLayout();
+    const id = idFor(base);
+    play(tierIds().includes(id) ? id : idFor('medium'), {});
   });
+
+  $('#btn-resume').addEventListener('click', () => game && game.resume());
+  $('#btn-pause-close').addEventListener('click', () => game && game.resume());
+  $('#btn-restart').addEventListener('click', () => { $('#pause').hidden = true; play(lastDifficulty); });
+  $('#btn-quit').addEventListener('click', quitToSong);
 
   // ---- hold to restart ------------------------------------------------------------------------------
 
@@ -1729,6 +1771,18 @@
       };
     } else {
       $('#res-timing').textContent = res.timingSamples ? `Timing: right on (${Math.abs(avg)} ms ${avg >= 0 ? 'late' : 'early'} on average).` : '';
+    }
+
+    // Phones: after the first game, or one where hits went astray, offer to move the strike
+    // line or run the timing test.
+    const touchGame = parseId(difficulty).touch;
+    const setupTip = touchGame && !res.failed && (!settings.touchSetupTip || res.accuracy < 70 || (res.timingSamples >= 20 && Math.abs(avg) >= 15));
+    $('#res-setup').hidden = !setupTip;
+    if (setupTip) {
+      $('#res-setup-msg').textContent = !settings.touchSetupTip
+        ? 'First game on this phone? If notes felt early or late, take the 10-second timing test. If the line felt too high or low for your thumbs, move it.'
+        : 'Hits going astray? The 10-second timing test lines the notes up with what you hear, and the line can move to where your thumbs rest.';
+      save.setSetting('touchSetupTip', true);
     }
 
     // What to try next.
@@ -2992,6 +3046,7 @@
   }
 
   let resizeTimer = 0;
+  let lastLandscape = window.innerWidth > window.innerHeight;
   function onResize() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
@@ -3000,10 +3055,16 @@
         if (!checkOrientation()) stage.setLayout(gameLayout, window.innerWidth / window.innerHeight);
         return;
       }
+      // A sideways/upright choice the browser couldn't lock gives way to how the phone is held.
+      if (session.mode === 'frets' && session.orient && !orientation.locked) { session.orient = null; orientation.release(); }
       checkOrientation();
       const before = stage.layout;
       applyLayout();
-      if (stage.layout !== before && screen === 'song' && current) showSong();
+      const land = window.innerWidth > window.innerHeight;
+      const turned = land !== lastLandscape;
+      lastLandscape = land;
+      if ((stage.layout !== before || turned) && screen === 'song' && current) showSong();
+      if (stage.layout !== before && screen) renderCrumbs(screen);
     }, 150);
   }
   window.addEventListener('resize', onResize);
@@ -3059,6 +3120,7 @@
   let strikeReturn = 'play';
   function openStrikeSetup(ret) {
     strikeReturn = ret;
+    $('#screen-strike-setup').dataset.back = ret === 'options' ? 'options' : ret === 'results' ? 'results' : 'song';
     applyLayout();
     show('strike-setup');
   }
@@ -3090,6 +3152,7 @@
   });
   $('#btn-strike-done').addEventListener('click', () => {
     if (strikeReturn === 'options') { renderOptions(); show('options'); return; }
+    if (strikeReturn === 'results') { show('results'); return; }
     const id = pendingPlay;
     pendingPlay = null;
     if (id) play(id); else showSong();
@@ -3097,6 +3160,8 @@
 
   // First touch game: calibrate now or play.
   let calibReturn = 'options';
+  $('#btn-res-line').addEventListener('click', () => openStrikeSetup('results'));
+  $('#btn-res-calib').addEventListener('click', () => { calibReturn = 'results'; calibrate.run(); });
   $('#btn-offer-calib').addEventListener('click', () => { calibReturn = 'song'; calibrate.run(); });
   $('#btn-offer-play').addEventListener('click', () => { const id = pendingPlay; pendingPlay = null; if (id) play(id); });
   $('#btn-calib-done').addEventListener('click', leaveCalib);
@@ -3104,7 +3169,8 @@
     calibrate.cancel();
     const to = calibReturn;
     calibReturn = 'options';
-    if (to === 'song' && current) showSong(); else { renderOptions(); show('options'); }
+    if (to === 'results') show('results');
+    else if (to === 'song' && current) showSong(); else { renderOptions(); show('options'); }
   }
 
   // ---- the phone's Back button ----------------------------------------------------------------------------------

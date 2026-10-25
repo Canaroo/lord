@@ -169,9 +169,12 @@ async function touchTests(browser) {
 
   await page.tap('#btn-start');
   await screenIs(page, 'initials');
-  await page.keyboard.type('kid');
+  // Phones get a grid of big letters: each fills the lit box and moves on; ⌫ goes back one.
+  for (const ch of ['K', 'X', 'del', 'I', 'D']) await page.tap(`#letter-grid [data-ch="${ch}"]`);
+  check(await page.evaluate(() => [...document.querySelectorAll('#initials .slot b')].map((b) => b.textContent).join('')) === 'KID', 'initials are typed on a grid of big letters (with ⌫)');
   await page.tap('#btn-initials-ok');
   await screenIs(page, 'main');
+  check(await page.evaluate(() => BeatFrets.save.active.initials) === 'KID', 'the letters picked become the initials');
 
   // Top-level screens are tabs along the bottom; every screen below them has a back
   // button in the top bar; and the phone's own Back steps back one screen.
@@ -198,12 +201,11 @@ async function touchTests(browser) {
   await page.goBack();
   await screenIs(page, 'main');
   check(page.url().startsWith(url), "repeated phone Back stays in the game");
-  // Home → BEAT FRETS → SIDEWAYS · 4 LANES → song list → a song.
+  // Home → BEAT FRETS → song list (sideways phone: 4 lanes, no question asked) → a song.
   check(await page.isVisible('#btn-mode-frets') && await page.isVisible('#btn-mode-tiles'), 'home screen offers the two games');
   await page.tap('#btn-mode-frets');
-  await screenIs(page, 'frets-setup');
-  await page.tap('[data-orient="landscape"]');
   await screenIs(page, 'pack');
+  check(true, 'Beat Frets goes straight to the songs, following how the phone is held');
   const crumbs = await page.textContent('#crumbs-path');
   check(/BEAT FRETS · 4 LANES/.test(crumbs) && await page.isVisible('#btn-home'), `the top bar shows where you are (${crumbs})`);
   await page.tap('#screen-pack [data-songs="import"]');
@@ -216,6 +218,10 @@ async function touchTests(browser) {
   await screenIs(page, 'song');
   const landIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
   check(landIds.join() === 'touch4:easy,touch4:medium,touch4:mediumplus,touch4:hard', 'sideways: four touch tiers (' + landIds.join(' ') + ')');
+  check(await page.evaluate(() => document.querySelector('#lane-switch [data-lanes="landscape"]').classList.contains('on') && document.getElementById('lane-hint').hidden), 'the song screen shows SIDEWAYS · 4 LANES lit');
+  const fits = await page.evaluate(() => [...document.querySelectorAll('.diff .play-tag')].every((t) => { const r = t.getBoundingClientRect(); return r.bottom <= innerHeight && r.height > 0; }));
+  await page.screenshot({ path: path.join(outDir, 'e2e-touch-song.png') });
+  check(fits, "every difficulty's PLAY is on screen without scrolling (sideways phone)");
   const charts = await page.evaluate(() => {
     const c = BeatFrets.current.charts;
     const lanesUsed = (id) => Math.max(...c[id].notes.map((n) => n.lane)) + 1;
@@ -223,10 +229,13 @@ async function touchTests(browser) {
   });
   check(charts.t4 === 4 && charts.t2 === 2 && charts.keys === 5, `touch charts use 4 and 2 lanes (${JSON.stringify(charts)})`);
 
-  // The first touch game offers a quick timing check first.
+  // The first touch game starts straight away.
   await page.tap('[data-diff="touch4:medium"]');
-  // First, put the strike line where your thumbs rest: drag it on the stage.
-  await screenIs(page, 'strike-setup');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
+  check(true, 'the first game on a phone starts straight away, with no setup screens');
+  const g1 = await page.evaluate(() => ({ lanes: BeatFrets.game.lanes }));
+  check(g1.lanes === 4, `touch game plays on 4 lanes (${JSON.stringify(g1)})`);
+  const STRIKE_TEST = async () => {
   const before = await page.evaluate(() => BeatFrets.save.settings.strikeUp4);
   await page.evaluate(() => {
     const cv = document.getElementById('stage');
@@ -242,12 +251,7 @@ async function touchTests(browser) {
   await page.tap('#btn-strike-reset');
   check(await page.evaluate(() => BeatFrets.save.settings.strikeUp4 === 28), 'RESET puts the strike line back');
   await page.tap('#btn-strike-done');
-  await screenIs(page, 'calib-offer');
-  check(true, 'first touch game offers timing calibration');
-  await page.tap('#btn-offer-play');
-  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
-  const g1 = await page.evaluate(() => ({ lanes: BeatFrets.game.lanes }));
-  check(g1.lanes === 4, `touch game plays on 4 lanes (${JSON.stringify(g1)})`);
+  };
 
   await page.evaluate(TOUCH_BOT);
   await page.waitForTimeout(6000);
@@ -268,26 +272,40 @@ async function touchTests(browser) {
     keys: BeatFrets.save.leaderboard(BeatFrets.current.key, 'medium', 5).length,
   }));
   check(boards.touch === 1 && boards.keys === 0, `touch scores go on their own leaderboard (${JSON.stringify(boards)})`);
+  // After the first game, the results offer the timing test and moving the strike line.
+  check(await page.isVisible('#res-setup') && await page.isVisible('#btn-res-line') && await page.isVisible('#btn-res-calib'), 'the first results offer TIMING TEST and MOVE THE LINE');
+  await page.tap('#btn-res-line');
+  await screenIs(page, 'strike-setup');
+  await STRIKE_TEST();
+  await screenIs(page, 'results');
+  check(true, 'MOVE THE LINE comes back to the results');
   await page.tap('#btn-res-board');
   await screenIs(page, 'board');
   const tabs = await page.evaluate(() => [...document.querySelectorAll('[data-board-family]')].map((b) => b.textContent).join('|'));
   check(/SIDEWAYS/.test(tabs) && /UPRIGHT/.test(tabs) && /KEYS/.test(tabs), `leaderboard has keys / sideways / upright filters (${tabs})`);
 
-  // Upright: HOME → Beat Frets → UPRIGHT · 2 LANES. Chosen while the phone is
-  // sideways, it asks to turn the phone until it is.
+  // Menus work either way up: turning the phone on the results never blocks it.
+  await page.setViewportSize(PORT);
+  await page.waitForTimeout(400);
+  check(!(await page.isVisible('#rotate')) && await page.evaluate(() => BeatFrets.screen === 'board'), 'turning the phone upright on a menu keeps that menu (no "turn your phone")');
+  await page.setViewportSize(LAND);
+  await page.waitForTimeout(400);
+
+  // Upright: on the song screen, tap UPRIGHT · 2 LANES while sideways: a hint asks to turn
+  // the phone (no blocking prompt), and turning it uses 2 lanes.
   await page.tap('#btn-home');
   await screenIs(page, 'main');
   await page.tap('#btn-mode-frets');
-  await screenIs(page, 'frets-setup');
-  await page.tap('[data-orient="portrait"]');
-  await page.waitForTimeout(250);
-  check(await page.isVisible('#rotate') && /UPRIGHT/.test(await page.textContent('#rotate-msg')), 'choosing upright while sideways shows "turn your phone"');
-  await page.setViewportSize(PORT);
-  await page.waitForTimeout(400);
-  check(!(await page.isVisible('#rotate')) && await page.evaluate(() => BeatFrets.stage.layout === 'touch2'), 'turned upright: the prompt goes and the 2-lane layout is used');
   await screenIs(page, 'pack');
   await openCat(page, 'classic');
   await page.tap('[data-pack="pixel-overture"]');
+  await screenIs(page, 'song');
+  await page.tap('#lane-switch [data-lanes="portrait"]');
+  await page.waitForTimeout(250);
+  check(!(await page.isVisible('#rotate')) && /upright/.test(await page.textContent('#lane-hint')) && await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].every((b) => b.dataset.diff.startsWith('touch2:'))), 'tapping UPRIGHT while sideways switches to 2 lanes and hints to turn the phone');
+  await page.setViewportSize(PORT);
+  await page.waitForTimeout(400);
+  check(!(await page.isVisible('#rotate')) && await page.evaluate(() => BeatFrets.stage.layout === 'touch2' && document.getElementById('lane-hint').hidden), 'turned upright: the 2-lane layout is used and the hint goes');
   await screenIs(page, 'song');
   const portIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
   check(portIds.length === 4 && portIds.every((d) => d.startsWith('touch2:')), 'upright: four 2-lane tiers');
@@ -309,6 +327,7 @@ async function touchTests(browser) {
   await page.waitForTimeout(500);
   const rot = await page.evaluate(() => ({ paused: BeatFrets.game.paused, msg: document.getElementById('pause-msg').textContent, resume: document.getElementById('btn-resume').disabled }));
   check(rot.paused && /upright/.test(rot.msg) && rot.resume && await page.isVisible('#rotate'), 'turning the phone mid-song pauses and asks to turn it back');
+  check(/PLAY SIDEWAYS INSTEAD/.test(await page.textContent('#btn-rotate-swap')) && await page.isVisible('#btn-rotate-back'), 'the prompt offers to play sideways instead, or go back');
   await page.setViewportSize(PORT);
   await page.waitForTimeout(500);
   check(await page.evaluate(() => !document.getElementById('btn-resume').disabled && BeatFrets.stage.layout === 'touch2'), 'turning it back allows resuming');
@@ -337,7 +356,6 @@ async function touchTests(browser) {
   await page.setViewportSize(LAND);
   await page.waitForTimeout(400);
   await page.tap('#btn-mode-frets');
-  await page.tap('[data-orient="landscape"]');
   await screenIs(page, 'pack');
   await openCat(page, 'classic');
   await page.tap('[data-pack="pixel-overture"]');
