@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.25';
+  const VERSION = '1.26';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -478,38 +478,84 @@
     let best = 0;
     if (p) for (const d of tierIds()) best = Math.max(best, d.startsWith('tiles:') ? 0 : save.bestStars(p.id, key, d).stars);
     const stars = p && !tilesMode() ? `<span class="row-stars">${'★'.repeat(best)}<span class="off">${'★'.repeat(5 - best)}</span></span>` : '';
-    return `<span class="row-main"><b>${tierBadge(tier)}${esc(title.toUpperCase())}</b><small>${esc(detail)}</small></span>` +
+    return `<span class="row-main"><b>${tierBadge(tier)}${esc(title.toUpperCase())}</b><small>${esc(detail)}</small><span class="leaders"></span></span>` +
       `<span class="row-side">${stars}</span><svg class="chev"><use href="#i-chev"/></svg>`;
   }
 
+  // Song-list categories (each theme, bonus tracks): collapsed, one open at a time,
+  // remembered per screen; the heading sums up who holds the records inside.
+  const THEMES = [['classic', 'CHIPTUNE CLASSICS'], ['spooky', 'SPOOKY'], ['rock', 'ROCK'], ['epic', 'EPIC ADVENTURE']];
+  const openCat = (where) => { try { return (storage && storage.getItem('beatfrets.cat.' + where)) || ''; } catch (e) { return ''; } };
+  function setOpenCat(where, cat) { try { if (storage) storage.setItem('beatfrets.cat.' + where, cat); } catch (e) { /* not kept */ } }
+
+  /** A collapsible category: a heading button with a summary line, and its rows. */
+  function catBlock(where, cat, heading, count, rows, { noun = 'SONG', summary = true } = {}) {
+    const open = openCat(where) === cat;
+    return `<div class="cat theme-${cat}${open ? ' open' : ''}" data-cat="${cat}">` +
+      `<button class="cat-head" data-cat-toggle="${cat}" aria-expanded="${open}">` +
+      `<span class="cat-arrow" aria-hidden="true"><svg><use href="#i-chev"/></svg></span>` +
+      `<span class="cat-main"><b>${heading}</b>` +
+      (summary ? '<small class="cat-sum"><span class="wr-wait">CHECKING RECORDS…</span></small>' : '') + '</span>' +
+      `<span class="cat-side"><span class="cat-count">${typeof count === 'number' ? `${count} ${noun}${count === 1 ? '' : 'S'}` : count}</span><span class="cat-tap">${open ? 'TAP TO CLOSE' : 'TAP TO OPEN'}</span></span>` +
+      `</button><div class="list cat-body"${open ? '' : ' hidden'}>${rows}</div></div>`;
+  }
+
+  function toggleCat(where, head) {
+    const box = head.closest('.cat');
+    const opening = !box.classList.contains('open');
+    for (const c of $$('.cat', box.closest('.screen'))) {
+      const on = c === box && opening;
+      c.classList.toggle('open', on);
+      $('.cat-body', c).hidden = !on;
+      $('.cat-head', c).setAttribute('aria-expanded', on);
+      $('.cat-tap', c).textContent = on ? 'TAP TO CLOSE' : 'TAP TO OPEN';
+    }
+    setOpenCat(where, opening ? box.dataset.cat : '');
+    if (!opening) return;
+    // With keys or a controller, the cursor moves onto the first song.
+    const first = document.body.classList.contains('nav') && $('.cat-body > button', box);
+    if (first) first.focus({ preventScroll: true });
+    requestAnimationFrame(() => head.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  }
+
   function renderPack() {
-    // Grouped by theme, each with a heading.
-    const THEMES = [['classic', 'CHIPTUNE CLASSICS'], ['spooky', 'SPOOKY'], ['rock', 'ROCK'], ['epic', 'EPIC ADVENTURE']];
-    let first = true;
+    const where = 'pack';
     $('#pack-list').innerHTML = THEMES.map(([theme, heading]) => {
       const songs = SongPack.SONGS.filter((s) => (s.theme || 'classic') === theme);
       if (!songs.length) return '';
-      return `<p class="label theme-${theme}">${heading}</p><div class="list theme-${theme}">` + songs.map((s) => {
-        const auto = first ? 'data-autofocus' : '';
-        first = false;
-        return `<button data-pack="${esc(s.id)}" ${auto}>${songRow(s.title, `${s.bpm} BPM · ${s.blurb}`, SongPack.keyFor(s), s.tier)}</button>`;
-      }).join('') + '</div>';
+      return catBlock(where, theme, heading, songs.length, songs.map((s) =>
+        `<button data-pack="${esc(s.id)}" data-key="${esc(SongPack.keyFor(s))}">${songRow(s.title, `${s.bpm} BPM · ${s.blurb}`, SongPack.keyFor(s), s.tier)}</button>`).join(''));
     }).join('');
+    autofocusCat($('#pack-list'));
     markRecords();
+    fillCatSummaries($('#pack-list'));
     fetchBonusIndex().then((list) => {
       $('#bonus-section').hidden = !list.length;
-      $('#bonus-list').innerHTML = list.map((s) =>
-        `<button data-bonus="${esc(s.id)}">${songRow(s.title.slice(0, 40), s.artist || 'Bonus track', BonusPack.keyFor(s.id))}</button>`
-      ).join('');
+      $('#bonus-section').innerHTML = list.length ? catBlock(where, 'bonus', 'BONUS TRACKS', list.length, list.map((s) =>
+        `<button data-bonus="${esc(s.id)}" data-key="${esc(BonusPack.keyFor(s.id))}">${songRow(s.title.slice(0, 40), s.artist || 'Bonus track', BonusPack.keyFor(s.id))}</button>`
+      ).join('')) : '';
       markRecords();
+      fillCatSummaries($('#bonus-section'));
     });
   }
 
+  /** Focus lands on the open category's first song, or on the first heading. */
+  function autofocusCat(list) {
+    for (const el of $$('[data-autofocus]', list)) el.removeAttribute('data-autofocus');
+    const open = $('.cat.open .cat-body > button', list);
+    const target = open || $('.cat-head', list);
+    if (target) target.setAttribute('data-autofocus', '');
+  }
+
   $('#pack-list').addEventListener('click', (e) => {
+    const h = e.target.closest('[data-cat-toggle]');
+    if (h) { toggleCat('pack', h); return; }
     const b = e.target.closest('[data-pack]');
     if (b) { songOrigin = 'pack'; loadPack(b.dataset.pack); }
   });
-  $('#bonus-list').addEventListener('click', (e) => {
+  $('#bonus-section').addEventListener('click', (e) => {
+    const h = e.target.closest('[data-cat-toggle]');
+    if (h) { toggleCat('pack', h); return; }
     const b = e.target.closest('[data-bonus]');
     if (b) { songOrigin = 'pack'; loadBonus(b.dataset.bonus); }
   });
@@ -986,15 +1032,24 @@
 
   // ---- world records on the song list and difficulty cards ---------------------------------------------
 
-  /** The #1 world score on a board (cached for a couple of minutes), or null. */
+  /**
+   * The #1 world score on a board (cached for a couple of minutes), or null when
+   * nobody has one. worldRecordOr fails (rather than saying "nobody") when the
+   * world boards can't be reached, so callers can fall back to this device.
+   */
   const recordCache = new Map();
-  function worldRecord(id) {
+  function worldRecordOr(id) {
     const hit = recordCache.get(id);
     if (hit && Date.now() - hit.at < 120000) return hit.p;
-    const p = World.top(id, 1).then((rows) => rows[0] || null).catch(() => null);
+    const p = Promise.race([
+      World.top(id, 1).then((rows) => rows[0] || null),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+    ]);
     recordCache.set(id, { p, at: Date.now() });
+    p.catch(() => recordCache.delete(id));
     return p;
   }
+  const worldRecord = (id) => worldRecordOr(id).catch(() => null);
 
   /** The world boards of a song, per tier of the current mode (imported songs: the ones you've played). */
   function songBoards(key, chartOf) {
@@ -1019,16 +1074,82 @@
     return b ? b.score : 0;
   }
 
-  /** Tiers of a song where someone else holds a better world record than yours. */
+  /** The best score on this device for a tier (players here and shared rivals), or null. */
+  function localRecord(key, d) {
+    const r = save.leaderboard(key, d, 1)[0];
+    if (!r) return null;
+    return { initials: r.initials, score: r.score, mine: !r.rival && !!save.active && r.profileId === save.active.id, local: true };
+  }
+
+  /**
+   * Who holds each tier's record on a song, for the current mode: the world
+   * record when the world boards answer, otherwise the best on this device.
+   * Resolves to { tier: record | null }.
+   */
+  async function songRecords(key) {
+    const boards = World.available() ? songBoards(key) : {};
+    const out = {};
+    await Promise.all(tierIds().map(async (d) => {
+      if (!boards[d]) { out[d] = localRecord(key, d); return; }
+      try { out[d] = await worldRecordOr(boards[d]); } catch (e) { out[d] = localRecord(key, d); }
+    }));
+    return out;
+  }
+
+  /** Tiers of a song where someone else holds a better record than yours. */
   async function recordsToBeat(key) {
-    const boards = songBoards(key);
-    const recs = await Promise.all(Object.entries(boards).map(async ([d, id]) => [d, await worldRecord(id)]));
-    return recs.filter(([d, r]) => r && !r.mine && Number(r.score) > myBest(key, d)).length;
+    const recs = await songRecords(key);
+    return Object.entries(recs).filter(([d, r]) => r && !r.mine && Number(r.score) > myBest(key, d)).length;
+  }
+
+  const holderName = (r) => (r.mine ? 'YOU' : String(r.initials || '???').toUpperCase());
+
+  /** A song row's leader tags: one per tier, "E ZED", "M YOU", "H —". */
+  function leaderTags(recs) {
+    const ds = tierIds().filter((d) => d in recs);
+    if (!ds.some((d) => recs[d])) return '<span class="ldr none">NO LEADER YET</span>';
+    return '<svg class="ldr-crown"><use href="#i-crown"/></svg>' + ds.map((d) => {
+      const r = recs[d];
+      return `<span class="ldr${r ? (r.mine ? ' you' : '') : ' open'}"><i>${SHORT_BASE[parseId(d).difficulty] || SHORT[d]}</i>${r ? esc(holderName(r)) : '—'}</span>`;
+    }).join('');
+  }
+
+  /** A category's summary: "7 OF 12 CLAIMED · YOU 2 · ZED 4", or that none are. */
+  function catSummary(all) {
+    const total = all.reduce((n, recs) => n + Object.keys(recs).length, 0);
+    const holders = new Map();
+    let claimed = 0;
+    for (const recs of all) for (const r of Object.values(recs)) {
+      if (!r) continue;
+      claimed++;
+      const k = holderName(r);
+      holders.set(k, (holders.get(k) || 0) + 1);
+    }
+    if (!claimed) return '<span class="cat-none">NO RECORDS YET · BE THE FIRST</span>';
+    const list = [...holders.entries()].sort((a, b) => (b[0] === 'YOU') - (a[0] === 'YOU') || b[1] - a[1]);
+    const shown = list.slice(0, 3).map(([k, n]) => `<span class="ldr${k === 'YOU' ? ' you' : ''}">${esc(k)} <i>${n}</i></span>`).join('');
+    const more = list.length > 3 ? `<span class="ldr more">+${list.length - 3}</span>` : '';
+    return `<span class="cat-claimed"><svg><use href="#i-crown"/></svg>${claimed} OF ${total} CLAIMED</span>${shown}${more}`;
+  }
+
+  /** Fill in every category summary and song-row leader tags under `root`. */
+  function fillCatSummaries(root) {
+    if (!root) return;
+    for (const cat of $$('.cat', root)) {
+      const rows = $$('[data-key]', $('.cat-body', cat));
+      const sum = $('.cat-sum', cat);
+      Promise.all(rows.map((row) => songRecords(row.dataset.key).then((recs) => {
+        const el = $('.leaders', row);
+        if (el) el.innerHTML = leaderTags(recs);
+        row.classList.toggle('led', Object.values(recs).some(Boolean));
+        return recs;
+      }))).then((all) => { if (sum && sum.isConnected) sum.innerHTML = catSummary(all); });
+    }
   }
 
   /** Song list rows: a red ⚔ badge when there are records to beat. */
   function markRecords() {
-    if (!World.available() || !save.active) return;
+    if (!save.active) return;
     for (const row of $$('[data-pack], [data-bonus], [data-saved]')) {
       const key = row.dataset.pack ? SongPack.keyFor(SongPack.SONGS.find((x) => x.id === row.dataset.pack))
         : row.dataset.bonus ? BonusPack.keyFor(row.dataset.bonus) : row.dataset.saved;
@@ -2235,18 +2356,23 @@
   let boardState = { key: null, title: '', songTitle: '', diff: 'easy', back: 'boards', scope: World.available() ? 'world' : 'local', worldId: null };
 
   function renderBoards() {
-    const pack = SongPack.SONGS.map((s) => ({ key: SongPack.keyFor(s), title: s.title, pack: true }));
+    const where = 'boards';
     const bonus = (bonusIndex || []).map((s) => ({ key: BonusPack.keyFor(s.id), title: s.title }));
     if (!bonusIndex) fetchBonusIndex().then((l) => { if (l.length && screen === 'boards') renderBoards(); });
     const played = save.playedSongs().filter((s) => s.key.startsWith('mp3:'))
-      .map((s) => ({ key: s.key, title: save.songTitle(s.key) || s.title, pack: false }));
-    const row = (b, i, acc) => `<button data-board-key="${esc(b.key)}" data-title="${esc(b.title)}" style="--acc:${acc}" ${i === 0 && acc === 'var(--gold)' ? 'data-autofocus' : ''}>` +
-      `<svg class="ico"><use href="#i-trophy"/></svg><span class="row-main"><b>${esc(b.title.toUpperCase().slice(0, 40))}</b></span><svg class="chev"><use href="#i-chev"/></svg></button>`;
-    $('#boards-list').innerHTML =
-      '<p class="label">SONG PACK</p>' + pack.map((b, i) => row(b, i, 'var(--gold)')).join('') +
-      (bonus.length ? '<p class="label">BONUS TRACKS</p>' + bonus.map((b, i) => row(b, i, 'var(--cyan)')).join('') : '') +
-      (played.length ? '<p class="label">YOUR MUSIC</p>' + played.map((b, i) => row(b, i, 'var(--magenta)')).join('') : '') +
-      (World.available() ? '<div id="remote-songs"><p class="label">PLAYERS\' MUSIC</p><p class="hint">Loading songs other players posted…</p></div>' : '');
+      .map((s) => ({ key: s.key, title: save.songTitle(s.key) || s.title }));
+    const row = (b) => `<button data-board-key="${esc(b.key)}" data-key="${esc(b.key)}" data-title="${esc(b.title)}">` +
+      `<svg class="ico"><use href="#i-trophy"/></svg><span class="row-main"><b>${tierBadge(b.tier)}${esc(b.title.toUpperCase().slice(0, 40))}</b><span class="leaders"></span></span><svg class="chev"><use href="#i-chev"/></svg></button>`;
+    const themes = THEMES.map(([theme, heading]) => {
+      const songs = SongPack.SONGS.filter((s) => (s.theme || 'classic') === theme);
+      return songs.length ? catBlock(where, theme, heading, songs.length, songs.map((s) => row({ key: SongPack.keyFor(s), title: s.title, tier: s.tier })).join('')) : '';
+    }).join('');
+    $('#boards-list').innerHTML = '<p class="hint boards-hint">Each category shows how many of its records are claimed, and by whom. Open one to see who leads each song.</p>' + themes +
+      (bonus.length ? catBlock(where, 'bonus', 'BONUS TRACKS', bonus.length, bonus.map(row).join('')) : '') +
+      (played.length ? catBlock(where, 'yours', 'YOUR MUSIC', played.length, played.map(row).join('')) : '') +
+      (World.available() ? catBlock(where, 'players', 'PLAYERS\' MUSIC', '…', '<div id="remote-songs"><p class="hint">Loading songs other players posted…</p></div>', { summary: false }) : '');
+    autofocusCat($('#boards-list'));
+    fillCatSummaries($('#boards-list'));
     if (World.available()) renderRemoteSongs();
   }
 
@@ -2257,10 +2383,12 @@
     try { list = await World.songs(80); } catch (e) { console.warn(e); list = null; }
     const box = $('#remote-songs');
     if (!box || screen !== 'boards') return;
-    if (!list) { box.innerHTML = '<p class="label">PLAYERS\' MUSIC</p><p class="hint">Couldn\'t reach the world boards.</p>'; return; }
+    const count = $('.cat[data-cat="players"] .cat-count');
+    if (!list) { box.innerHTML = '<p class="hint">Couldn\'t reach the world boards.</p>'; if (count) count.textContent = 'OFFLINE'; return; }
     const mine = new Set(save.data.library.map((s) => s.key));
     remoteSongs = list.filter((g) => !mine.has(g.key)).slice(0, 30);
-    box.innerHTML = '<p class="label">PLAYERS\' MUSIC</p>' + (remoteSongs.length
+    if (count) count.textContent = `${remoteSongs.length} SONG${remoteSongs.length === 1 ? '' : 'S'}`;
+    box.innerHTML = (remoteSongs.length
       ? '<p class="hint">Songs other players imported. Challenge them with your own copy of the song.</p>' + remoteSongs.map((g, i) => {
         const tiers = Object.keys(g.boards).map((d) => SHORT[d]).join(' · ');
         const have = save.data.library.some((s) => s.fp && g.fp && SaveData.similarity(s.fp, g.fp) >= SaveData.MATCH_THRESHOLD);
@@ -2304,6 +2432,8 @@
   }
 
   $('#boards-list').addEventListener('click', (e) => {
+    const h = e.target.closest('[data-cat-toggle]');
+    if (h) { toggleCat('boards', h); return; }
     const rb = e.target.closest('[data-remote]');
     if (rb) {
       const g = remoteSongs[+rb.dataset.remote];

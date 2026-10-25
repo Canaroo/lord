@@ -85,6 +85,16 @@ The menus look like an early-90s arcade cabinet, and every screen fills the disp
   song was played (Keys, Sideways, Upright, Tiles) and a ◀ ▶ difficulty picker. Scores are cards
   with gold, silver and bronze medals, and your own best is pinned under the list.
 
+- **Songs come in categories** (Chiptune Classics, Spooky, Rock, Epic Adventure, Bonus tracks)
+  that start closed, so even a long list fits on a phone. Each heading says how many of its
+  records are claimed and by whom (*👑 7 OF 12 CLAIMED · YOU 2 · ZED 4 · AMY 1*), or *NO RECORDS
+  YET · BE THE FIRST*. Tap one to open it (the others close), and the game remembers it for next
+  time. Inside, every song shows who leads each difficulty (*👑 E ZED · M YOU · H —*), or *NO LEADER
+  YET*. A record counts per difficulty, for the way you're playing (Keys, Sideways, Upright or
+  Tiles). It's the world record when the world boards are on and reachable, otherwise the best on
+  this device. **Boards** groups its songs the same way, with a lit gold trophy on songs that
+  have a leader.
+
 Pick a game, then a song (Song pack or Your music), then a difficulty. After a song, **SONGS**
 takes you back to the list.
 
@@ -382,6 +392,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.26**: song lists and Boards are grouped into categories that open on a tap, each summing up
+  its records (*7 OF 12 CLAIMED · YOU 2 · ZED 4*), and every song shows who leads each difficulty.
+  Records fall back to this device's best when the world boards can't be reached.
 - **1.25**: three songs per theme with **ROOKIE · PRO · BOSS** badges: new *Witching Hour*
   (Spooky BOSS), *Garage Jam* (Rock ROOKIE) and *Dragon's Lair* (Epic BOSS). Kept songs take about
   45% less space (songs rebuild once after the update). The Tiles song screen no longer shows the

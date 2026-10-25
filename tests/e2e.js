@@ -69,6 +69,13 @@ async function newPage(browser) {
 
 const tap = (page, button) => page.evaluate((b) => window.__pad.tap(b), button);
 const screenIs = (page, name) => page.waitForFunction((n) => window.BeatFrets && BeatFrets.screen === n, name, { timeout: 30000 });
+/** Song lists are grouped into categories that open on a tap: open one (if it isn't already). */
+async function openCat(page, cat, how = 'tap') {
+  const sel = `#screen-${await page.evaluate(() => BeatFrets.screen)} .cat[data-cat="${cat}"]`;
+  await page.waitForSelector(sel);
+  if (!(await page.$eval(sel, (el) => el.classList.contains('open')))) await page[how](`${sel} .cat-head`);
+  await page.waitForSelector(`${sel} .cat-body:not([hidden])`);
+}
 
 // Plays the current game with controller buttons, hitting every note on time.
 const BOT = (laneButtons) => {
@@ -204,6 +211,7 @@ async function touchTests(browser) {
   await page.tap('#screen-import [data-songs="pack"]');
   await screenIs(page, 'pack');
   check(true, 'Song pack / Your music tabs switch the song list');
+  await openCat(page, 'classic');
   await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   const landIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
@@ -278,6 +286,7 @@ async function touchTests(browser) {
   await page.waitForTimeout(400);
   check(!(await page.isVisible('#rotate')) && await page.evaluate(() => BeatFrets.stage.layout === 'touch2'), 'turned upright: the prompt goes and the 2-lane layout is used');
   await screenIs(page, 'pack');
+  await openCat(page, 'classic');
   await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   const portIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
@@ -330,6 +339,7 @@ async function touchTests(browser) {
   await page.tap('#btn-mode-frets');
   await page.tap('[data-orient="landscape"]');
   await screenIs(page, 'pack');
+  await openCat(page, 'classic');
   await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   await page.tap('[data-diff="touch4:hard"]');
@@ -408,6 +418,7 @@ async function touchTests(browser) {
   await page.tap('#btn-mode-tiles');
   await screenIs(page, 'pack');
   check(/TILES/.test(await page.textContent('#crumbs-path')), 'Tiles mode goes straight to its song list');
+  await openCat(page, 'classic');
   await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   const tilesIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join(' '));
@@ -753,8 +764,9 @@ async function worldTests(browser) {
   await screenIs(c.page, 'title');
   await c.page.evaluate(() => { BeatFrets.save.createProfile('CCC'); window.BeatFretsWorldBackend.uid = 'devC'; document.querySelector('#btn-start').click(); });
   await c.page.click('#tabbar [data-go="boards"]');
+  await openCat(c.page, 'players', 'click');
   await c.page.waitForSelector('[data-remote]', { timeout: 5000 }).catch(() => {});
-  const remote = await c.page.textContent('#remote-songs');
+  const remote = await c.page.textContent('.cat[data-cat="players"]');
   check(/PLAYERS' MUSIC/.test(remote) && /DRUM SONG CLASSIC/.test(remote), "Players' music lists songs other players posted");
   await c.page.screenshot({ path: path.join(outDir, 'e2e-players-music.png') });
   await c.page.click('[data-remote]:has-text("DRUM SONG CLASSIC")');
@@ -808,6 +820,24 @@ async function recordTests(browser) {
   await page.evaluate(() => { window.BeatFretsWorldBackend.uid = 'devR'; BeatFrets.save.createProfile('JDT'); document.querySelector('#btn-start').click(); });
   await page.click('#btn-mode-frets');
   await screenIs(page, 'pack');
+  // Categories start closed, each summing up its records.
+  const cats = await page.evaluate(() => [...document.querySelectorAll('#pack-list .cat')].map((c) => ({ cat: c.dataset.cat, open: c.classList.contains('open'), hidden: c.querySelector('.cat-body').hidden, tap: c.querySelector('.cat-tap').textContent })));
+  check(cats.length === 4 && cats.every((c) => !c.open && c.hidden && c.tap === 'TAP TO OPEN'), `the song list starts with every category closed, saying TAP TO OPEN (${JSON.stringify(cats.map((c) => c.cat))})`);
+  await page.waitForFunction(() => /CLAIMED/.test(document.querySelector('.cat[data-cat="classic"] .cat-sum').textContent), null, { timeout: 5000 }).catch(() => {});
+  const sums = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#pack-list .cat')].map((c) => [c.dataset.cat, c.querySelector('.cat-sum').textContent])));
+  check(/2 OF 15 CLAIMED/.test(sums.classic) && /YOU 1/.test(sums.classic) && /ZED 1/.test(sums.classic), `a category sums up its records and who holds them (${sums.classic})`);
+  check(/NO RECORDS YET/.test(sums.spooky), `a category with no records says so (${sums.spooky})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-cats-closed.png') });
+  await openCat(page, 'classic', 'click');
+  const open = await page.evaluate(() => ({ tap: document.querySelector('.cat[data-cat="classic"] .cat-tap').textContent, others: [...document.querySelectorAll('#pack-list .cat:not([data-cat="classic"]) .cat-body')].every((b) => b.hidden) }));
+  check(open.tap === 'TAP TO CLOSE' && open.others, 'opening a category shows its songs and keeps the others closed');
+  await page.waitForFunction(() => /ZED/.test(document.querySelector('[data-pack="pixel-overture"] .leaders').textContent), null, { timeout: 5000 }).catch(() => {});
+  const leaders = await page.evaluate(() => ({ po: document.querySelector('[data-pack="pixel-overture"] .leaders').textContent, tc: document.querySelector('[data-pack="turbo-cartridge"] .leaders').textContent }));
+  check(/EZED/.test(leaders.po) && /MYOU/.test(leaders.po) && /H—/.test(leaders.po), `each song shows who leads each difficulty (${leaders.po})`);
+  check(/NO LEADER YET/.test(leaders.tc), `a song nobody leads says so (${leaders.tc})`);
+  await openCat(page, 'spooky', 'click');
+  check(await page.evaluate(() => document.querySelector('.cat[data-cat="classic"] .cat-body').hidden), 'opening another category closes the first');
+  await openCat(page, 'classic', 'click');
   await page.waitForSelector('[data-pack="pixel-overture"] .rec-tag', { timeout: 5000 }).catch(() => {});
   const tag = await page.evaluate(() => { const t = document.querySelector('[data-pack="pixel-overture"] .rec-tag'); return t && t.textContent; });
   check(tag === '1 TO BEAT', `the song list flags songs with world records to beat (${tag})`);
@@ -821,6 +851,17 @@ async function recordTests(browser) {
   check(/ZED 12,500/.test(wr.easy.text) && /-12,500/.test(wr.easy.text) && /NOT PLAYED YET/.test(wr.easy.text) && wr.easy.behind, `never played: the record's gap shows red and negative (${wr.easy.text})`);
   check(/YOU HOLD THE RECORD/.test(wr.medium.text) && wr.medium.ahead, 'holding the record shows green');
   check(/NO WORLD RECORD YET/.test(wr.hard.text), 'a tier with no world scores says so');
+  // Boards: the same categories, with who leads each song.
+  await page.evaluate(() => BeatFrets.goHome());
+  await page.click('#tabbar [data-go="boards"]');
+  await screenIs(page, 'boards');
+  check(await page.evaluate(() => document.querySelectorAll('#boards-list .cat').length >= 4 && !document.querySelector('#boards-list .cat.open')), 'the boards screen groups songs into the same categories, closed to start');
+  await page.waitForFunction(() => /CLAIMED/.test(document.querySelector('#boards-list .cat[data-cat="classic"] .cat-sum').textContent), null, { timeout: 5000 }).catch(() => {});
+  check(/2 OF 15 CLAIMED/.test(await page.textContent('#boards-list .cat[data-cat="classic"] .cat-sum')), 'boards categories sum up their records too');
+  await openCat(page, 'classic', 'click');
+  await page.waitForFunction(() => /ZED/.test(document.querySelector('#boards-list [data-board-key="pack:pixel-overture"] .leaders').textContent), null, { timeout: 5000 }).catch(() => {});
+  check(/EZED/.test(await page.textContent('#boards-list [data-board-key="pack:pixel-overture"] .leaders')), 'boards rows show who leads each difficulty');
+  await page.screenshot({ path: path.join(outDir, 'e2e-boards-cats.png') });
   check(!errors.length, 'no errors with world records ' + errors.join(' | '));
 
   // Options: nothing takes effect until SAVE.
@@ -911,6 +952,8 @@ async function recordTests(browser) {
   await tap(page, 0);
   await screenIs(page, 'pack');
   check((await page.textContent('#hints')).includes('XBOX'), 'controller detected and hints switched');
+  await tap(page, 0);
+  check(await page.evaluate(() => document.activeElement.dataset.pack === 'pixel-overture'), 'A opens the first category and moves onto its first song');
   await tap(page, 0);
   await screenIs(page, 'song');
   check((await page.textContent('[data-keys="5"]')).replace(/\s/g, '') === 'LTLBARBRT', 'lane labels show controller buttons');
@@ -1164,6 +1207,7 @@ async function recordTests(browser) {
     await page.click('#btn-start');
     await screenIs(page, 'main');
     await page.click('[data-go="pack"]');
+    await openCat(page, 'bonus', 'click');
     await page.waitForSelector(`[data-bonus="${id}"]`);
     check(true, 'bonus tracks listed in the song pack');
     await page.click(`[data-bonus="${id}"]`);
