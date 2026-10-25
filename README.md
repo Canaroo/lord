@@ -342,16 +342,30 @@ lead whose tone opens as it swells, toms or deep **timpani**, and distorted **po
 guitar** (`gtr` patterns: `x` palm-muted chug, `o` open chord). Their charts come from the notes
 themselves, with the melody walking across the frets.
 
-| Theme | Song | Tempo | Sound |
-| --- | --- | --- | --- |
-| Classics | Pixel Overture, Turbo Cartridge, Castle Overdrive | 104–168 | pulse lead, arpeggios |
-| Spooky | Haunted Hallway (easier), Graveyard Shift (harder) | 112, 138 | wobbly organ, long echo, toms |
-| Rock | Power Chord Party (easier), Amp Overload (harder) | 128, 160 | power-chord guitar, square lead |
-| Epic | Hero's Dawn (easier), Final Quest (harder) | 120, 152 | brass fanfares, timpani |
+Every theme has three songs, from a gentle one to a tough one. Each can be played on any
+difficulty, but the song itself is naturally easier or harder, and a badge says so:
+**ROOKIE** (green), **PRO** (gold) and **BOSS** (red, with a skull). A ROOKIE song stays
+approachable even on Hard; a BOSS song is a challenge even on Easy.
+
+| Theme | ROOKIE | PRO | BOSS | Sound |
+| --- | --- | --- | --- | --- |
+| Classics | Pixel Overture (104) | Turbo Cartridge (140) | Castle Overdrive (168) | pulse lead, arpeggios |
+| Spooky | Haunted Hallway (112) | Graveyard Shift (138) | Witching Hour (172) | wobbly organ, long echo, toms / timpani |
+| Rock | Garage Jam (104) | Power Chord Party (128) | Amp Overload (160) | power-chord guitar, square lead |
+| Epic | Hero's Dawn (120) | Final Quest (152) | Dragon's Lair (172) | brass fanfares, timpani |
+
+To add a song, give it a `theme` and a `tier` (`rookie`, `pro` or `boss`); the lists show each
+theme's songs in the order they appear in `js/songs.js`. As a guide, on Easy a ROOKIE song has
+about 1.7 notes a second, PRO about 2.1 and BOSS 2.6 or more (`npm test` prints nothing about
+this, but the numbers are easy to check with ChartGen).
 
 Songs are synthesised at 32 kHz (the SNES's own output rate) the first time they're played on a
-device, with a progress bar, and then kept in the browser so every later load is instant (and
-works offline). A song is rebuilt automatically if its composition changes.
+device, with a progress bar (roughly 10 to 60 seconds, longer for faster, busier songs), and
+then kept in the browser so every later load is instant (and works offline). A song is rebuilt
+automatically if its composition changes. A kept song takes about 4 to 7 MB: the mix is stored
+at full quality, and the gentle stereo panning more compactly. The song data itself is tiny
+(about 4 KB a song), so the practical limit on how many songs the pack can hold is storage and
+first-play building time, not download size: 50 or more is comfortable.
 
 ## Versions
 
@@ -361,6 +375,10 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.25**: three songs per theme with **ROOKIE · PRO · BOSS** badges: new *Witching Hour*
+  (Spooky BOSS), *Garage Jam* (Rock ROOKIE) and *Dragon's Lair* (Epic BOSS). Kept songs take about
+  45% less space (songs rebuild once after the update). The Tiles song screen no longer shows the
+  Beat Frets instructions.
 - **1.24**: fix: on a slow connection an update could half-load (some files new, some old), and the
   highway played music with no notes. Code and style are now versioned so an update always
   loads as a matching set, and a mismatched page reloads itself once.

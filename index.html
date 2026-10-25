@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-v="1.24">
+<html lang="en" data-v="1.25">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&family=VT323&display=swap" />
-  <link rel="stylesheet" href="css/style.css?v=1.24" />
+  <link rel="stylesheet" href="css/style.css?v=1.25" />
 </head>
 <body class="crt">
   <canvas id="stage" aria-label="Game stage"></canvas>
@@ -33,6 +33,7 @@
     <symbol id="i-close" viewBox="0 0 10 10"><path d="M1 1h2v1h1v1h2V2h1V1h2v2H8v1H7v2h1v1h1v2H7V8H6V7H4v1H3v1H1V7h1V6h1V4H2V3H1z"/></symbol>
     <symbol id="i-crown" viewBox="0 0 10 10"><path d="M0 1h1v1h1v1h1v1h1V1h2v3h1V3h1V2h1V1h1v6H0zM1 8h8v1H1z"/></symbol>
     <symbol id="i-sword" viewBox="0 0 10 10"><path d="M7 0h3v3H9v1H8v1H7v1H6v1h1v1h1v1H7v1H6V9H5V8H4v1H3v1H1V9H0V7h1V6h1V5H1V4h1v1h1V4h1V3h1V2h1V1h1z"/></symbol>
+    <symbol id="i-skull" viewBox="0 0 10 10"><path fill-rule="evenodd" d="M2 0h6v1h1v1h1v4H9v1H8v3H2V7H1V6H0V2h1V1h1zM2 3v2h2V3zm4 0v2h2V3zM4 7v1h1V7zm1 0v1h1V7z"/></symbol>
     <symbol id="i-chev" viewBox="0 0 10 10"><path d="M3 1h2v1h1v1h1v1h1v2H7v1H6v1H5v1H3V7h1V6h1V4H4V3H3z"/></symbol>
   </svg>
 
@@ -146,13 +147,14 @@
         <div class="song-head">
           <p class="label">NOW PLAYING</p>
           <h2 id="song-name" class="head"></h2>
+          <p id="song-tier" class="song-tier"></p>
           <p id="song-meta" class="hint"></p>
           <p id="song-match" class="match" hidden></p>
           <p id="song-credit" class="hint" hidden></p>
         </div>
         <div class="diffs" id="diffs"></div>
-        <p class="hint kbd-only">Hit each note as it crosses the line, and hold long notes until their tail ends. Hold <b>R</b> (or Back) to restart. Fill the OD meter, then press <b data-glyph="overdrive">SPACE</b> for double points. Don't let the rock meter run out.</p>
-        <p class="hint touch-only">Tap each note as it crosses the line, and keep your finger down on long notes. When the OD meter flashes, <b>swipe up</b> with any finger for double points. <b>II</b> pauses.</p>
+        <p class="hint frets-help kbd-only">Hit each note as it crosses the line, and hold long notes until their tail ends. Hold <b>R</b> (or Back) to restart. Fill the OD meter, then press <b data-glyph="overdrive">SPACE</b> for double points. Don't let the rock meter run out.</p>
+        <p class="hint frets-help touch-only">Tap each note as it crosses the line, and keep your finger down on long notes. When the OD meter flashes, <b>swipe up</b> with any finger for double points. <b>II</b> pauses.</p>
       </div>
     </section>
 
@@ -530,20 +532,20 @@
   <div id="hints" class="hints" aria-hidden="true"></div>
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script src="js/analyzer.js?v=1.24"></script>
-  <script src="js/chartgen.js?v=1.24"></script>
-  <script src="js/songs.js?v=1.24"></script>
-  <script src="js/bonus.js?v=1.24"></script>
-  <script src="js/save.js?v=1.24"></script>
-  <script src="js/library.js?v=1.24"></script>
-  <script src="js/sfx.js?v=1.24"></script>
-  <script src="js/input.js?v=1.24"></script>
-  <script src="js/render.js?v=1.24"></script>
-  <script src="js/game.js?v=1.24"></script>
-  <script src="js/tiles.js?v=1.24"></script>
-  <script src="js/share.js?v=1.24"></script>
-  <script src="js/firebase-config.js?v=1.24"></script>
-  <script src="js/world.js?v=1.24"></script>
-  <script src="js/main.js?v=1.24"></script>
+  <script src="js/analyzer.js?v=1.25"></script>
+  <script src="js/chartgen.js?v=1.25"></script>
+  <script src="js/songs.js?v=1.25"></script>
+  <script src="js/bonus.js?v=1.25"></script>
+  <script src="js/save.js?v=1.25"></script>
+  <script src="js/library.js?v=1.25"></script>
+  <script src="js/sfx.js?v=1.25"></script>
+  <script src="js/input.js?v=1.25"></script>
+  <script src="js/render.js?v=1.25"></script>
+  <script src="js/game.js?v=1.25"></script>
+  <script src="js/tiles.js?v=1.25"></script>
+  <script src="js/share.js?v=1.25"></script>
+  <script src="js/firebase-config.js?v=1.25"></script>
+  <script src="js/world.js?v=1.25"></script>
+  <script src="js/main.js?v=1.25"></script>
 </body>
 </html>

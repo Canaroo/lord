@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.24';
+  const VERSION = '1.25';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -469,12 +469,16 @@
   }
 
   /** A song as a list row: title and details on the left, your best stars and a › on the right. */
-  function songRow(title, detail, key) {
+  /** ROOKIE · PRO · BOSS: how naturally hard a pack song is, whatever the difficulty. */
+  const TIERS = { rookie: 'ROOKIE', pro: 'PRO', boss: 'BOSS' };
+  const tierBadge = (tier) => (TIERS[tier] ? `<span class="tier tier-${tier}">${tier === 'boss' ? '<svg><use href="#i-skull"/></svg>' : ''}${TIERS[tier]}</span>` : '');
+
+  function songRow(title, detail, key, tier) {
     const p = save.active;
     let best = 0;
     if (p) for (const d of tierIds()) best = Math.max(best, d.startsWith('tiles:') ? 0 : save.bestStars(p.id, key, d).stars);
     const stars = p && !tilesMode() ? `<span class="row-stars">${'★'.repeat(best)}<span class="off">${'★'.repeat(5 - best)}</span></span>` : '';
-    return `<span class="row-main"><b>${esc(title.toUpperCase())}</b><small>${esc(detail)}</small></span>` +
+    return `<span class="row-main"><b>${tierBadge(tier)}${esc(title.toUpperCase())}</b><small>${esc(detail)}</small></span>` +
       `<span class="row-side">${stars}</span><svg class="chev"><use href="#i-chev"/></svg>`;
   }
 
@@ -488,7 +492,7 @@
       return `<p class="label theme-${theme}">${heading}</p><div class="list theme-${theme}">` + songs.map((s) => {
         const auto = first ? 'data-autofocus' : '';
         first = false;
-        return `<button data-pack="${esc(s.id)}" ${auto}>${songRow(s.title, `${s.bpm} BPM · ${s.blurb}`, SongPack.keyFor(s))}</button>`;
+        return `<button data-pack="${esc(s.id)}" ${auto}>${songRow(s.title, `${s.bpm} BPM · ${s.blurb}`, SongPack.keyFor(s), s.tier)}</button>`;
       }).join('') + '</div>';
     }).join('');
     markRecords();
@@ -824,25 +828,61 @@
     if (!packPending.has(id)) packPending.set(id, makePackBuffer(id, onProgress).finally(() => packPending.delete(id)));
     return packPending.get(id);
   }
+  // Built songs are kept (IndexedDB) so they start instantly next time. To keep that
+  // small, the mix is stored as mid (left+right, full quality) plus side (the small
+  // left/right difference from gentle panning) at a quarter of the sample rate and
+  // 8 bits: about 45% smaller than plain stereo, and it sounds the same.
+  const SIDE_STEP = 4;
+
+  function packPcm(buffer) {
+    const L = buffer.getChannelData(0), R = buffer.getChannelData(1);
+    const n = L.length;
+    const mid = new Int16Array(n);
+    let sideMax = 1e-6;
+    for (let i = 0; i < n; i++) {
+      mid[i] = Math.max(-32767, Math.min(32767, Math.round((L[i] + R[i]) * 0.5 * 32767)));
+      sideMax = Math.max(sideMax, Math.abs(L[i] - R[i]) * 0.5);
+    }
+    const side = new Int8Array(Math.ceil(n / SIDE_STEP));
+    for (let j = 0; j < side.length; j++) {
+      let sum = 0, cnt = 0;
+      for (let i = j * SIDE_STEP; i < Math.min(n, (j + 1) * SIDE_STEP); i++) { sum += (L[i] - R[i]) * 0.5; cnt++; }
+      side[j] = Math.max(-127, Math.min(127, Math.round((sum / cnt / sideMax) * 127)));
+    }
+    return { mid, side, sideMax };
+  }
+
+  function unpackPcm(cached) {
+    const n = cached.mid.length;
+    const buffer = audioCtx.createBuffer(2, n, cached.sr);
+    const L = buffer.getChannelData(0), R = buffer.getChannelData(1);
+    const { side, sideMax } = cached;
+    const k = sideMax / 127;
+    for (let i = 0; i < n; i++) {
+      // Side between its samples, so the stereo spread glides rather than steps.
+      const x = i / SIDE_STEP - 0.5;
+      const j = Math.max(0, Math.min(side.length - 1, Math.floor(x)));
+      const j2 = Math.min(side.length - 1, j + 1);
+      const f = Math.max(0, Math.min(1, x - j));
+      const sd = (side[j] + (side[j2] - side[j]) * f) * k;
+      const m = cached.mid[i] / 32767;
+      L[i] = m + sd;
+      R[i] = m - sd;
+    }
+    return buffer;
+  }
+
   async function makePackBuffer(id, onProgress) {
     let buffer;
     const def = SongPack.SONGS.find((s) => s.id === id);
-    const stamp = 'r2:' + hashBytes(new TextEncoder().encode(JSON.stringify(def)).buffer);
+    const stamp = 'r3:' + hashBytes(new TextEncoder().encode(JSON.stringify(def)).buffer);
     const cached = await Library.cacheGet('pack:' + id);
-    if (cached && cached.stamp === stamp) {
-      buffer = audioCtx.createBuffer(2, cached.l.length, cached.sr);
-      [cached.l, cached.r].forEach((ch, c) => {
-        const out = buffer.getChannelData(c);
-        for (let i = 0; i < ch.length; i++) out[i] = ch[i] / 32767;
-      });
+    if (cached && cached.stamp === stamp && cached.mid) {
+      buffer = unpackPcm(cached);
     } else {
       buffer = await SongPack.render(SongPack.build(def), onProgress);
-      const pcm = [0, 1].map((c) => {
-        const d = buffer.getChannelData(c), out = new Int16Array(d.length);
-        for (let i = 0; i < d.length; i++) out[i] = Math.max(-32767, Math.min(32767, Math.round(d[i] * 32767)));
-        return out;
-      });
-      Library.cachePut('pack:' + id, { stamp, sr: buffer.sampleRate, l: pcm[0], r: pcm[1] });
+      const pcm = packPcm(buffer);
+      Library.cachePut('pack:' + id, { stamp, sr: buffer.sampleRate, ...pcm });
     }
     bufferCache.set(id, buffer);
     return buffer;
@@ -892,6 +932,8 @@
 
   function showSong() {
     $('#song-name').textContent = current.title;
+    const def = current.kind === 'pack' && SongPack.SONGS.find((x) => x.id === current.packId);
+    $('#song-tier').innerHTML = def && def.tier ? tierBadge(def.tier) + `<span>${{ rookie: 'A gentle start, even on Hard.', pro: 'A step up, whatever the difficulty.', boss: 'A tough one, even on Easy.' }[def.tier]}</span>` : '';
     const kind = { pack: 'Chiptune pack: identical charts for everyone', bonus: 'Bonus track: identical charts for everyone', mp3: 'Imported song' }[current.kind];
     $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · ~${Math.round(current.analysis.bpm)} BPM · ${kind}`;
     const credit = [current.artist, current.credit].filter(Boolean).join(' · ');
@@ -903,6 +945,7 @@
         ? (session.orient ? '4 lanes, sideways.' : '4 lanes. Turn your phone upright for 2.')
         : (session.orient ? '2 lanes, upright.' : '2 lanes. Turn your phone sideways for 4.'));
     }
+    $('#screen-song').classList.toggle('tiles', tilesMode());
     if (tilesMode()) $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · Tap each tile as it reaches the line. Two hearts, and every lap gets faster.`;
     $('#song-match').hidden = !current.matchNote;
     $('#song-match').textContent = current.matchNote || '';
