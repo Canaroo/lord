@@ -359,6 +359,13 @@ theme's songs in the order they appear in `js/songs.js`. As a guide, on Easy a R
 about 1.7 notes a second, PRO about 2.1 and BOSS 2.6 or more (`npm test` prints nothing about
 this, but the numbers are easy to check with ChartGen).
 
+With Claude Code, the **add-song** skill (`.claude/skills/add-song/`) does all of this from a
+loose idea ("a spooky rookie song about a haunted carnival"): it composes the song, tunes its
+density to the tier, runs the tests, renders an MP3 preview to listen to, and waits for your OK
+before publishing. It can also start a new theme or retune a song. Its two scripts work on their
+own too: `node .claude/skills/add-song/scripts/song-stats.js` prints every song's notes per second
+and checks each theme's ROOKIE → PRO → BOSS order.
+
 Songs are synthesised at 32 kHz (the SNES's own output rate) the first time they're played on a
 device, with a progress bar (roughly 10 to 60 seconds, longer for faster, busier songs), and
 then kept in the browser so every later load is instant (and works offline). A song is rebuilt
