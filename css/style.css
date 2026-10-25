@@ -558,9 +558,11 @@ body.nav button:focus, body:not(.touch) button:focus-visible, body:not(.touch) .
 .cat.theme-spooky { --acc: #b878f8; }
 .cat.theme-rock { --acc: var(--red); }
 .cat.theme-epic { --acc: var(--gold); }
+.cat.theme-space { --acc: #5a8cff; }
+.cat.theme-carnival { --acc: #f88820; }
 .cat.theme-bonus { --acc: var(--magenta); }
 .cat.theme-yours { --acc: var(--magenta); }
-.cat.theme-players { --acc: var(--blue); }
+.cat.theme-players { --acc: #9aa4c8; }
 :is(#pack-list, #bonus-section, #boards-list) :is(.cat-head, .cat-body > button) { --acc: inherit; }
 #pack-list .cat-head, #bonus-section .cat-head, #boards-list .cat-head {
   display: flex;

@@ -10,13 +10,14 @@ straight from it, which is why every player gets identical notes and the world l
 ```js
 {
   id: 'garage-jam',          // lowercase-hyphenated, unique, permanent (see "ids are forever")
-  theme: 'rock',             // classic (or leave out), spooky, rock, epic — or a new theme
+  theme: 'rock',             // classic (or leave out), spooky, rock, epic, space, carnival — or a new theme
   tier: 'rookie',            // rookie | pro | boss
   title: 'Garage Jam',
   blurb: 'Plug in and stomp along: a simple, chunky first riff.',   // one short line, shown in the list
   bpm: 104,
   root: 64,                  // MIDI note of the key's tonic (60 = middle C, 64 = E, 62 = D, 57 = A)
   scale: 'minor',            // major | minor | harmonic (harmonic minor: spooky / boss flavour)
+  leadScale: 'chromatic',    // optional: melody digits count semitones above root (carnival runs)
   prog: [0, 0, 3, 4],        // chord root per bar as a scale degree, cycling for the whole song
   voice: { ... },            // optional sound settings, below
   drums: { kitName: { k, s, h, o, t }, ..., fill: { ... } },
@@ -36,7 +37,7 @@ Every pattern string is exactly 16 characters; `build()` throws if not.
 | Drums `k` kick, `s` snare, `h` hat, `o` open hat, `t` tom/timpani | `x` hit, `X` accented hit, `.` rest |
 | Bass | `0` `2` `4` `7` = the bar's chord root, third, fifth and octave (an octave below the lead), `-` hold, `.` rest |
 | Guitar (`gtr`) | `x` short palm-muted chug, `o` open power chord that rings through following `-`, `.` rest |
-| Lead | `0`–`9`, `a`–`e` = scale degrees 0–14 above `root` (two octaves; `7` is the octave), `-` hold the previous note, `.` rest |
+| Lead | `0`–`9`, `a`–`e` = scale degrees 0–14 above `root` (two octaves; `7` is the octave), `-` hold the previous note, `.` rest. With `leadScale: 'chromatic'` they're semitones instead (0–14: an octave and a minor third; `c` is the octave) |
 
 A lead phrase is a list of bars; inside a section, bar *b* plays `phrase[b % phrase.length]`.
 Four-bar phrases are the norm; an `outro` is often two bars.
@@ -61,7 +62,9 @@ chorus 8, a 4-bar break, verse 8, chorus 8, (another chorus 8), outro 4.
 voice: { lead: 'organ', vibrato: { rate: 6, depth: 0.012 }, echo: { steps: 3, fb: 0.45, wet: 0.4 }, toms: 'timpani' }
 ```
 
-- `lead`: `pulse` (default, chiptune), `square` (rock), `organ` (spooky drawbar), `brass` (epic, swells open).
+- `lead`: `pulse` (default, chiptune), `square` (rock), `organ` (spooky drawbar), `brass` (epic, swells open),
+  `synth` (space: two detuned saws, filter glows open), `calliope` (carnival steam whistle with a puff of air).
+- `arp`: leave out for chiptune pulse arpeggios, or `bell` for soft twinkling sine bells (space).
 - `vibrato`: `{ rate (Hz), depth (fraction of pitch) }`; organ uses 0.012–0.018, brass about 0.008.
 - `echo`: `{ steps (sixteenths), fb (feedback 0–0.5), wet (0–0.45) }`; longer and wetter = spookier.
 - `toms`: `tom` or `timpani` (deep and rolling, for epic or boss moments).
@@ -74,6 +77,8 @@ Each theme has its own palette; match it so the theme sounds like one album:
 | spooky | harmonic | organ with vibrato, long echo, toms (timpani for the boss) |
 | rock | minor | square lead, `gtr` power chords, toms |
 | epic | major → harmonic for the boss | brass, timpani |
+| space | major → harmonic for the boss | synth lead (brass for the boss), `bell` arps, long echo, timpani |
+| carnival | major, `leadScale: 'chromatic'` | calliope with fast vibrato, oom-pah bass (`0...4...`), chromatic runs, short echo |
 
 ## How notes become a chart (what moves the numbers)
 

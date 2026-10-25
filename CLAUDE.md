@@ -20,3 +20,9 @@ what changed, then push:
 several areas at once. When in doubt about whether a change is big, say which sections you ran.
 
 A run that fails must be fixed before pushing, whichever kind it was.
+
+## Publishing
+
+Don't wait for approval before pushing finished work: once the checks above pass, commit and push,
+then explain what changed (with previews or screenshots where useful). The user reviews afterwards
+and asks for changes if needed. Still ask before starting when a request is unclear.

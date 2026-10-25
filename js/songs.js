@@ -508,6 +508,259 @@
         { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
       ],
     },
+    // ---- Space ----
+    {
+      id: 'starlight-drift',
+      theme: 'space',
+      tier: 'rookie',
+      title: 'Starlight Drift',
+      blurb: 'Float past the planets on a dreamy, twinkling cruise.',
+      bpm: 108,
+      root: 65,
+      scale: 'major',
+      prog: [0, 5, 3, 4],
+      voice: { lead: 'synth', arp: 'bell', echo: { steps: 6, fb: 0.45, wet: 0.4 }, toms: 'tom' },
+      drums: {
+        intro: { h: 'x...x...x...x...' },
+        verse: { k: 'x.......x.......', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        chorus: { k: 'x.......x.x.....', s: '....x.......x...', o: '..x...x...x...x.' },
+        drift: { k: 'x...............', h: '....x.......x...' },
+        fill: { k: 'x...x...........', s: '........x.x.x.x.', t: '....x.x.........' },
+      },
+      bass: {
+        verse: '0...0...4...0.7.',
+        chorus: '0.0.4.0.7.0.4.2.',
+        drift: '0---------------',
+      },
+      lead: {
+        verse: ['4---5-4-2---0---', '2---4-5-7-------', '9---7-5-4---5---', '4---2---1-------'],
+        chorus: ['7---9-7-b---9---', 'a---9-7-5---7---', '7---9-b-c---b---', 'a---9---7-------'],
+        drift: ['b-------9-------', 'a-------7-------', '9-------b-------', 'c---------------'],
+        outro: ['7-------4-------', '0---------------'],
+      },
+      form: [
+        { bars: 2, drums: 'intro', bass: 'drift', arp: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'drift', bass: 'drift', lead: 'drift', arp: true, crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'warp-speed',
+      theme: 'space',
+      tier: 'pro',
+      title: 'Warp Speed',
+      blurb: 'Engage! A bold voyage to where no song has gone before.',
+      bpm: 140,
+      root: 62,
+      scale: 'major',
+      prog: [0, 5, 3, 4],
+      voice: { lead: 'synth', arp: 'bell', echo: { steps: 3, fb: 0.4, wet: 0.35 }, toms: 'timpani' },
+      drums: {
+        intro: { k: 'x.......x.......', t: '............x.x.' },
+        drive: { k: 'x.....x...x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        chorus: { k: 'x...x...x...x...', s: '....x.......x..x', o: '..x...x...x...x.' },
+        brk: { k: 'x...............', h: '....x.......x...' },
+        fill: { k: 'x...x...x...x...', s: '....x...x.x.x.xx', t: '' },
+      },
+      bass: {
+        drive: '0.0.0.0.0.0.0.7.',
+        chorus: '0.0.4.0.7.0.4.0.',
+        brk: '0---------------',
+      },
+      lead: {
+        intro: ['0-------3-------', '7---------------'],
+        verse: ['0---3---7---9-8-', '7-------4---5---', '0---3---7---a-b-', 'c-------9-------'],
+        chorus: ['7.7.9.a.b---a-9-', '7.7.9.a.c---b---', 'b.a.9.7.9.a.b.c.', 'e---c---b---9---'],
+        brk: ['7-------9-------', 'b-------a-------', '9-------7-------', '4---------------'],
+        outro: ['7---9---b---c---', 'e---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'brk', lead: 'intro', arp: true },
+        { bars: 8, drums: 'drive', bass: 'drive', lead: 'verse', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', arp: true, crash: true },
+        { bars: 8, drums: 'drive', bass: 'drive', lead: 'verse', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true },
+        { bars: 4, drums: 'drive', bass: 'drive', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'galactic-showdown',
+      theme: 'space',
+      tier: 'boss',
+      title: 'Galactic Showdown',
+      blurb: 'Starfighters scramble: blazing brass and a battle across the stars.',
+      bpm: 168,
+      root: 62,
+      scale: 'harmonic',
+      prog: [0, 5, 3, 4],
+      voice: { lead: 'brass', arp: 'bell', vibrato: { rate: 6, depth: 0.007 }, echo: { steps: 3, fb: 0.4, wet: 0.35 }, toms: 'timpani' },
+      drums: {
+        intro: { t: 'x...x...x...x.x.', k: 'x.......x.......' },
+        verse: { k: 'x.x...x.x.x...x.', s: '....x.......x...', h: 'x.xxx.xxx.xxx.xx' },
+        chorus: { k: 'x.x.x.x.x.x.x.x.', s: '....x.......x..x', o: 'x...x...x...x...', t: '..............xx' },
+        brk: { k: 'x.......x.......', t: 'x..x..x.x..x..x.' },
+        fill: { k: 'x.x.............', s: '....x.x.xxxxxxxx', t: 'x.x.x.x.........' },
+      },
+      bass: {
+        verse: '0.00.00.0.00.07.',
+        chorus: '0.0.0.0.7.7.4.4.',
+        brk: '0-------7-------',
+      },
+      lead: {
+        intro: ['0---4---7---e---', 'd---b---9---7---'],
+        verse: ['0.2.4.7.6.4.2.4.', '7.9.a.9.7.6.4...', '0.2.4.7.9.a.b.a.', '9.7.6.4.6---7...'],
+        chorus: ['e---d-c-b---7---', 'c---b-a-9---7---', 'a-b-c-d-e---d-c-', 'b---9---7-------'],
+        brk: ['7.7.7.7.6.6.6.6.', '4.4.4.4.2.2.2.2.', '1.1.1.1.2.2.2.2.', '4---6---7-------'],
+        outro: ['e-d-b-9-7-6-4---', '7---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'brk', lead: 'intro', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', arp: true, crash: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+
+    // ---- Carnival ----
+    // Calliope melodies are chromatic (each character counts semitones above the root),
+    // for the sliding circus runs.
+    {
+      id: 'big-top-parade',
+      theme: 'carnival',
+      tier: 'rookie',
+      title: 'Big Top Parade',
+      blurb: 'Roll up, roll up! A steam calliope leads the circus into town.',
+      bpm: 112,
+      root: 60,
+      scale: 'major',
+      leadScale: 'chromatic',
+      prog: [0, 3, 4, 0],
+      voice: { lead: 'calliope', vibrato: { rate: 7, depth: 0.018 }, echo: { steps: 2, fb: 0.25, wet: 0.2 }, toms: 'tom' },
+      drums: {
+        intro: { k: 'x.......x.......', s: '....x.......x...' },
+        march: { k: 'x.......x.......', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        chorus: { k: 'x.......x.x.....', s: '....x.......x...', o: '..x...x...x...x.' },
+        brk: { k: 'x.......x.......', t: '....x.......x...' },
+        fill: { k: 'x...............', s: '....x...x.x.x.x.' },
+      },
+      bass: {
+        march: '0...4...0...4...',
+        chorus: '0...4...0...4.7.',
+        brk: '0-------4-------',
+      },
+      lead: {
+        verse: ['0---4---7-6-7---', '9---5---9-8-9---', 'b---7---2---7---', 'c-------7-------'],
+        chorus: ['7.4.7.c.b.c.7...', '9.5.9.c.b.a.9...', 'b.7.b.e.d.e.b...', 'c-------0-------'],
+        brk: ['c-------b-a-9---', '9-------8-7-6---', '7-------6-5-4---', '0---------------'],
+        outro: ['7-6-5-4-3-2-1---', '0---------------'],
+      },
+      form: [
+        { bars: 2, drums: 'intro', bass: 'march' },
+        { bars: 8, drums: 'march', bass: 'march', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'march', bass: 'march', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'march', bass: 'march', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'clown-car-chaos',
+      theme: 'carnival',
+      tier: 'pro',
+      title: 'Clown Car Chaos',
+      blurb: 'Honk honk! Twenty clowns tumble out, sliding up and down the scale.',
+      bpm: 138,
+      root: 65,
+      scale: 'major',
+      leadScale: 'chromatic',
+      prog: [0, 5, 3, 4],
+      voice: { lead: 'calliope', vibrato: { rate: 7.5, depth: 0.016 }, echo: { steps: 2, fb: 0.25, wet: 0.2 }, toms: 'tom' },
+      drums: {
+        intro: { k: 'x.......x.......', s: '....x.......x...', h: 'x.xx.xx.x.xx.xx.' },
+        verse: { k: 'x.......x.......', s: '....x.......x...', h: 'x.xx.xx.x.xx.xx.' },
+        chorus: { k: 'x...x...x...x...', s: '....x..x....x...', o: '..x...x...x...x.' },
+        brk: { k: 'x...............', t: 'x..x..x..x..x...' },
+        fill: { k: 'x.......x.......', s: '....x...x.x.xxxx', t: 'x.x.............' },
+      },
+      bass: {
+        verse: '0.4.0.4.0.4.0.4.',
+        chorus: '0.0.4.4.0.0.4.4.',
+        brk: '0---------------',
+      },
+      lead: {
+        verse: ['7.6.7.4.0.4.7...', '9.8.9.4.0.4.9...', '9.a.9.5.2.5.9...', '7.8.9.a.b.c.7...'],
+        chorus: ['c.b.c.7.4.7.c...', 'c.b.c.9.4.9.c...', '9.8.9.5.2.5.9...', 'e.d.c.b.a.9.8.7.'],
+        brk: ['7-------6-------', '5-------4-------', '5-------6-------', '7---------------'],
+        outro: ['c.b.a.9.8.7.6.5.', '0---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'verse' },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'ringmasters-gallop',
+      theme: 'carnival',
+      tier: 'boss',
+      title: "Ringmaster's Gallop",
+      blurb: 'The grand finale: a breakneck circus galop with runaway runs.',
+      bpm: 172,
+      root: 67,
+      scale: 'major',
+      leadScale: 'chromatic',
+      prog: [0, 3, 4, 0],
+      voice: { lead: 'calliope', vibrato: { rate: 8, depth: 0.014 }, echo: { steps: 2, fb: 0.2, wet: 0.18 }, toms: 'tom' },
+      drums: {
+        intro: { k: 'x...x...x...x...', s: '..x...x...x...x.' },
+        verse: { k: 'x.....x.x.....x.', s: '....x.......x...', h: 'x.xxx.xxx.xxx.xx' },
+        chorus: { k: 'x.x...x.x.x...x.', s: '....x.......x..x', o: 'x...x...x...x...', h: '.x.x.x.x.x.x.x.x' },
+        brk: { k: 'x...x...x...x...', t: 'x..x..x.x..x..x.' },
+        fill: { k: 'x.x.x.x.........', s: '........xxxxxxxx', t: 'xxxx............' },
+      },
+      bass: {
+        verse: '0.4.0.4.0.4.0.4.',
+        chorus: '0.4.0.4.0.4.7.4.',
+        brk: '0---4---0---4---',
+      },
+      lead: {
+        intro: ['0.4.7.c.0.4.7.c.', 'b.a.9.8.7.6.5.4.'],
+        verse: ['c.b.a.9.8.7.6.7.', '9.8.9.5.9.8.9.c.', 'b.a.9.7.2.7.b.e.', 'c---7---4---0---'],
+        chorus: ['0.4.7.c.0.4.7.c.', '5.9.c.e.5.9.c.e.', '7.b.e.b.7.b.e.c.', 'c.b.a.9.8.7.6.5.'],
+        brk: ['7.7.7.7.6.6.6.6.', '5.5.5.5.4.4.4.4.', '3.3.3.3.2.2.2.2.', '1.1.1.1.0.0.0.0.'],
+        outro: ['c.b.a.9.8.7.6.5.', '0---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'brk', lead: 'intro', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
   ];
 
   // Instrument fingerprints for charting: [strength, 5-band spectrum (low → high)].
@@ -591,7 +844,9 @@
           for (let i = 0; i < 16; i++) {
             const d = parseInt(p[i], 15);
             if (Number.isNaN(d)) continue;
-            events.push({ t: barT + i * step, inst: 'lead', midi: degToMidi(song, d), dur: holdLength(p, i) * step * 0.95, vel: 0.8 });
+            // Chromatic melodies count semitones above the root instead of scale steps.
+            const midi = song.leadScale === 'chromatic' ? song.root + d : degToMidi(song, d);
+            events.push({ t: barT + i * step, inst: 'lead', midi, dur: holdLength(p, i) * step * 0.95, vel: 0.8 });
           }
         }
         if (sec.arp) {
@@ -718,6 +973,11 @@
     // Drawbar organ: a fundamental plus a few soft harmonics.
     const organ = (() => {
       const amps = [0, 1, 0.65, 0.4, 0.3, 0, 0.2, 0, 0.15];
+      return ctx.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps));
+    })();
+    // Steam calliope: a whistle, nearly pure, with a little breathy edge.
+    const calliope = (() => {
+      const amps = [0, 1, 0.32, 0.14, 0.07, 0.035];
       return ctx.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps));
     })();
     // A whole power chord in one waveform: played an octave below the root, its
@@ -857,8 +1117,35 @@
           break;
         }
         case 'lead': {
+          if (voice.lead === 'synth') {
+            // Space synth: two detuned saws through a resonant filter that glows open.
+            const f = ctx.createBiquadFilter();
+            f.type = 'lowpass';
+            f.Q.value = 5;
+            f.frequency.setValueAtTime(400, t);
+            f.frequency.linearRampToValueAtTime(3200, t + 0.08);
+            f.frequency.setTargetAtTime(1500, t + 0.08, 0.25);
+            const g = envGain(t, 0.2 * e.vel, 0.012, e.dur, 0.05);
+            for (const cents of [-7, 7]) {
+              const o = ctx.createOscillator();
+              o.type = 'sawtooth';
+              o.frequency.value = hz(e.midi);
+              o.detune.value = cents;
+              o.connect(f);
+              o.start(t);
+              o.stop(t + e.dur + 0.25);
+            }
+            f.connect(g);
+            g.connect(leadOut);
+            g.connect(echoIn);
+            break;
+          }
           const o = ctx.createOscillator();
-          if (voice.lead === 'organ') o.setPeriodicWave(organ);
+          if (voice.lead === 'calliope') {
+            o.setPeriodicWave(calliope);
+            // The puff of steam as each whistle speaks.
+            noiseHit(t, 'bandpass', Math.min(9000, hz(e.midi) * 3), 0.07 * e.vel, 0.05, leadOut);
+          } else if (voice.lead === 'organ') o.setPeriodicWave(organ);
           else if (voice.lead === 'square') o.setPeriodicWave(square);
           else if (voice.lead === 'brass') o.type = 'sawtooth';
           else o.setPeriodicWave(pulse25);
@@ -884,7 +1171,7 @@
             lfo.stop(t + e.dur + 0.1);
           }
           const brass = voice.lead === 'brass';
-          const g = envGain(t, (brass ? 0.26 : voice.lead === 'organ' ? 0.36 : 0.32) * e.vel, brass ? 0.03 : voice.lead === 'organ' ? 0.015 : 0.006, e.dur, 0.02);
+          const g = envGain(t, (brass ? 0.26 : voice.lead === 'organ' ? 0.36 : voice.lead === 'calliope' ? 0.34 : 0.32) * e.vel, brass ? 0.03 : voice.lead === 'organ' || voice.lead === 'calliope' ? 0.015 : 0.006, e.dur, 0.02);
           if (brass) {
             // Brass: the tone opens up as the note swells, then settles.
             const f = ctx.createBiquadFilter();
@@ -902,6 +1189,22 @@
           break;
         }
         case 'arp': {
+          if (voice.arp === 'bell') {
+            // Twinkling starfield: soft sine bells an octave up, ringing into the echo.
+            const o = ctx.createOscillator();
+            o.type = 'sine';
+            o.frequency.value = hz(e.midi + 12);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(0.09 * e.vel, t + 0.004);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+            o.connect(g);
+            g.connect(arpOut);
+            g.connect(echoIn);
+            o.start(t);
+            o.stop(t + 0.37);
+            break;
+          }
           const o = ctx.createOscillator();
           o.setPeriodicWave(pulse125);
           o.frequency.value = hz(e.midi);

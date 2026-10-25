@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.26';
+  const VERSION = '1.27';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -484,7 +484,7 @@
 
   // Song-list categories (each theme, bonus tracks): collapsed, one open at a time,
   // remembered per screen; the heading sums up who holds the records inside.
-  const THEMES = [['classic', 'CHIPTUNE CLASSICS'], ['spooky', 'SPOOKY'], ['rock', 'ROCK'], ['epic', 'EPIC ADVENTURE']];
+  const THEMES = [['classic', 'CHIPTUNE CLASSICS'], ['spooky', 'SPOOKY'], ['rock', 'ROCK'], ['epic', 'EPIC ADVENTURE'], ['space', 'SPACE'], ['carnival', 'CARNIVAL']];
   const openCat = (where) => { try { return (storage && storage.getItem('beatfrets.cat.' + where)) || ''; } catch (e) { return ''; } };
   function setOpenCat(where, cat) { try { if (storage) storage.setItem('beatfrets.cat.' + where, cat); } catch (e) { /* not kept */ } }
 

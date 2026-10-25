@@ -85,7 +85,7 @@ The menus look like an early-90s arcade cabinet, and every screen fills the disp
   song was played (Keys, Sideways, Upright, Tiles) and a ◀ ▶ difficulty picker. Scores are cards
   with gold, silver and bronze medals, and your own best is pinned under the list.
 
-- **Songs come in categories** (Chiptune Classics, Spooky, Rock, Epic Adventure, Bonus tracks)
+- **Songs come in categories** (Chiptune Classics, Spooky, Rock, Epic Adventure, Space, Carnival, Bonus tracks)
   that start closed, so even a long list fits on a phone. Each heading says how many of its
   records are claimed and by whom (*👑 7 OF 12 CLAIMED · YOU 2 · ZED 4 · AMY 1*), or *NO RECORDS
   YET · BE THE FIRST*. Tap one to open it (the others close), and the game remembers it for next
@@ -349,7 +349,9 @@ Song pack tracks (`js/songs.js`) are written as patterns and synthesised with a 
 sound palette: pulse-wave leads with SNES-style echo, triangle bass and noise drums. Each song
 can pick its own sounds (`voice`): a drawbar **organ** with vibrato, a square lead, a **brass**
 lead whose tone opens as it swells, toms or deep **timpani**, and distorted **power-chord
-guitar** (`gtr` patterns: `x` palm-muted chug, `o` open chord). Their charts come from the notes
+guitar** (`gtr` patterns: `x` palm-muted chug, `o` open chord), a glowing space **synth** with
+twinkling **bell** arpeggios, and a steam **calliope** whose melodies can slide chromatically
+(`leadScale: 'chromatic'`). Their charts come from the notes
 themselves, with the melody walking across the frets.
 
 Every theme has three songs, from a gentle one to a tough one. Each can be played on any
@@ -363,6 +365,8 @@ approachable even on Hard; a BOSS song is a challenge even on Easy.
 | Spooky | Haunted Hallway (112) | Graveyard Shift (138) | Witching Hour (172) | wobbly organ, long echo, toms / timpani |
 | Rock | Garage Jam (104) | Power Chord Party (128) | Amp Overload (160) | power-chord guitar, square lead |
 | Epic | Hero's Dawn (120) | Final Quest (152) | Dragon's Lair (172) | brass fanfares, timpani |
+| Space | Starlight Drift (108) | Warp Speed (140) | Galactic Showdown (168) | glowing synth, twinkling bells, brass for the boss |
+| Carnival | Big Top Parade (112) | Clown Car Chaos (138) | Ringmaster's Gallop (172) | steam calliope, oom-pah bass, chromatic runs |
 
 To add a song, give it a `theme` and a `tier` (`rookie`, `pro` or `boss`); the lists show each
 theme's songs in the order they appear in `js/songs.js`. As a guide, on Easy a ROOKIE song has
@@ -392,6 +396,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.27**: two new categories, three songs each. **Space**: *Starlight Drift*, *Warp Speed* and
+  *Galactic Showdown*, with a new glowing synth and twinkling bells. **Carnival**: *Big Top
+  Parade*, *Clown Car Chaos* and *Ringmaster's Gallop*, on a new steam calliope with chromatic runs.
 - **1.26**: song lists and Boards are grouped into categories that open on a tap, each summing up
   its records (*7 OF 12 CLAIMED · YOU 2 · ZED 4*), and every song shows who leads each difficulty.
   Records fall back to this device's best when the world boards can't be reached.
