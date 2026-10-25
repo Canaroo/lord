@@ -246,8 +246,8 @@ async function touchTests(browser) {
   check(true, 'first touch game offers timing calibration');
   await page.tap('#btn-offer-play');
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
-  const g1 = await page.evaluate(() => ({ lanes: BeatFrets.game.lanes, anti: BeatFrets.game.antiMash }));
-  check(g1.lanes === 4 && !g1.anti, `touch game plays on 4 lanes (${JSON.stringify(g1)})`);
+  const g1 = await page.evaluate(() => ({ lanes: BeatFrets.game.lanes }));
+  check(g1.lanes === 4, `touch game plays on 4 lanes (${JSON.stringify(g1)})`);
 
   await page.evaluate(TOUCH_BOT);
   await page.waitForTimeout(6000);
@@ -843,6 +843,25 @@ async function recordTests(browser) {
   check(tag === '1 TO BEAT', `the song list flags songs with world records to beat (${tag})`);
   check(await page.evaluate(() => !document.querySelector('[data-pack="turbo-cartridge"] .rec-tag')), 'songs without records to beat get no badge');
   await page.screenshot({ path: path.join(outDir, 'e2e-records-list.png') });
+
+  // Previews: a ▶ button on every song; it fills while the song is made, then plays a chorus clip.
+  const pv = '[data-preview="pack:pixel-overture"]';
+  check(await page.evaluate(() => document.querySelectorAll('.cat[data-cat="classic"] .song-line .pv').length === 3), 'every song in a category has a preview button');
+  check(await page.getAttribute(pv, 'data-state') === 'idle', 'a song not made yet starts with an empty preview button');
+  await page.click(pv);
+  await page.waitForFunction((sel) => document.querySelector(sel).dataset.state === 'building', pv, { timeout: 5000 }).catch(() => {});
+  const fill = await page.evaluate((sel) => { const b = document.querySelector(sel); return { state: b.dataset.state, txt: b.textContent }; }, pv);
+  check(['queued', 'building'].includes(fill.state), `tapping it starts making the song, shown on the button (${fill.txt})`);
+  await page.waitForFunction((sel) => document.querySelector(sel).dataset.state === 'ready', pv, { timeout: 90000 }).catch(() => {});
+  const done = await page.evaluate((sel) => { const b = document.querySelector(sel); return { state: b.dataset.state, fresh: b.classList.contains('fresh'), txt: b.textContent }; }, pv);
+  check(done.state === 'ready' && done.fresh && /READY/.test(done.txt), `when it's made, the button blinks READY (${done.txt})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-preview-ready.png') });
+  await page.click(pv);
+  await page.waitForFunction((sel) => document.querySelector(sel).dataset.state === 'playing', pv, { timeout: 5000 }).catch(() => {});
+  check(await page.getAttribute(pv, 'data-state') === 'playing' && /STOP/.test(await page.textContent(pv)), 'tapping a ready preview plays it (and offers STOP)');
+  await page.click(pv);
+  check(await page.getAttribute(pv, 'data-state') === 'ready', 'tapping again stops the preview');
+
   await page.click('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   await page.waitForFunction(() => /ZED/.test(document.querySelector('[data-wr="easy"]').textContent) && /RECORD/.test(document.querySelector('[data-wr="medium"]').textContent), null, { timeout: 5000 }).catch(() => {});
@@ -1125,7 +1144,7 @@ async function recordTests(browser) {
   const pace = await page.evaluate(() => BeatFrets.game._view(BeatFrets.game.now()).hud.pace);
   check(typeof pace === 'number', `pace against your best shows while playing (${pace})`);
 
-  // Anti-mash: on Hard, a press with no note nearby breaks the streak.
+  // A press with no note nearby never costs anything, even on Hard.
   const stray = await page.evaluate(async () => {
     const g = BeatFrets.game;
     for (let k = 0; k < 400; k++) {
@@ -1133,13 +1152,14 @@ async function recordTests(browser) {
       if (!g.notes.some((n) => n.lane === 2 && Math.abs(n.t - t) < 0.35)) break;
       await new Promise((r) => setTimeout(r, 5));
     }
+    const combo = g.combo;
     window.__pad.set(0, true); // lane 2 (A), the quietest lane in this chart
     await new Promise((r) => setTimeout(r, 40));
     window.__pad.set(0, false);
     await new Promise((r) => setTimeout(r, 30));
-    return { overhits: g.overhits, kind: g.judgement && g.judgement.kind };
+    return { before: combo, after: g.combo, kind: g.judgement && g.judgement.kind, miss: g.counts.miss };
   });
-  check(stray.overhits === 1 && stray.kind === 'over', 'a stray press on Hard breaks the streak');
+  check(stray.after >= stray.before && stray.kind !== 'over', `a stray press on Hard doesn't break the streak (${stray.before} → ${stray.after})`);
 
   // Pause, then resume: the song rewinds a second and counts back in.
   const resume = await page.evaluate(async () => {
@@ -1171,32 +1191,11 @@ async function recordTests(browser) {
   await page.click('#btn-quit');
   await screenIs(page, 'song');
 
-  // Easy stays forgiving: stray presses don't count.
-  await page.evaluate(() => BeatFrets.play('easy'));
-  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game.now() > 0.2, null, { timeout: 20000 });
-  await page.evaluate(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' })); await new Promise((r) => setTimeout(r, 40)); window.dispatchEvent(new KeyboardEvent('keyup', { key: 'a' })); });
-  check(await page.evaluate(() => BeatFrets.game.overhits === 0), 'stray presses are ignored on Easy');
-  await page.keyboard.press('Escape');
-  await page.click('#btn-quit');
-  await screenIs(page, 'song');
-
-  // The Overhit penalty option: turned off, stray presses are ignored even on Hard.
+  // There's no overhit option any more.
   await page.evaluate(() => { document.querySelector('[data-go="options"]').click(); });
   await screenIs(page, 'options');
-  check((await page.textContent('#opt-overhit span')) === 'ON', 'Overhit penalty is on by default');
-  await page.click('#opt-overhit');
-  check((await page.textContent('#opt-overhit span')) === 'OFF', 'Overhit penalty can be switched off');
-  await page.click('#opt-save');
-  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
-  await screenIs(page, 'song');
-  await page.evaluate(() => BeatFrets.play('hard'));
-  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game.now() > 0.2, null, { timeout: 20000 });
-  await page.evaluate(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' })); await new Promise((r) => setTimeout(r, 40)); window.dispatchEvent(new KeyboardEvent('keyup', { key: 'd' })); });
-  check(await page.evaluate(() => BeatFrets.game.overhits === 0), 'with the option off, stray presses are ignored on Hard');
-  await page.keyboard.press('Escape');
-  await page.click('#btn-quit');
-  await screenIs(page, 'song');
-  await page.evaluate(() => BeatFrets.save.setSetting('overhit', true));
+  check(!(await page.$('#opt-overhit')), 'Options has no overhit penalty');
+  await page.evaluate(() => BeatFrets.goHome());
 
   // Bonus tracks from songs/ (pre-built charts, aligned to this browser's decode).
   const index = JSON.parse(fs.readFileSync(path.join(SONGS_DIR, 'index.json'), 'utf8'));

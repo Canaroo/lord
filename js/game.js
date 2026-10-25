@@ -54,7 +54,6 @@
      * @param {number} o.lookahead     seconds of notes visible on the highway
      * @param {number} o.calibration   input offset in seconds
      * @param {boolean} o.noFail
-     * @param {boolean} o.antiMash     stray presses break the streak
      * @param {boolean} o.hitSounds    a soft tick on every hit
      * @param {number}  o.windowScale  widen the timing windows (touch)
      * @param {number}  o.holdGrace    seconds a long note survives a release (touch: a
@@ -78,7 +77,6 @@
       this.lookahead = o.lookahead;
       this.calibration = o.calibration || 0;
       this.noFail = !!o.noFail;
-      this.antiMash = !!o.antiMash;
       this.hitSounds = !!o.hitSounds;
       // Touch is less precise than a key, so its timing windows are a bit wider.
       const ws = o.windowScale || 1;
@@ -109,7 +107,6 @@
       this.combo = 0;
       this.maxCombo = 0;
       this.hits = 0;
-      this.overhits = 0;
       this.holds = []; // long notes whose head was hit and whose tail is still running
       this.holdTotal = 0;
       this.holdHeld = 0;
@@ -147,7 +144,7 @@
     get multiplier() { return this.odActive ? this.level * 2 : this.level; }
 
     get fullComboAlive() {
-      return this.hits > 0 && this.counts.miss === 0 && this.overhits === 0;
+      return this.hits > 0 && this.counts.miss === 0;
     }
 
     /** Song position (seconds) the player is hearing right now. */
@@ -233,7 +230,6 @@
         maxCombo: this.maxCombo,
         hits: this.hits,
         counts: { ...this.counts },
-        overhits: this.overhits,
         accuracy: Math.round(accuracy * 10) / 10,
         grade,
         total: this.notes.length,
@@ -318,24 +314,8 @@
         const d = Math.abs(n.t - t);
         if (d <= this.win.ok && d < bestD) { best = n; bestD = d; }
       }
-      if (best) { this._hit(best, bestD, t); return; }
-      if (t < 0 || !this.antiMash) return;
-      // Re-grabbing a long note you let go of is not a stray press.
-      if (this.holds.some((h) => h.lane === lane)) return;
-      // Nor is a quick double-press (key bounce) right after hitting a note.
-      for (let i = this.nextIdx - 1; i >= 0 && this.notes[i].t > t - 0.25; i--) {
-        const n = this.notes[i];
-        if (n.lane === lane && n.judged && n.judged !== 'miss') return;
-      }
-      this._overhit();
-    }
-
-    /** A press with no note nearby: breaks the streak (Medium and up), costs no health. */
-    _overhit() {
-      this.overhits++;
-      if (this.combo >= 10) { Sfx.miss(); this.powerDownAt = performance.now(); }
-      if (this.combo > 0) this.combo = 0;
-      this.judgement = { kind: 'over', at: performance.now() };
+      // A press with no note nearby does nothing: stray presses never cost you.
+      if (best) this._hit(best, bestD, t);
     }
 
     _graph(t, earned) {

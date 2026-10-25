@@ -956,7 +956,7 @@
       const jd = v.judgement;
       if (jd && nowMs - jd.at < 450) {
         const k = (nowMs - jd.at) / 450;
-        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS', over: 'OVERHIT' }[jd.kind];
+        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS' }[jd.kind];
         const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red }[jd.kind];
         const jy = my + 4 - (k < 0.15 ? (0.15 - k) * 30 : 0);
         const rx = sideX(1, jy + 10);
@@ -1108,7 +1108,7 @@
       const j = touch ? null : v.judgement;
       if (j && nowMs - j.at < 450) {
         const k = (nowMs - j.at) / 450;
-        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS', over: 'OVERHIT' }[j.kind];
+        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS' }[j.kind];
         const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red }[j.kind];
         const jy = LAYOUT === 'touch2' ? HIT_Y - 106 : LAYOUT === 'touch4' ? HIT_Y - 86 : HIT_Y - 62;
         const y = jy - (k < 0.15 ? (0.15 - k) * 40 : 0);

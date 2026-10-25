@@ -28,7 +28,6 @@
     shake: true,
     noFail: false,
     hitSounds: false,
-    overhit: true,
     calibrationTouchMs: 0, // touch screens have their own delay
     vibrate: false,
     touchCalibOffered: false,

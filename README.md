@@ -113,7 +113,7 @@ press a key or a controller button.
 - **Tiers:** Easy, Medium, Medium+ and Hard, in either direction. Touch charts are built for
   thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
   holds a long note, the other hand plays everything else. The timing window is slightly wider
-  than on keys, and the overhit penalty is off, since a thumb can brush the glass.
+  than on keys, since a thumb can brush the glass.
 - **Big tap pads, raised strike line:** on phones the notes are short, wide arcade-button caps centred on
   the beat, so the strike line passes through the middle of each one. A note's length doesn't
   change how easy it is to hit (the whole lane is the target), so blocks stay short and shrink
@@ -205,11 +205,14 @@ Bluetooth headphones usually need this.
 - **Pace:** replay a song and the HUD shows how far ahead of or behind your personal best you are.
 - **Results:** a graph of how each part of the song went, your average timing (with a one-press
   fix if you're consistently early or late), and a suggestion for what to try next.
-- **Stray presses** on Medium and up break your streak, so mashing doesn't pay. Easy stays
-  forgiving, and **Options → Overhit penalty** turns it off everywhere.
+- **Stray presses** never cost you anything: only the notes count.
 - **Pausing** stops the song. Resuming rewinds a second and counts you back in.
 - **Saved music:** imported songs are kept in your browser and listed under *Your music*, one
-  click to play or delete. Song lists play a short preview of whatever's highlighted.
+  click to play or delete.
+- **Previews:** every song has a ▶ button. Built-in songs are made on the phone the first time
+  (10–60 seconds): the button fills up as the song is made, blinks READY, then plays a 15-second
+  clip of the chorus. Tap several and they're made one after another; tap a playing preview to
+  stop it. Songs already made and your own music are ready straight away; bonus tracks download first.
 
 ## Leaderboards and sharing
 
@@ -396,6 +399,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.28**: a ▶ **preview** button on every song: it fills up while the song is made, blinks
+  READY, and plays 15 seconds of the chorus. The overhit penalty is gone: stray presses never
+  cost anything.
 - **1.27**: two new categories, three songs each. **Space**: *Starlight Drift*, *Warp Speed* and
   *Galactic Showdown*, with a new glowing synth and twinkling bells. **Carnival**: *Big Top
   Parade*, *Clown Car Chaos* and *Ringmaster's Gallop*, on a new steam calliope with chromatic runs.

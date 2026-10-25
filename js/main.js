@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.27';
+  const VERSION = '1.28';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -513,7 +513,7 @@
     setOpenCat(where, opening ? box.dataset.cat : '');
     if (!opening) return;
     // With keys or a controller, the cursor moves onto the first song.
-    const first = document.body.classList.contains('nav') && $('.cat-body > button', box);
+    const first = document.body.classList.contains('nav') && ($('.cat-body [data-key]', box) || $('.cat-body button', box));
     if (first) first.focus({ preventScroll: true });
     requestAnimationFrame(() => head.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   }
@@ -524,7 +524,8 @@
       const songs = SongPack.SONGS.filter((s) => (s.theme || 'classic') === theme);
       if (!songs.length) return '';
       return catBlock(where, theme, heading, songs.length, songs.map((s) =>
-        `<button data-pack="${esc(s.id)}" data-key="${esc(SongPack.keyFor(s))}">${songRow(s.title, `${s.bpm} BPM · ${s.blurb}`, SongPack.keyFor(s), s.tier)}</button>`).join(''));
+        `<div class="song-line"><button data-pack="${esc(s.id)}" data-key="${esc(SongPack.keyFor(s))}">${songRow(s.title, `${s.bpm} BPM · ${s.blurb}`, SongPack.keyFor(s), s.tier)}</button>` +
+        previewButton('pack:' + s.id, s.title) + '</div>').join(''));
     }).join('');
     autofocusCat($('#pack-list'));
     markRecords();
@@ -532,7 +533,8 @@
     fetchBonusIndex().then((list) => {
       $('#bonus-section').hidden = !list.length;
       $('#bonus-section').innerHTML = list.length ? catBlock(where, 'bonus', 'BONUS TRACKS', list.length, list.map((s) =>
-        `<button data-bonus="${esc(s.id)}" data-key="${esc(BonusPack.keyFor(s.id))}">${songRow(s.title.slice(0, 40), s.artist || 'Bonus track', BonusPack.keyFor(s.id))}</button>`
+        `<div class="song-line"><button data-bonus="${esc(s.id)}" data-key="${esc(BonusPack.keyFor(s.id))}">${songRow(s.title.slice(0, 40), s.artist || 'Bonus track', BonusPack.keyFor(s.id))}</button>` +
+        previewButton('bonus:' + s.id, s.title) + '</div>'
       ).join('')) : '';
       markRecords();
       fillCatSummaries($('#bonus-section'));
@@ -542,7 +544,7 @@
   /** Focus lands on the open category's first song, or on the first heading. */
   function autofocusCat(list) {
     for (const el of $$('[data-autofocus]', list)) el.removeAttribute('data-autofocus');
-    const open = $('.cat.open .cat-body > button', list);
+    const open = $('.cat.open .cat-body [data-key]', list) || $('.cat.open .cat-body button', list);
     const target = open || $('.cat-head', list);
     if (target) target.setAttribute('data-autofocus', '');
   }
@@ -672,6 +674,7 @@
       box.innerHTML = (note ? `<p class="match">${esc(note)}</p>` : '') + '<p class="label">YOUR SAVED SONGS</p>' +
         songs.map((m) => `<div class="lib-row">
           <button data-saved="${esc(m.key)}">${songRow(m.title.slice(0, 36), fmtSize(m.size), m.key)}</button>
+          ${previewButton('saved:' + m.key, m.title)}
           <button class="del" data-del="${esc(m.key)}" aria-label="Delete ${esc(m.title)}">DELETE</button>
         </div>`).join('');
       markRecords();
@@ -814,7 +817,7 @@
         ? `Matched to "${reg.title}" by sound (${Math.round(reg.similarity * 100)}% alike), so you share its leaderboard.`
         : null,
     };
-    previewBuffers.set('mp3:' + reg.key, buffer);
+    keepPreview('mp3:' + reg.key, buffer);
     if (quietLoad) quietDone();
     else if (pendingRemote) resumeRemote();
     else showSong();
@@ -822,11 +825,24 @@
 
   // ---- song previews ------------------------------------------------------------------------------
 
+  // Every song row has a ▶ button. Built-in songs are synthesised the first time
+  // (10–60 s): the button fills up as the song is made, blinks READY, then plays a
+  // 15-second clip from the chorus. Builds queue up and run one at a time.
   const previewBuffers = new Map();
+  /** Decoded songs for previews: only the last two stay in memory (a long MP3 is big). */
+  function keepPreview(k, buf) {
+    previewBuffers.delete(k);
+    previewBuffers.set(k, buf);
+    while (previewBuffers.size > 2) previewBuffers.delete(previewBuffers.keys().next().value);
+  }
   const preview = { key: null, timer: 0, src: null, gain: null };
+  const pvState = new Map(); // 'pack:id' | 'bonus:id' | 'saved:key' → { state, p, fresh }
+  const PREVIEW_LEN = 15;
+  let buildQueue = Promise.resolve();
 
   function stopPreview() {
     clearTimeout(preview.timer);
+    const was = preview.key;
     preview.key = null;
     if (preview.src) {
       const { src, gain } = preview;
@@ -837,42 +853,132 @@
       setTimeout(() => { try { src.stop(); } catch (e) { /* already stopped */ } }, 200);
       preview.src = null;
     }
+    if (was && pvStateFor(was).state === 'playing') setPv(was, 'ready');
   }
 
-  /** Play a short faded loop from about a third of the way into a song. */
-  function schedulePreview(key, getBuffer) {
-    if (!audioCtx || game || key === preview.key) return;
+  /** Where a preview starts: a pack song's first chorus, otherwise a third of the way in. */
+  function previewStart(key, buf) {
+    if (key.startsWith('pack:')) {
+      const def = SongPack.SONGS.find((s) => s.id === key.slice(5));
+      const step = 60 / def.bpm / 4;
+      let bars = 0;
+      for (const sec of def.form) {
+        if (sec.lead === 'chorus') return 1 + bars * 16 * step;
+        bars += sec.bars;
+      }
+    }
+    return buf.duration * 0.3;
+  }
+
+  function pvStateFor(key) {
+    if (pvState.has(key)) return pvState.get(key);
+    const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+    const ready = kind === 'saved' || (kind === 'pack' && (bufferCache.has(id) || packBuilt(id))) || previewBuffers.has(key);
+    return { state: ready ? 'ready' : 'idle', p: ready ? 1 : 0 };
+  }
+
+  const pvLabel = (st) => (st.state === 'playing' ? 'STOP' : st.state === 'queued' ? 'WAITING' : st.state === 'building' ? `${Math.round(st.p * 100)}%`
+    : st.state === 'ready' ? (st.fresh ? 'READY!' : 'PREVIEW') : 'PREVIEW');
+
+  function previewButton(key, title) {
+    const st = pvStateFor(key);
+    return `<button class="pv${st.fresh ? ' fresh' : ''}" data-preview="${esc(key)}" data-state="${st.state}" style="--p:${st.p || 0}" aria-label="Preview ${esc(title)}">` +
+      '<span class="pv-fill"></span><span class="pv-icon"><svg class="pv-play"><use href="#i-play"/></svg><i class="pv-stop"></i></span>' +
+      `<small class="pv-txt">${pvLabel(st)}</small></button>`;
+  }
+
+  function setPv(key, state, p = state === 'ready' || state === 'playing' ? 1 : 0, fresh = false) {
+    const st = { state, p, fresh };
+    pvState.set(key, st);
+    for (const b of $$(`[data-preview="${CSS.escape(key)}"]`)) {
+      b.dataset.state = state;
+      b.style.setProperty('--p', p);
+      b.classList.toggle('fresh', fresh);
+      $('.pv-txt', b).textContent = pvLabel(st);
+    }
+    if (fresh) setTimeout(() => { const now = pvState.get(key); if (now && now.fresh) setPv(key, now.state, now.p); }, 2600);
+  }
+
+  /** Get a song ready to preview (in the queue for built-in songs), showing progress on its button. */
+  function preparePreview(key) {
+    const id = key.slice(key.indexOf(':') + 1);
+    setPv(key, 'queued');
+    const job = key.startsWith('pack:')
+      ? () => { setPv(key, 'building', 0); return packBuffer(id, (k) => { if (pvStateFor(key).state === 'building') setPv(key, 'building', Math.min(0.99, k)); }); }
+      : () => { setPv(key, 'building', 0); return bonusBuffer(id, (k) => setPv(key, 'building', Math.min(0.99, k))); };
+    buildQueue = buildQueue.then(job).then(
+      () => { if (pvStateFor(key).state !== 'playing') setPv(key, 'ready', 1, true); },
+      (err) => { console.warn(err); setPv(key, 'idle'); toast('That preview could not be made: ' + (err.message || err)); });
+  }
+
+  async function previewBufferFor(key) {
+    const id = key.slice(key.indexOf(':') + 1);
+    if (key.startsWith('pack:')) return packBuffer(id);
+    if (key.startsWith('bonus:')) return bonusBuffer(id);
+    return savedBuffer(id);
+  }
+
+  async function playPreview(key) {
     stopPreview();
     preview.key = key;
-    preview.timer = setTimeout(async () => {
-      let buf = null;
-      try { buf = await getBuffer(); } catch (e) { buf = null; }
-      if (preview.key !== key || !buf || game) return;
-      const src = audioCtx.createBufferSource();
-      src.buffer = buf;
-      const gain = audioCtx.createGain();
-      const t = audioCtx.currentTime;
-      const len = Math.min(12, buf.duration * 0.5);
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(1, t + 0.5);
-      gain.gain.setValueAtTime(1, t + len - 1);
-      gain.gain.linearRampToValueAtTime(0, t + len);
-      src.connect(gain).connect(Sfx.previewBus || audioCtx.destination);
-      src.start(t, buf.duration * 0.3, len);
-      preview.src = src;
-      preview.gain = gain;
-    }, 450);
+    setPv(key, 'playing');
+    let buf = null;
+    try { buf = await previewBufferFor(key); } catch (e) { buf = null; }
+    if (preview.key !== key || game) return;
+    if (!buf) { setPv(key, 'idle'); preview.key = null; return; }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const gain = audioCtx.createGain();
+    const t = audioCtx.currentTime;
+    const from = Math.max(0, Math.min(previewStart(key, buf), buf.duration - PREVIEW_LEN));
+    const len = Math.min(PREVIEW_LEN, buf.duration - from);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(1, t + 0.3);
+    gain.gain.setValueAtTime(1, t + len - 1.5);
+    gain.gain.linearRampToValueAtTime(0, t + len);
+    src.connect(gain).connect(Sfx.previewBus || audioCtx.destination);
+    src.start(t, from, len);
+    preview.src = src;
+    preview.gain = gain;
+    preview.timer = setTimeout(() => { if (preview.key === key) { preview.src = null; stopPreview(); } }, len * 1000);
   }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-preview]');
+    if (!b) return;
+    e.preventDefault();
+    ensureAudio();
+    const key = b.dataset.preview;
+    const st = pvStateFor(key).state;
+    if (st === 'playing') stopPreview();
+    else if (st === 'idle') preparePreview(key);
+    else if (st === 'ready') playPreview(key);
+  });
 
   /**
    * A song-pack song's audio. Synthesised once per device and kept in the browser
    * (as 16-bit samples), so later loads are instant; rebuilt if the song changes.
    */
   const packPending = new Map(); // id → render in progress (a preview and a load share one)
+  const packListeners = new Map(); // id → progress callbacks of everyone waiting on it
   function packBuffer(id, onProgress) {
     if (bufferCache.has(id)) return Promise.resolve(bufferCache.get(id));
-    if (!packPending.has(id)) packPending.set(id, makePackBuffer(id, onProgress).finally(() => packPending.delete(id)));
+    if (onProgress) {
+      if (!packListeners.has(id)) packListeners.set(id, new Set());
+      packListeners.get(id).add(onProgress);
+    }
+    if (!packPending.has(id)) {
+      const tell = (k) => { for (const f of packListeners.get(id) || []) f(k); };
+      packPending.set(id, makePackBuffer(id, tell).finally(() => { packPending.delete(id); packListeners.delete(id); }));
+    }
     return packPending.get(id);
+  }
+
+  /** The cache stamp of a pack song: changes whenever its composition does. */
+  const packStamp = (def) => 'r3:' + hashBytes(new TextEncoder().encode(JSON.stringify(def)).buffer);
+  /** Whether this device has a pack song built (a small note beside the big cached audio). */
+  function packBuilt(id) {
+    try { return !!storage && storage.getItem('beatfrets.built.' + id) === packStamp(SongPack.SONGS.find((s) => s.id === id)); } catch (e) { return false; }
   }
   // Built songs are kept (IndexedDB) so they start instantly next time. To keep that
   // small, the mix is stored as mid (left+right, full quality) plus side (the small
@@ -921,7 +1027,7 @@
   async function makePackBuffer(id, onProgress) {
     let buffer;
     const def = SongPack.SONGS.find((s) => s.id === id);
-    const stamp = 'r3:' + hashBytes(new TextEncoder().encode(JSON.stringify(def)).buffer);
+    const stamp = packStamp(def);
     const cached = await Library.cacheGet('pack:' + id);
     if (cached && cached.stamp === stamp && cached.mid) {
       buffer = unpackPcm(cached);
@@ -930,7 +1036,13 @@
       const pcm = packPcm(buffer);
       Library.cachePut('pack:' + id, { stamp, sr: buffer.sampleRate, ...pcm });
     }
+    try { if (storage) storage.setItem('beatfrets.built.' + id, stamp); } catch (e) { /* only a hint */ }
+    // Each song is about 25 MB in memory, so only the last few stay; the rest reload from storage.
+    bufferCache.delete(id);
     bufferCache.set(id, buffer);
+    while (bufferCache.size > 3) bufferCache.delete(bufferCache.keys().next().value);
+    const k = 'pack:' + id;
+    if (['idle', 'queued', 'building'].includes(pvStateFor(k).state)) setPv(k, 'ready', 1, pvStateFor(k).state !== 'idle');
     return buffer;
   }
 
@@ -940,23 +1052,22 @@
     const bytes = await Library.get(key);
     if (!bytes) return null;
     const buf = await audioCtx.decodeAudioData(bytes);
-    previewBuffers.set(k, buf);
+    keepPreview(k, buf);
     return buf;
   }
 
-  function previewFor(el) {
-    if (!el) return;
-    if (el.dataset.pack) schedulePreview('pack:' + el.dataset.pack, () => packBuffer(el.dataset.pack));
-    else if (el.dataset.bonus) {
-      const cached = bonusCache.get(el.dataset.bonus);
-      if (cached) schedulePreview('bonus:' + el.dataset.bonus, async () => cached.buffer);
-    } else if (el.dataset.saved) schedulePreview('saved:' + el.dataset.saved, () => savedBuffer(el.dataset.saved));
+  /** A bonus track's audio, downloaded and decoded (for a preview). */
+  async function bonusBuffer(id, onProgress) {
+    const k = 'bonus:' + id;
+    if (bonusCache.has(id)) return bonusCache.get(id).buffer;
+    if (previewBuffers.has(k)) return previewBuffers.get(k);
+    const def = (await fetchBonusIndex()).find((s) => s.id === id);
+    if (!def) throw new Error('that bonus track is not on this site.');
+    const bytes = await fetchWithProgress('songs/' + encodeURIComponent(def.file), (p) => onProgress && onProgress(p * 0.9));
+    const buf = await ensureAudio().decodeAudioData(bytes);
+    keepPreview(k, buf);
+    return buf;
   }
-  document.addEventListener('focusin', (e) => previewFor(e.target.closest && e.target.closest('[data-pack], [data-bonus], [data-saved]')));
-  document.addEventListener('mouseover', (e) => {
-    const el = e.target.closest && e.target.closest('[data-pack], [data-bonus], [data-saved]');
-    if (el) previewFor(el);
-  });
 
   // ---- song screen ------------------------------------------------------------------------------
 
@@ -1247,8 +1358,6 @@
       lookahead: (LOOKAHEAD[tier.difficulty] || 1.5) / settings.speed,
       calibration: (tier.touch ? settings.calibrationTouchMs : settings.calibrationMs) / 1000,
       noFail: settings.noFail,
-      // Resting fingers make stray touches common, so the overhit rule is keys-only.
-      antiMash: !tier.touch && settings.overhit && tier.difficulty !== 'easy',
       windowScale: tier.touch ? 1.15 : 1,
       holdGrace: tier.touch ? 0.12 : 0,
       vibrate: tier.touch && settings.vibrate,
@@ -1589,8 +1698,6 @@
     $('#res-ok').textContent = res.counts.ok;
     $('#res-miss').textContent = res.counts.miss;
     $('#res-combo').textContent = `${res.maxCombo} / ${res.total}`;
-    $('#res-over-row').hidden = !res.overhits;
-    $('#res-over').textContent = res.overhits;
     $('#btn-share').disabled = res.failed;
 
     // Stars and the next target.
@@ -2620,7 +2727,7 @@
   const OPT_LABEL = {
     speed: 'Note speed', calibrationMs: 'Audio offset', calibrationTouchMs: 'Audio offset', music: 'Music volume', sfx: 'Effects volume',
     tilesLineUp: 'Tiles line', strikeUp4: 'Strike line, sideways', strikeUp2: 'Strike line, upright', crt: 'CRT scanlines',
-    shake: 'Screen shake', noFail: 'No-fail mode', hitSounds: 'Hit sounds', overhit: 'Overhit penalty', vibrate: 'Vibration', autoPost: 'Auto-post',
+    shake: 'Screen shake', noFail: 'No-fail mode', hitSounds: 'Hit sounds', vibrate: 'Vibration', autoPost: 'Auto-post',
   };
   const lineText = (up, lo, hi) => (up <= lo ? 'LOW' : up >= hi ? 'HIGH' : 'MIDDLE') + ` (${up}%)`;
   const OPT_SHOW = {
@@ -2702,7 +2809,7 @@
     updateDeviceUI();
   }
 
-  const TOGGLES = [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-overhit', 'overhit'], ['#opt-vibrate', 'vibrate'], ['#opt-autopost', 'autoPost']];
+  const TOGGLES = [['#opt-crt', 'crt'], ['#opt-shake', 'shake'], ['#opt-nofail', 'noFail'], ['#opt-hits', 'hitSounds'], ['#opt-vibrate', 'vibrate'], ['#opt-autopost', 'autoPost']];
   const bindRange = (id, key, parse) => $(id).addEventListener('input', (e) => setDraft(typeof key === 'function' ? key() : key, parse(e.target.value)));
   bindRange('#opt-speed', 'speed', parseFloat);
   bindRange('#opt-calib', () => calKey(), (x) => parseInt(x, 10));
