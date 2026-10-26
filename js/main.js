@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.31';
+  const VERSION = '1.32';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -76,7 +76,7 @@
   };
   // Menus work either way up; only a song in progress needs the phone held its way.
   function wantedOrientation() {
-    if (!Input.touch || !game || !game.running || gameLayout === 'keys') return null;
+    if (!Input.touch || !game || !game.running || gameLayout === 'keys' || gameLayout === 'tiles') return null;
     return gameLayout === 'touch4' ? 'landscape' : 'portrait';
   }
   /** Show the "turn your phone" prompt (and pause a song) while it's held the wrong way. */
@@ -1555,9 +1555,7 @@
     session.orient = null;
     save.setSetting('playMode', mode);
     if (mode === 'tiles') {
-      // Tiles is always played upright.
-      session.orient = Input.touch ? 'portrait' : null;
-      orientation.want(session.orient);
+      // Tiles plays either way up: upright is a tall board, sideways a wide one.
       goSongs();
       return;
     }
@@ -2307,7 +2305,7 @@
     vs = {
       key, diff,
       id: worldBoardFor(key, diff),
-      want: Input.touch ? (t.tiles ? 'portrait' : t.touch ? (t.lanes === 4 ? 'landscape' : 'portrait') : null) : null,
+      want: Input.touch ? (t.tiles ? null : t.touch ? (t.lanes === 4 ? 'landscape' : 'portrait') : null) : null,
       tiles: !!t.tiles,
       prevWant: orientation.wanted,
       target: r ? { initials: r.initials, score: Number(r.score), timeline: Array.isArray(r.tl) && r.tl.length > 1 ? r.tl : null, laps: Number(r.laps) || 0, rank, sid: r.id || null } : null,

@@ -431,6 +431,22 @@ async function touchTests(browser) {
   await page.tap('#btn-quit').catch(() => {});
   await page.tap('#btn-home');
   await screenIs(page, 'main');
+  // Held sideways, Tiles plays on a wide board that fills the screen (no "turn your phone").
+  await page.setViewportSize(LAND);
+  await page.waitForTimeout(400);
+  await page.tap('#btn-mode-tiles');
+  await screenIs(page, 'pack');
+  await openCat(page, 'classic');
+  await page.tap('[data-pack="pixel-overture"]');
+  await screenIs(page, 'song');
+  await page.tap('[data-diff="tiles:easy"]');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game instanceof TilesGame, null, { timeout: 30000 });
+  await page.waitForTimeout(500);
+  const wide = await page.evaluate(() => { const r = document.getElementById('stage').getBoundingClientRect(); return { w: BeatFrets.stage.width, h: BeatFrets.stage.height, cw: Math.round(r.width), vw: innerWidth, prompt: !document.getElementById('rotate').hidden }; });
+  await page.screenshot({ path: path.join(outDir, 'e2e-tiles-land.png') });
+  check(wide.w > wide.h && wide.cw >= wide.vw * 0.95 && !wide.prompt, `sideways Tiles uses a wide board across the whole screen (${JSON.stringify(wide)})`);
+  await page.evaluate(() => BeatFrets.goHome());
+  await screenIs(page, 'main');
   await page.setViewportSize(PORT);
   await page.waitForTimeout(400);
   await page.tap('#btn-mode-tiles');
