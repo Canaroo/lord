@@ -1,11 +1,11 @@
 {
   "name": "beat-frets",
-  "version": "1.37.0",
+  "version": "1.38.0",
   "private": true,
   "description": "Keyboard rhythm game that auto-generates note charts from your own MP3s.",
   "scripts": {
     "start": "npx --yes http-server -c-1 -p 8080 .",
-    "test": "node --test tests/analyzer.test.js tests/save.test.js tests/songs.test.js tests/bonus.test.js tests/world.test.js tests/version.test.js",
+    "test": "node --test tests/analyzer.test.js tests/save.test.js tests/songs.test.js tests/bonus.test.js tests/world.test.js tests/version.test.js tests/daily.test.js",
     "build-charts": "node tools/build-charts.js",
     "e2e": "node tests/e2e.js"
   },

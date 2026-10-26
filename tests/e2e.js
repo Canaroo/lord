@@ -844,6 +844,12 @@ async function worldTests(browser) {
 
 async function recordTests(browser) {
   const { page, errors, context } = await newPage(browser);
+  // Song of the Day: today's keyboard board has ZED on it; yesterday ZED won the daily.
+  const Daily = require('../js/daily.js');
+  const pk = Daily.pick(require('../js/songs.js').SONGS);
+  const dailyToday = Daily.boardId(pk.date, Daily.tierFor(pk.base, 'keys'));
+  const dailyYesterday = Daily.boardId(Daily.addDays(pk.date, -1), 'easy');
+  await page.addInitScript(([a, b]) => { window.__daily = { a, b }; }, [dailyToday, dailyYesterday]);
   await page.addInitScript(() => {
     // Easy: ZED's record. Medium: this player's own record. Hard: none.
     window.__seed = {
@@ -851,6 +857,8 @@ async function recordTests(browser) {
       scores: [
         ['pack-pixel-overture__easy/zed_p', { initials: 'ZED', score: 12500, grade: 'A', accuracy: 92, maxCombo: 60, fullCombo: false, date: '2026-10-24' }],
         ['pack-pixel-overture__medium/devR_me', { initials: 'JDT', score: 9000, grade: 'B', accuracy: 85, maxCombo: 40, fullCombo: false, date: '2026-10-24' }],
+        [window.__daily.a + '/zed_p', { initials: 'ZED', score: 5000, grade: 'B', accuracy: 80, maxCombo: 30, fullCombo: false, date: '2026-10-24' }],
+        [window.__daily.b + '/zed_p', { initials: 'ZED', score: 4000, grade: 'B', accuracy: 80, maxCombo: 30, fullCombo: false, date: '2026-10-24' }],
       ],
     };
   });
@@ -951,7 +959,7 @@ async function recordTests(browser) {
   await page.click('[data-boards-view="players"]');
   await page.waitForSelector('#players-list [data-license]', { timeout: 5000 }).catch(() => {});
   const plist = await page.evaluate(() => [...document.querySelectorAll('#players-list [data-license]')].map((b) => b.textContent));
-  check(plist.length === 2 && plist.some((t) => /ZED.*1 TROPHY/.test(t)) && plist.some((t) => /JDT.*YOU.*1 TROPHY/.test(t)), `Players lists everyone with their trophies (${plist.join(' | ')})`);
+  check(plist.length === 2 && plist.some((t) => /ZED.*1 TROPHY.*1 DAILY WIN/.test(t)) && plist.some((t) => /JDT.*YOU.*1 TROPHY/.test(t)), `Players lists everyone with their trophies (${plist.join(' | ')})`);
   await page.screenshot({ path: path.join(outDir, 'e2e-players.png') });
   await page.click('#players-list [data-license]:has-text("ZED")');
   await screenIs(page, 'license');
@@ -1017,6 +1025,41 @@ async function recordTests(browser) {
   await page.waitForTimeout(2500);
   const prac = await page.evaluate(() => ({ flag: document.getElementById('res-flag').textContent, world: !document.getElementById('res-world-box').hidden, share: document.getElementById('btn-share').disabled, board: BeatFrets.save.leaderboard('pack:pixel-overture', 'easy', 10).length }));
   check(/PRACTICE/.test(prac.flag) && !prac.world && prac.share && prac.board === 0, `a No-fail run is practice: no world posting, no sharing, not on the leaderboard (${JSON.stringify(prac)})`);
+
+  // Song of the Day: a card on Play shows today's song and who leads; PLAY starts it,
+  // the results post to today's board and start a streak.
+  await page.evaluate(() => BeatFrets.save.setSetting('noFail', false));
+  await page.evaluate(() => BeatFrets.goHome());
+  await screenIs(page, 'main');
+  await page.waitForFunction(() => /ZED/.test(document.getElementById('daily-lead').textContent), null, { timeout: 5000 }).catch(() => {});
+  const card = await page.textContent('#daily-card');
+  const title = await page.evaluate((id) => BeatFrets.loadPack && SongPack.SONGS.find((x) => x.id === id).title.toUpperCase(), pk.songId);
+  check(/SONG OF THE DAY/.test(card) && card.includes(title) && /ZED 5,000/.test(card) && /START A 🔥 STREAK/.test(card), `the Play screen shows the Song of the Day and who leads it (${title})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-daily-card.png') });
+  await page.click('[data-daily-play="frets"]');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 90000 });
+  const started = await page.evaluate(() => ({ song: BeatFrets.current.packId, ribbon: !!document.querySelector('.diff.daily .daily-ribbon') }));
+  check(started.song === pk.songId && started.ribbon, 'PLAY starts the Song of the Day (marked on the song screen)');
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => { const g = BeatFrets.game; const r = g.results(); r.score = 7000; g.stop(); g.onEnd(r); });
+  await screenIs(page, 'results');
+  await page.waitForFunction(() => !document.getElementById('resd-post').hidden, null, { timeout: 5000 }).catch(() => {});
+  const dres = await page.evaluate(() => ({ box: !document.getElementById('resd-world-box').hidden, tag: document.querySelector('#resd-world-box .daily-tag').textContent, line: document.getElementById('resd-world').textContent }));
+  check(dres.box && /1-DAY STREAK/.test(dres.tag) && /#1/.test(dres.line), `the results offer today's board, with the streak (${dres.tag} | ${dres.line})`);
+  await page.click('#resd-post');
+  await page.waitForFunction((id) => window.__world.scores.has(id + '/devR_' + BeatFrets.save.active.id.replace(/[^a-z0-9]/gi, '').slice(0, 24)), dailyToday, { timeout: 5000 }).catch(() => {});
+  check(await page.evaluate((id) => [...window.__world.scores.keys()].some((k) => k.startsWith(id + '/devR_')), dailyToday), "posting puts the run on today's board");
+  await page.evaluate(() => BeatFrets.goHome());
+  await screenIs(page, 'main');
+  await page.waitForFunction(() => /THAT'S YOU/.test(document.getElementById('daily-lead').textContent), null, { timeout: 5000 }).catch(() => {});
+  const after = await page.textContent('#daily-card');
+  check(/🔥 1-DAY STREAK · PLAYED TODAY/.test(after) && /THAT'S YOU/.test(after), `the card shows the streak and that you lead today (${after.replace(/\s+/g, ' ').slice(0, 160)})`);
+  await page.click('[data-daily-board]');
+  await screenIs(page, 'board');
+  await page.waitForTimeout(500);
+  const dboard = await page.evaluate(() => ({ now: document.getElementById('board-now').textContent, tabs: document.querySelectorAll('[data-board-tier]').length, rows: document.querySelectorAll('#board-table .score-row:not(.empty)').length }));
+  check(/SONG OF THE DAY/.test(dboard.now) && dboard.tabs === 1 && dboard.rows === 2, `TODAY'S BOARD shows today's scores (${JSON.stringify(dboard)})`);
+  check(!errors.length, 'no errors with the Song of the Day ' + errors.join(' | '));
   await context.close();
 }
 

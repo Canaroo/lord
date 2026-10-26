@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.37';
+  const VERSION = '1.38';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -407,8 +407,95 @@
     $('#tiles-lanes').innerHTML = Input.touch ? '<b>UPRIGHT ONLY</b>' : '';
   }
 
+  // ---- Song of the Day ----------------------------------------------------------------------------
+
+  /** Today's pick, and the tier for a way of playing ('keys', 'touch4', 'touch2', 'tiles'). */
+  const dailyPick = () => Daily.pick(SongPack.SONGS);
+  const dailyTier = (family, pk = dailyPick()) => Daily.tierFor(pk.base, family);
+  /** Is this run (song + tier, today) the Song of the Day? */
+  function isDailyRun(difficulty) {
+    if (!current || current.kind !== 'pack') return false;
+    const pk = dailyPick();
+    return current.packId === pk.songId && difficulty === dailyTier(familyOf(difficulty), pk);
+  }
+  function dailyStreak(p = save.active) { return p ? Daily.streakNow(p.daily) : 0; }
+  /** After a daily run: keep the player's streak going. */
+  function markDaily(p) {
+    if (!p) return;
+    p.daily = Daily.nextStreak(p.daily || null, Daily.today());
+    save.save();
+  }
+  /** How you'd play the daily right now: keys, sideways (4 lanes) or upright (2 lanes). */
+  const dailyFamily = () => (Input.touch ? (window.innerWidth > window.innerHeight ? 'touch4' : 'touch2') : 'keys');
+
+  let dailySeq = 0;
+  function renderDaily() {
+    const card = $('#daily-card');
+    const pk = dailyPick();
+    const def = SongPack.SONGS.find((x) => x.id === pk.songId);
+    if (!def) { card.hidden = true; return; }
+    const fam = dailyFamily();
+    const tier = dailyTier(fam, pk);
+    const streak = dailyStreak();
+    const playedToday = save.active && save.active.daily && save.active.daily.last === pk.date;
+    const day = new Date(pk.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).toUpperCase();
+    const sideways = Input.touch && fam === 'touch4';
+    card.hidden = false;
+    card.innerHTML = `<div class="daily-top"><span><svg><use href="#i-trophy"/></svg>SONG OF THE DAY</span><span>${esc(day)}</span></div>
+      <div class="daily-body">
+        <b>${tierBadge(def.tier)}${esc(def.title.toUpperCase())}</b>
+        <span class="daily-how"><span class="board-now-tier" data-base="${pk.base}">${BASE_LABEL(pk.base)}</span> · ${FAMILIES[fam]}${sideways ? '' : ` <i>(TILES: ${BASE_LABEL(parseId(dailyTier('tiles', pk)).difficulty)})</i>`}</span>
+        <span class="daily-lead" id="daily-lead">${World.available() ? 'CHECKING TODAY\'S BOARD…' : ''}</span>
+        <span class="daily-streak${streak ? ' on' : ''}">${streak ? `🔥 ${streak}-DAY STREAK${playedToday ? ' · PLAYED TODAY' : ' · PLAY TODAY TO KEEP IT'}` : 'PLAY TODAY TO START A 🔥 STREAK'}</span>
+      </div>
+      <div class="daily-acts">
+        <button class="btn primary" data-daily-play="frets">PLAY <svg><use href="#i-play"/></svg></button>
+        ${sideways ? '' : '<button class="btn" data-daily-play="tiles">TILES</button>'}
+        ${World.available() ? '<button class="btn" data-daily-board>TODAY\'S BOARD</button>' : ''}
+      </div>`;
+    if (!World.available()) return;
+    const seq = ++dailySeq;
+    const myId = save.active ? '_' + String(save.active.id).replace(/[^a-z0-9]/gi, '').slice(0, 24) : null;
+    World.top(Daily.boardId(pk.date, tier), 50).then((rows) => {
+      const el = $('#daily-lead');
+      if (seq !== dailySeq || !el) return;
+      const fmt = (n) => Number(n).toLocaleString('en-US');
+      const mine = myId ? rows.findIndex((r) => r.mine && r.id.endsWith(myId)) : -1;
+      el.innerHTML = !rows.length ? 'NO ONE YET TODAY · BE THE FIRST'
+        : `<svg><use href="#i-crown"/></svg>${esc(rows[0].initials)} ${fmt(rows[0].score)}` + (mine === 0 ? ' · THAT\'S YOU!' : mine > 0 ? ` · YOU'RE #${mine + 1}` : ` · ${rows.length} PLAYED`);
+    }).catch(() => { const el = $('#daily-lead'); if (el && seq === dailySeq) el.textContent = ''; });
+  }
+
+  /** Play the Song of the Day: Beat Frets (the way the phone is held, or keys) or Tiles. */
+  async function startDaily(mode) {
+    const pk = dailyPick();
+    session.mode = mode;
+    session.orient = null;
+    save.setSetting('playMode', mode);
+    if (mode === 'tiles') { session.orient = Input.touch ? 'portrait' : null; orientation.want(session.orient); }
+    applyLayout();
+    songOrigin = 'pack';
+    $('#screen-pack').dataset.back = 'main';
+    await loadPack(pk.songId);
+    if (screen === 'song' && current && current.packId === pk.songId) play(dailyTier(mode === 'tiles' ? 'tiles' : layoutMode(), pk), {});
+  }
+
+  /** Today's board for a way of playing. */
+  function openDailyBoard(family = dailyFamily()) {
+    const pk = dailyPick();
+    const def = SongPack.SONGS.find((x) => x.id === pk.songId);
+    openBoard(SongPack.keyFor(def), def.title, dailyTier(family, pk), screen || 'main', 'world', null, pk.date);
+  }
+
+  $('#daily-card').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-daily-play]');
+    if (b) { startDaily(b.dataset.dailyPlay); return; }
+    if (e.target.closest('[data-daily-board]')) openDailyBoard();
+  });
+
   function renderMain() {
     renderModes();
+    renderDaily();
     const p = save.active;
     $('#main-player').textContent = p ? p.initials : '---';
     setTimeout(checkInbox, 600);
@@ -1155,12 +1242,14 @@
     $('#song-nofail').hidden = !settings.noFail || tilesMode();
     $('#song-match').hidden = !current.matchNote;
     $('#song-match').textContent = current.matchNote || '';
+    const todays = current.kind === 'pack' && current.packId === dailyPick().songId;
+    const ribbon = (d) => (todays && d === dailyTier(familyOf(d)) ? '<span class="daily-ribbon">★ SONG OF THE DAY</span>' : '');
     $('#diffs').innerHTML = tierIds().map((d) => {
       const c = chartFor(d);
       if (tilesMode()) {
         const base = parseId(d).difficulty;
         return `<div class="diff-col">
-          <button class="diff" data-diff="${d}"><span class="diff-top"><strong>${BASE_LABEL(base)}</strong><span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span></span>
+          <button class="diff${ribbon(d) ? ' daily' : ''}" data-diff="${d}">${ribbon(d)}<span class="diff-top"><strong>${BASE_LABEL(base)}</strong><span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span></span>
             <span class="what">${esc(WHAT_TILES[base])}</span>
             <span class="keys" data-keys="4">${Input.touch ? '<span class="lanes-tag">4 COLUMNS</span>' : ''}</span>
             <span class="stats">${c.notes.length} tiles a lap</span>
@@ -1173,7 +1262,7 @@
       const n = c.notes.length;
       const holds = c.notes.filter((x) => x.len).length;
       return `<div class="diff-col">
-        <button class="diff" data-diff="${d}"><span class="diff-top"><strong>${BASE_LABEL(parseId(d).difficulty)}</strong><span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span></span>
+        <button class="diff${ribbon(d) ? ' daily' : ''}" data-diff="${d}">${ribbon(d)}<span class="diff-top"><strong>${BASE_LABEL(parseId(d).difficulty)}</strong><span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span></span>
           <span class="what">${esc((mode === 'keys' ? WHAT : WHAT_TOUCH)[parseId(d).difficulty] || '')}</span>
           <span class="keys" data-keys="${c.lanes}">${mode === 'keys' ? '' : `<span class="lanes-tag">${c.lanes} LANES</span>`}</span>
           <span class="stats">${n} notes · ${(n / Math.max(1, current.analysis.duration)).toFixed(1)}/sec${holds ? ` · ${holds} long` : ''}</span>
@@ -1550,6 +1639,13 @@
       ...(won ? { beat: target.initials } : {}),
     } : null);
     if (won) tellBeaten(panel, worldFor(id, playOpts.chart || chartFor(id)), target, Math.round(res.score), id);
+    dailyPanel('trd', id, worldFor(id, playOpts.chart || chartFor(id)), p && !playOpts.chart ? {
+      initials: p.initials, score: Math.round(res.score), grade: res.grade, accuracy: +res.accuracy.toFixed(2),
+      maxCombo: res.maxCombo, fullCombo: false, stars: res.stars || 0, crowns: res.crowns || 0,
+      laps: res.laps, topSpeed: +res.topSpeed.toFixed(2),
+      date: new Date().toISOString().slice(0, 10), ver: VERSION,
+      tl: (res.timeline || []).slice(0, 400).map((x) => Math.round(x)),
+    } : null);
     show('tiles-results');
     if (target) setTimeout(() => { if (screen === 'tiles-results') openOutcome(res, target, panel); }, 900);
   }
@@ -1857,6 +1953,12 @@
       ...(won ? { beat: target.initials } : {}),
     } : null);
     if (won) tellBeaten(panel, world, target, Math.round(res.score), difficulty);
+    dailyPanel('resd', difficulty, world, p && !res.failed && !res.practice && !playOpts.chart ? {
+      initials: p.initials, score: Math.round(res.score), grade: res.grade, accuracy: +res.accuracy.toFixed(2),
+      maxCombo: res.maxCombo, fullCombo: !!res.fullCombo, stars: res.stars || 0,
+      date: new Date().toISOString().slice(0, 10), ver: VERSION,
+      tl: (res.timeline || []).slice(0, 400).map((x) => Math.round(x)),
+    } : null);
     show('results');
 
     // Count the score up, then stamp the grade. Any key or button skips ahead.
@@ -2063,16 +2165,32 @@
   }
 
   /**
+   * Results of the Song of the Day: the streak goes on, and the run can go on
+   * today's board for this way of playing (as well as the song's own board).
+   */
+  function dailyPanel(prefix, difficulty, world, entry) {
+    if (!entry || !isDailyRun(difficulty)) { $(`#${prefix}-world-box`).hidden = true; postSeqs[prefix] = (postSeqs[prefix] || 0) + 1; return; }
+    markDaily(save.active);
+    const pk = dailyPick();
+    worldPanel(prefix, { id: Daily.boardId(pk.date, difficulty), meta: { ...world.meta, kind: 'daily', title: `Song of the Day ${pk.date}: ${current.title}`.slice(0, 80) } }, entry);
+    const tag = $(`#${prefix}-world-box .daily-tag`);
+    if (tag) tag.textContent = `★ SONG OF THE DAY · 🔥 ${dailyStreak()}-DAY STREAK`;
+    // Offline (or no world boards): the streak still counts.
+    if ($(`#${prefix}-world-box`).hidden) { $(`#${prefix}-world-box`).hidden = false; $(`#${prefix}-world`).textContent = ''; }
+  }
+
+  /**
    * Results: how this run compares on the world board, and a button to post it.
    * Nothing is posted unless the player taps POST (or turned on auto-posting),
    * and only a first score or a new best can be posted.
    */
-  let postSeq = 0;
+  const postSeqs = {}; // per panel: a newer results screen makes an older one's answers stale
   function worldPanel(prefix, world, entry) {
     const box = $(`#${prefix}-world-box`);
     const line = $(`#${prefix}-world`);
     const btn = $(`#${prefix}-post`);
-    const seq = ++postSeq;
+    const seq = postSeqs[prefix] = (postSeqs[prefix] || 0) + 1;
+    const live = () => postSeqs[prefix] === seq;
     const p = save.active;
     btn.hidden = true;
     btn.disabled = false;
@@ -2100,7 +2218,7 @@
       })().then((r) => {
         recordCache.delete(world.id);
         World.forgetPlayers();
-        if (seq === postSeq) {
+        if (live()) {
           btn.hidden = true;
           line.textContent = `POSTED! WORLD RANK #${r.rank}`;
           Sfx.select();
@@ -2109,7 +2227,7 @@
         return r;
       }).catch((e) => {
         posting = null;
-        if (seq === postSeq) {
+        if (live()) {
           btn.disabled = false;
           btn.hidden = false;
           if (!e.cancelled) { console.warn(e); line.textContent = "Couldn't reach the world board. Try again?"; }
@@ -2122,7 +2240,7 @@
     line.textContent = 'Checking the world board…';
     ctl.peek = World.peek({ id: world.id, profileId: p.id, score: entry.score }).then((r) => {
       peeked = r;
-      if (seq !== postSeq) return r;
+      if (!live()) return r;
       if (!r.better) { line.textContent = `Your world best is still ${fmt(r.best)} (#${r.rank}).`; return r; }
       if (settings.autoPost) { ctl.post().catch(() => {}); return r; }
       line.textContent = r.best == null
@@ -2132,7 +2250,7 @@
       return r;
     }).catch((e) => {
       console.warn(e);
-      if (seq === postSeq) line.textContent = "Couldn't reach the world board. Your score is saved on this device.";
+      if (live()) line.textContent = "Couldn't reach the world board. Your score is saved on this device.";
       return null;
     });
     return ctl;
@@ -2229,6 +2347,7 @@
 
   /** The world board id for a board screen, if we can tell (imported songs need their chart). */
   function worldBoardFor(key, diff) {
+    if (boardState.daily) return Daily.boardId(boardState.daily, diff);
     if (boardState.worldId) return boardState.worldId;
     if (boardState.remote) return boardState.remote.boards[diff] || null;
     if (/^(pack|bonus):/.test(key)) return World.boardId(key, diff);
@@ -2674,9 +2793,15 @@
         if (m) remoteIndex.set(id, { key: m.songKey, title: m.title || 'Imported song', fp: m.fp || null, boards: { [m.difficulty]: id } });
       } catch (e) { /* left out */ }
     }));
-    worldPlayers = list.map((p) => ({ ...p, scores: p.scores.map((s) => ({ ...s, info: boardInfo(s.board) })).filter((s) => s.info) }))
+    // Song of the Day: a day you finished #1 on (once the day is over) is a daily win.
+    const todayKey = Daily.today();
+    worldPlayers = list.map((p) => ({
+      ...p,
+      dailyWins: p.scores.filter((s) => s.leader && /^daily-\d{4}-\d\d-\d\d__/.test(s.board) && s.board.slice(6, 16) < todayKey).length,
+      scores: p.scores.map((s) => ({ ...s, info: s.board.startsWith('daily-') ? null : boardInfo(s.board) })).filter((s) => s.info),
+    }))
       .map((p) => ({ ...p, trophies: p.scores.filter((s) => s.leader).length }))
-      .filter((p) => p.scores.length)
+      .filter((p) => p.scores.length || p.dailyWins)
       .sort((x, y) => y.trophies - x.trophies || y.scores.length - x.scores.length);
     return worldPlayers;
   }
@@ -2696,7 +2821,7 @@
     box.innerHTML = '<p class="hint">Everyone who has posted a world score, most trophies first. Tap a player to see their license.</p>' +
       '<div class="list">' + list.map((p, i) => `<button class="player-row${p.trophies ? ' led' : ''}" data-license="${esc(p.sid)}" ${i === 0 ? 'data-autofocus' : ''}>` +
         `<span class="pl-rank">${i + 1}</span><span class="row-main"><b>${esc(p.initials)}${p.mine ? '<span class="you-tag">YOU</span>' : ''}</b>` +
-        `<small>${p.trophies ? `<span class="pl-trophies"><svg><use href="#i-crown"/></svg>${p.trophies} TROPH${p.trophies === 1 ? 'Y' : 'IES'}</span> · ` : ''}${p.scores.length} SCORE${p.scores.length === 1 ? '' : 'S'} POSTED</small></span>` +
+        `<small>${p.trophies ? `<span class="pl-trophies"><svg><use href="#i-crown"/></svg>${p.trophies} TROPH${p.trophies === 1 ? 'Y' : 'IES'}</span> · ` : ''}${p.dailyWins ? `★ ${p.dailyWins} DAILY WIN${p.dailyWins === 1 ? '' : 'S'} · ` : ''}${p.scores.length} SCORE${p.scores.length === 1 ? '' : 'S'} POSTED</small></span>` +
         '<svg class="chev"><use href="#i-chev"/></svg></button>').join('') + '</div>';
   }
 
@@ -2737,11 +2862,12 @@
       <div class="lic-body">
         <div class="lic-photo" aria-hidden="true">${esc(p.initials)}</div>
         <div class="lic-id"><b>${esc(p.initials)}${p.mine ? '<span class="you-tag">YOU</span>' : ''}</b>
-          <small>NO. ${esc(p.sid.slice(-6).toUpperCase())}${since ? ` · SINCE ${esc(fmtDate(since))}` : ''}</small></div>
+          <small>NO. ${esc(p.sid.slice(-6).toUpperCase())}${since ? ` · SINCE ${esc(fmtDate(since))}` : ''}</small>
+          ${p.mine && dailyStreak() ? `<small class="lic-streak">🔥 ${dailyStreak()}-DAY SONG OF THE DAY STREAK</small>` : ''}</div>
       </div>
       <div class="lic-stats">
         <span><b>${trophies.length}</b>TROPHIES</span><span><b>${p.scores.length}</b>SCORES</span>
-        <span><b>${p.scores.filter((s) => s.fullCombo).length}</b>FULL COMBOS</span><span><b>${best}</b>BEST GRADE</span>
+        <span><b>${p.dailyWins || 0}</b>DAILY WINS</span><span><b>${best}</b>BEST GRADE</span>
       </div>
     </div>` +
       `<p class="label">${trophies.length ? `TROPHIES HELD (${trophies.length})` : 'NO TROPHIES YET'}</p>` +
@@ -2848,8 +2974,8 @@
   });
 
   /** Open a leaderboard. `remote`: someone else's imported song ({ key, title, fp, boards: {tier: boardId} }). */
-  function openBoard(key, title, diff, back, scope = boardState.scope, remote = null) {
-    boardState = { key, title, songTitle: title, diff, back, scope, worldId: null, remote };
+  function openBoard(key, title, diff, back, scope = boardState.scope, remote = null, daily = null) {
+    boardState = { key, title, songTitle: title, diff, back, scope: daily ? 'world' : scope, worldId: null, remote, daily };
     $('#screen-board').dataset.back = back;
     const ready = renderBoard();
     show('board', { focus: '#board-scope .on' });
@@ -2890,17 +3016,19 @@
       '<div class="chips">' + Object.entries(FAMILIES).map(([f, label]) => `<button data-board-family="${f}" class="${f === fam ? 'on' : ''}">${label}</button>`).join('') + '</div>' +
       // One tab per difficulty, all in view: the lit one is the board below, and each says
       // who leads it (or that nobody has a score there yet).
-      `<div class="diff-tabs" role="tablist" aria-label="Difficulty">${idsFor(fam).map((d) =>
+      `<div class="diff-tabs" role="tablist" aria-label="Difficulty">${idsFor(fam).filter((d) => !boardState.daily || d === diff).map((d) =>
         `<button role="tab" data-board-tier="${d}" data-base="${parseId(d).difficulty}" class="${d === diff ? 'on' : ''}" aria-selected="${d === diff}">` +
         `<b>${BASE_LABEL(parseId(d).difficulty)}</b><small class="tab-lead">…</small></button>`).join('')}</div>`;
-    $('#board-now').innerHTML = `<span class="board-now-tier" data-base="${parseId(diff).difficulty}">${BASE_LABEL(parseId(diff).difficulty)}</span> LEADERBOARD · ${FAMILIES[fam]}`;
+    $('#board-now').innerHTML = (boardState.daily ? `★ SONG OF THE DAY ${esc(boardState.daily)} · ` : '') +
+      `<span class="board-now-tier" data-base="${parseId(diff).difficulty}">${BASE_LABEL(parseId(diff).difficulty)}</span> LEADERBOARD · ${FAMILIES[fam]}`;
+    $('#board-scope').hidden = !!boardState.daily;
     fillTabLeaders();
     $('#board-scope').innerHTML = ['world', 'local'].map((sc) =>
       `<button data-board-scope="${sc}" class="${sc === boardState.scope ? 'on' : ''}">${sc === 'local' ? 'THIS DEVICE' : 'WORLD'}</button>`).join('');
     $('#board-versions').innerHTML = '';
     $('#board-you').innerHTML = '';
     $('#board-note').textContent = '';
-    $('#btn-board-play').textContent = boardState.worldId ? 'PLAY THEIR NOTES' : 'PLAY THIS SONG';
+    $('#btn-board-play').textContent = boardState.worldId ? 'PLAY THEIR NOTES' : boardState.daily ? 'PLAY THE SONG OF THE DAY' : 'PLAY THIS SONG';
     if (boardState.scope === 'world') return renderWorldBoard();
     const rows = save.leaderboard(key, diff, 25);
     const me = save.active;
@@ -2916,6 +3044,13 @@
     // Another version's board is one chart, at one tier: other tabs go back to this song.
     if (boardState.worldId) { boardState.worldId = null; boardState.title = boardState.songTitle; }
     const f = e.target.closest('[data-board-family]');
+    if (f && boardState.daily) {
+      // Today's board for another way of playing.
+      boardState.diff = Daily.tierFor(Daily.pick(SongPack.SONGS, boardState.daily).base, f.dataset.boardFamily);
+      renderBoard();
+      requestAnimationFrame(() => { const el = $(`[data-board-family="${f.dataset.boardFamily}"]`); if (el) el.focus(); });
+      return;
+    }
     if (f) {
       // Same tier, other input: 'hard' ↔ 'touch4:hard' ↔ 'touch2:hard'.
       const base = parseId(boardState.diff).difficulty;
@@ -2935,6 +3070,7 @@
   /** The world board for a tier of the song on screen, if it has one. */
   function boardIdFor(d) {
     const { key, remote } = boardState;
+    if (boardState.daily) return Daily.boardId(boardState.daily, d);
     if (remote) return remote.boards[d] || null;
     return songBoardsAll(key)[d] || null;
   }
@@ -2974,6 +3110,7 @@
   $('#btn-board-play').addEventListener('click', async () => {
     const { key, title, diff } = boardState;
     if (boardState.worldId) { openVersus(worldRows[0] || null); return; }
+    if (boardState.daily) { startDaily(familyOf(diff) === 'tiles' ? 'tiles' : 'frets'); return; }
     if (boardState.remote) {
       const copy = await findCopy(boardState.remote.fp, title, key);
       lastDifficulty = diff;
@@ -3338,6 +3475,7 @@
         return;
       }
       renderModes();
+      if (screen === 'main') renderDaily();
       // Tiles is upright only: turned sideways in its menus, you're in Beat Frets (4 lanes).
       if (Input.touch && session.mode === 'tiles' && window.innerWidth > window.innerHeight && ['pack', 'import', 'song'].includes(screen)) {
         session.mode = 'frets';

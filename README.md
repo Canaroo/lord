@@ -68,6 +68,27 @@ menu, or the **TILES** switch on any song's screen.
 - **Easy, Medium and Hard** use the same note charts as the phone game. Tiles scores have their
   own leaderboard tab. On a keyboard, the columns are `A` `S` `D` `F`.
 
+## Song of the Day
+
+Every day one song-pack song and difficulty is picked for everyone, the same on every device, and
+it changes at **midnight US Eastern time**. It sits in a gold card at the top of **Play**: the
+song, the difficulty for the way you're playing, who leads today's board, and your 🔥 streak.
+
+- **The week builds up:** Monday and Tuesday on Easy, Wednesday and Thursday on Medium, Friday and
+  Saturday on Hard, and on Sunday a BOSS song on Medium+ (Tiles plays Hard). Weekdays cycle through
+  the ROOKIE and PRO songs and Sundays through the BOSS songs, so every song comes up before any repeats.
+- **One board per way of playing:** Keys, Sideways, Upright and Tiles each have their own board for
+  the day, so thumbs never compete with keyboards. Tap **PLAY** (or **TILES**) on the card to start,
+  or **TODAY'S BOARD** to see who's ahead. The song screen marks today's difficulty with a gold
+  *SONG OF THE DAY* ribbon.
+- **Posting:** after a Song of the Day run, the results have a second box, *SONG OF THE DAY*, to post
+  to today's board (it posts by itself if you turned on auto-posting). The run also counts on the
+  song's own board as usual. No-fail practice runs and failed runs don't count.
+- **🔥 Streak:** play the Song of the Day on consecutive days to grow your streak; miss a day and it
+  starts over. It shows on the card, on the results and on your own player license.
+- **Daily wins:** finishing a day as #1 on its board counts as a daily win, shown in Boards →
+  Players and on the player license.
+
 ## Getting around
 
 The menus look like an early-90s arcade cabinet, and every screen fills the display:
@@ -428,6 +449,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.38**: **Song of the Day**: one song and difficulty for everyone each day (midnight US
+  Eastern), a weekly rhythm from Easy to a Sunday BOSS, its own board for each way of playing, a
+  🔥 streak and daily wins on the player license.
 - **1.37**: on a computer, PERFECT / GOOD / OK / MISS and the streak and overdrive banners show
   above the highway instead of over the incoming notes.
 - **1.36**: Boards → PLAYERS: everyone with a world score, and each player's license with the

@@ -120,7 +120,10 @@ body:not(.has-tabs) { --bot: var(--hint-h); }
   padding-block: 18px 22px;
   padding-inline: max(16px, var(--safe-l), calc((100% - 720px) / 2)) max(16px, var(--safe-r), calc((100% - 720px) / 2));
 }
-.scroll.center { display: flex; flex-direction: column; justify-content: center; text-align: center; }
+.scroll.center { display: flex; flex-direction: column; text-align: center; }
+/* Centred when there's room; when the content is taller than the screen it starts at the top
+   (centring alone would push the top out of reach). */
+.scroll.center::before, .scroll.center::after { content: ""; flex: 1 0 0; }
 .scroll.center .hint { margin-inline: auto; }
 .center-text { text-align: center; margin-inline: auto; }
 
@@ -1288,3 +1291,31 @@ body.touch .lane-switch.touch-only { display: flex; }
 .lic-only { flex: none; font: 700 9px var(--act); color: var(--muted); }
 .lic-row .ch-btn { flex: none; padding: 7px 9px; font-size: 10px; gap: 4px; }
 .lic-row .ch-btn svg { width: 11px; height: 11px; }
+
+/* Song of the Day: a gold card at the top of Play, a ribbon on today's difficulty, a results box. */
+.daily-card { flex: none; width: 100%; max-width: 640px; margin: 0 auto 14px; border: 3px solid var(--gold); border-radius: 14px; overflow: hidden; text-align: left;
+  background: radial-gradient(ellipse at 85% 0%, rgba(248, 216, 48, 0.22), transparent 55%), linear-gradient(170deg, #2d1f5c, #140c2c);
+  box-shadow: 0 5px 0 var(--ink), 0 0 20px rgba(248, 216, 48, 0.2); }
+.daily-card[hidden] { display: none; }
+.daily-top svg { width: 12px; height: 12px; fill: currentColor; vertical-align: -1px; margin-right: 6px; }
+.daily-top { display: flex; justify-content: space-between; gap: 8px; padding: 7px 12px; background: var(--gold); color: var(--ink); font: 400 10px var(--pixel); letter-spacing: 0.06em; }
+.daily-body { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 6px; }
+.daily-body > b { font: 400 13px/1.6 var(--pixel); color: var(--text); text-shadow: 2px 2px 0 var(--ink); }
+.daily-lead:empty { display: none; }
+.daily-how { font: 700 11px var(--act); color: var(--text); }
+.daily-how i { font-style: normal; color: var(--muted); }
+.daily-lead { display: inline-flex; align-items: center; gap: 5px; min-height: 1em; font: 700 11px var(--act); color: var(--gold); }
+.daily-lead svg { width: 13px; height: 13px; fill: currentColor; }
+.daily-streak { font: 700 11px var(--act); color: var(--muted); }
+.daily-streak.on { color: #ff9a3c; }
+.daily-acts { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 12px 12px; }
+.daily-acts .btn { flex: 1; min-width: 92px; min-height: 42px; padding-inline: 6px; font-size: 11px; line-height: 1.3; }
+.daily-acts .btn.primary { white-space: nowrap; }
+.daily-acts .btn svg { width: 12px; height: 12px; fill: currentColor; margin-left: 4px; }
+.diff.daily { box-shadow: inset 0 6px 0 var(--acc), inset 0 0 0 2px var(--gold), 0 5px 0 #0e0724, 0 5px 0 3px var(--ink), 0 0 16px rgba(248, 216, 48, 0.35); }
+.daily-ribbon { align-self: stretch; margin: -4px -6px 0; padding: 3px 6px; border-radius: 6px; background: var(--gold); color: var(--ink); font: 700 9px var(--act); text-align: center; letter-spacing: 0.04em; }
+.daily-box { border-color: var(--gold); }
+.daily-tag { margin: 0 0 4px; font: 700 11px var(--act); color: var(--gold); }
+.lic-streak { color: #ff9a3c !important; }
+#board-scope[hidden] { display: none; }
+@media (max-height: 520px) { .daily-card { margin-bottom: 10px; } .daily-body { gap: 4px; padding-block: 6px 4px; } .daily-acts { padding-block: 4px 8px; } .daily-acts .btn { min-height: 36px; } }
