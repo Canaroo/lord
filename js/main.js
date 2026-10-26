@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.34';
+  const VERSION = '1.35';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -1151,6 +1151,8 @@
     $('#lane-hint').textContent = turned ? (mode === 'touch4' ? 'Turn your phone sideways to play on 4 lanes.' : 'Turn your phone upright to play on 2 lanes.') : '';
     $('#screen-song').classList.toggle('tiles', tilesMode());
     if (tilesMode()) $('#song-meta').textContent = `${fmtTime(current.analysis.duration)} · Tap each tile as it reaches the line. Two hearts, and every lap gets faster.`;
+    // No-fail is practice: say so before playing, since those runs aren't posted anywhere.
+    $('#song-nofail').hidden = !settings.noFail || tilesMode();
     $('#song-match').hidden = !current.matchNote;
     $('#song-match').textContent = current.matchNote || '';
     $('#diffs').innerHTML = tierIds().map((d) => {
@@ -1415,7 +1417,7 @@
       playerColor: save.active ? save.active.color : '#58f8f8',
       best: !playOpts.chart && save.active ? save.pace(save.active.id, current.key, difficulty) : null,
       rival: playOpts.target ? { initials: playOpts.target.initials, score: playOpts.target.score, timeline: playOpts.target.timeline || null } : null,
-      intro: { title: current.title.toUpperCase().slice(0, 40), sub: playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : LABEL(difficulty) },
+      intro: { title: current.title.toUpperCase().slice(0, 40), sub: (playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : LABEL(difficulty)) + (settings.noFail ? ' · NO-FAIL PRACTICE' : '') },
       onEnd: (res) => {
         game = null;
         wakeLock.release();
@@ -1740,6 +1742,7 @@
       fullCombo: res.fullCombo,
       hits: res.hits,
       failed: res.failed,
+      practice: !!res.practice,
       stars: res.stars,
       goldStars: res.goldStars,
       timeline: res.timeline,
@@ -1762,7 +1765,7 @@
     $('#res-ok').textContent = res.counts.ok;
     $('#res-miss').textContent = res.counts.miss;
     $('#res-combo').textContent = `${res.maxCombo} / ${res.total}`;
-    $('#btn-share').disabled = res.failed;
+    $('#btn-share').disabled = res.failed || !!res.practice;
 
     // Stars and the next target.
     const starsEl = $('#res-stars');
@@ -1823,6 +1826,7 @@
     let flag = '';
     let celebrate = false;
     if (res.failed) flag = 'SONG FAILED. TRY NO-FAIL MODE IN OPTIONS.';
+    else if (res.practice) flag = 'NO-FAIL PRACTICE RUN · NOT ON LEADERBOARDS';
     else if (outcome) {
       const board = save.leaderboard(current.key, difficulty, 100);
       if (outcome.personalBest && outcome.previousBest) { flag = 'NEW PERSONAL BEST!'; celebrate = true; }
@@ -1830,7 +1834,8 @@
       else if (outcome.rank) flag = `RANK #${outcome.rank} ON THIS BOARD`;
       if (res.fullCombo) flag += (flag ? ' · ' : '') + 'FULL COMBO!';
     }
-    const target = playOpts.target;
+    const target = res.practice ? null : playOpts.target;
+    if (playOpts.target && res.practice) flag = 'NO-FAIL PRACTICE: TURN IT OFF IN OPTIONS TO TAKE ON THE CHALLENGE';
     if (target && !res.failed) {
       flag = res.score > target.score ? `YOU BEAT ${target.initials}!`
         : res.score === target.score ? `TIED WITH ${target.initials}!`
@@ -1842,7 +1847,7 @@
     flagEl.textContent = '';
     flagEl.className = 'flag';
     const won = !!target && !res.failed && res.score > target.score;
-    const panel = worldPanel('res', world, p && !res.failed ? {
+    const panel = worldPanel('res', world, p && !res.failed && !res.practice ? {
       initials: p.initials, score: Math.round(res.score), grade: res.grade, accuracy: +res.accuracy.toFixed(2),
       maxCombo: res.maxCombo, fullCombo: !!res.fullCombo, stars: res.stars || 0,
       date: new Date().toISOString().slice(0, 10), ver: VERSION,

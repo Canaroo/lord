@@ -350,7 +350,7 @@
     personalBest(profileId, songKey, difficulty) {
       let best = null;
       for (const r of this.data.runs) {
-        if (r.profileId === profileId && r.songKey === songKey && r.difficulty === difficulty && !r.failed) {
+        if (r.profileId === profileId && r.songKey === songKey && r.difficulty === difficulty && !r.failed && !r.practice) {
           if (!best || r.score > best.score) best = r;
         }
       }
@@ -361,7 +361,7 @@
     leaderboard(songKey, difficulty, limit = 10) {
       const bestBy = new Map();
       for (const r of this.data.runs) {
-        if (r.songKey !== songKey || r.difficulty !== difficulty || r.failed) continue;
+        if (r.songKey !== songKey || r.difficulty !== difficulty || r.failed || r.practice) continue;
         const p = this.data.profiles.find((x) => x.id === r.profileId);
         if (!p) continue;
         const prev = bestBy.get('p:' + p.id);

@@ -981,6 +981,19 @@ async function recordTests(browser) {
   await page.click('#tabbar [data-go="main"]');
   await screenIs(page, 'main');
   check(true, 'with everything saved, leaving Options needs no confirmation');
+
+  // No-fail (now on) is practice: the song screen says so, and the run isn't posted anywhere.
+  await page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
+  await screenIs(page, 'song');
+  check(await page.isVisible('#song-nofail'), 'with No-fail on, the song screen says runs are practice');
+  await page.evaluate(() => BeatFrets.play('easy'));
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => { const g = BeatFrets.game; const r = g.results(); g.stop(); g.onEnd(r); });
+  await screenIs(page, 'results');
+  await page.waitForTimeout(2500);
+  const prac = await page.evaluate(() => ({ flag: document.getElementById('res-flag').textContent, world: !document.getElementById('res-world-box').hidden, share: document.getElementById('btn-share').disabled, board: BeatFrets.save.leaderboard('pack:pixel-overture', 'easy', 10).length }));
+  check(/PRACTICE/.test(prac.flag) && !prac.world && prac.share && prac.board === 0, `a No-fail run is practice: no world posting, no sharing, not on the leaderboard (${JSON.stringify(prac)})`);
   await context.close();
 }
 

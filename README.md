@@ -195,7 +195,10 @@ Hit each note as it crosses the line.
 - **Overdrive (OD meter, left):** fills as you hit notes, with a bonus every 50-note streak.
   Once it's half full, trigger it for double points (up to ×8). A full meter lasts 16 seconds.
 - **Rock meter (right):** rises on hits and drops on misses. If it empties, the song fails.
-  You can turn on **No-fail mode** in Options.
+  You can turn on **No-fail mode** in Options to play any song to the end. No-fail runs are
+  **practice**: they count for your own stars, but never go on a leaderboard (this device or the
+  world), can't be shared, and can't win a challenge. The song screen, the song's intro and the
+  results all say *NO-FAIL PRACTICE* so nobody is surprised.
 - **Grades:** S, A, B, C or D by accuracy. "Full combo" means you missed nothing.
 
 **Timing feels off?** Go to **Options → Auto-calibrate timing** and tap along with the clicks.
@@ -418,6 +421,8 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.35**: No-fail runs are practice: never on a leaderboard, posted, shared or counted as a
+  challenge win, and clearly marked before, during and after the song.
 - **1.34**: two new categories, three songs each. **Salsa**: *Café Cha-Cha*, *Conga Line* and
   *Fuego Mambo*, with a bright piano, clave and congas. **Hip Hop**: *Block Party*, *Cipher
   Session* and *Mic Drop*, with an electric piano and deep 808 bass.

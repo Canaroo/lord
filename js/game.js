@@ -235,6 +235,8 @@
         total: this.notes.length,
         holdPct: this.holdTotal > 0 ? Math.round((1000 * this.holdHeld) / this.holdTotal) / 10 : null,
         failed: this.failed,
+        // No-fail runs are practice: they never go on a leaderboard.
+        practice: this.noFail,
         fullCombo,
         stars: this.failed ? 0 : stars,
         goldStars: !this.failed && stars === 5 && fullCombo,

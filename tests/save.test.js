@@ -48,6 +48,15 @@ test('personal best is flagged only when beaten', () => {
   assert.ok(s.addRun(run(s, p, { score: 150 })).personalBest);
 });
 
+test('no-fail practice runs never reach a leaderboard or a personal best', () => {
+  const s = new SaveData.Store(null);
+  const p = s.createProfile('AAA');
+  s.addRun(run(s, p, { score: 500 }));
+  s.addRun(run(s, p, { score: 9000, practice: true }));
+  assert.deepStrictEqual(s.leaderboard('pack:x', 'hard').map((r) => r.score), [500]);
+  assert.strictEqual(s.personalBest(p.id, 'pack:x', 'hard').score, 500);
+});
+
 test('share links round-trip and detect tampering', () => {
   const s = new SaveData.Store(null);
   const p = s.createProfile('ZED');

@@ -1247,3 +1247,7 @@ body.touch .lane-switch.touch-only { display: flex; }
 .modes.single { grid-template-columns: minmax(0, 520px); justify-content: center; }
 .tiles-hint { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 14px 0 0; font: 700 11px var(--act); color: var(--muted); }
 .tiles-hint[hidden] { display: none; }
+
+/* No-fail is practice: a clear note on the song screen. */
+.nofail-note { margin: 6px auto 2px; padding: 6px 10px; max-width: 520px; border: 2px dashed var(--gold); border-radius: 8px; font: 700 10px/1.4 var(--act); color: var(--gold); text-align: center; }
+.nofail-note[hidden] { display: none; }

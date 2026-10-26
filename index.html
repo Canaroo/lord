@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-v="1.34">
+<html lang="en" data-v="1.35">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&family=VT323&display=swap" />
-  <link rel="stylesheet" href="css/style.css?v=1.34" />
+  <link rel="stylesheet" href="css/style.css?v=1.35" />
 </head>
 <body class="crt">
   <canvas id="stage" aria-label="Game stage"></canvas>
@@ -156,6 +156,7 @@
           </div>
           <p id="lane-hint" class="lane-hint" hidden></p>
           <p id="song-match" class="match" hidden></p>
+          <p id="song-nofail" class="nofail-note" hidden>NO-FAIL IS ON: PRACTICE RUNS, NOT POSTED TO LEADERBOARDS. TURN IT OFF IN OPTIONS TO COMPETE.</p>
           <p id="song-credit" class="hint" hidden></p>
         </div>
         <div class="diffs" id="diffs"></div>
@@ -336,7 +337,7 @@
         </div>
         <div class="group">
           <p class="label">GAMEPLAY</p>
-          <button id="opt-nofail" class="toggle">NO-FAIL MODE <span></span> <small>Play every song to the end</small></button>
+          <button id="opt-nofail" class="toggle">NO-FAIL MODE <span></span> <small>Play every song to the end. Practice only: these runs don't go on leaderboards</small></button>
           <button id="opt-vibrate" class="toggle" hidden>VIBRATION <span></span> <small>Short buzzes on misses and level-ups (touch)</small></button>
         </div>
         <div class="group">
@@ -545,20 +546,20 @@
   <div id="hints" class="hints" aria-hidden="true"></div>
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script src="js/analyzer.js?v=1.34"></script>
-  <script src="js/chartgen.js?v=1.34"></script>
-  <script src="js/songs.js?v=1.34"></script>
-  <script src="js/bonus.js?v=1.34"></script>
-  <script src="js/save.js?v=1.34"></script>
-  <script src="js/library.js?v=1.34"></script>
-  <script src="js/sfx.js?v=1.34"></script>
-  <script src="js/input.js?v=1.34"></script>
-  <script src="js/render.js?v=1.34"></script>
-  <script src="js/game.js?v=1.34"></script>
-  <script src="js/tiles.js?v=1.34"></script>
-  <script src="js/share.js?v=1.34"></script>
-  <script src="js/firebase-config.js?v=1.34"></script>
-  <script src="js/world.js?v=1.34"></script>
-  <script src="js/main.js?v=1.34"></script>
+  <script src="js/analyzer.js?v=1.35"></script>
+  <script src="js/chartgen.js?v=1.35"></script>
+  <script src="js/songs.js?v=1.35"></script>
+  <script src="js/bonus.js?v=1.35"></script>
+  <script src="js/save.js?v=1.35"></script>
+  <script src="js/library.js?v=1.35"></script>
+  <script src="js/sfx.js?v=1.35"></script>
+  <script src="js/input.js?v=1.35"></script>
+  <script src="js/render.js?v=1.35"></script>
+  <script src="js/game.js?v=1.35"></script>
+  <script src="js/tiles.js?v=1.35"></script>
+  <script src="js/share.js?v=1.35"></script>
+  <script src="js/firebase-config.js?v=1.35"></script>
+  <script src="js/world.js?v=1.35"></script>
+  <script src="js/main.js?v=1.35"></script>
 </body>
 </html>
