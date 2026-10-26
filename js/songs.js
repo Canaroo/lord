@@ -761,6 +761,256 @@
         { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
       ],
     },
+
+    // ---- Salsa ----
+    // Clave (c) keeps the Latin pulse; congas (g) answer it; a bright piano plays the montunos.
+    {
+      id: 'cafe-cha-cha',
+      theme: 'salsa',
+      tier: 'rookie',
+      title: 'Café Cha-Cha',
+      blurb: 'One, two, cha-cha-cha! An easy Latin step to warm up the dance floor.',
+      bpm: 112,
+      root: 62,
+      scale: 'harmonic',
+      prog: [0, 3, 4, 4],
+      voice: { lead: 'piano', echo: { steps: 3, fb: 0.25, wet: 0.2 }, toms: 'tom' },
+      drums: {
+        intro: { c: 'x..x..x...x.x...' },
+        verse: { k: 'x.......x.......', c: 'x..x..x...x.x...', g: '....x.......x.x.' },
+        chorus: { k: 'x.......x.......', c: 'x..x..x...x.x...', g: '..x.x...x.x.X.x.', h: 'x...x...x...x...' },
+        brk: { k: 'x...............', g: '..x.x...X.x.x...' },
+        fill: { k: 'x...x...........', t: '....x.x.x.x.x.x.' },
+      },
+      bass: {
+        verse: '0.......4...4.4.',
+        chorus: '0...0...4...4.4.',
+        brk: '0---------------',
+      },
+      lead: {
+        verse: ['7---4---2-4-5---', '3---5---7-5-3---', '6---4---1-4-6---', '4-------4-6-7---'],
+        chorus: ['b.a.9.7.9---7---', 'a.9.a.c.a---7---', '8.6.8.b.8---6---', '7---6---4-------'],
+        brk: ['7-------4-------', '5-------3-------', '6-------4-------', '7---------------'],
+        outro: ['7-4-2-0-4-------', '0---------------'],
+      },
+      form: [
+        { bars: 2, drums: 'intro', bass: 'verse' },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'conga-line',
+      theme: 'salsa',
+      tier: 'pro',
+      title: 'Conga Line',
+      blurb: 'Everybody join in! Rolling congas and a piano that never stops moving.',
+      bpm: 140,
+      root: 57,
+      scale: 'harmonic',
+      prog: [0, 3, 4, 0],
+      voice: { lead: 'piano', echo: { steps: 3, fb: 0.25, wet: 0.2 }, toms: 'tom' },
+      drums: {
+        intro: { c: 'x..x..x...x.x...', g: 'x.x..xx.x.x..xx.' },
+        verse: { k: 'x..x....x..x....', c: 'x..x..x...x.x...', g: '....x.x.....x.X.' },
+        chorus: { k: 'x..x....x..x....', s: '....x.......x...', c: 'x..x..x...x.x...', g: '..x.x.X...x.x.X.', o: 'x...x...x...x...' },
+        brk: { c: 'x..x..x...x.x...', g: 'x.xX.xx.xXx.x.xX' },
+        fill: { k: 'x...x...x.......', t: 'x.x.x.x.xxxxxxxx' },
+      },
+      bass: {
+        verse: '0..0..4.0..0..4.',
+        chorus: '0.0.4.4.0.0.4.4.',
+        brk: '0-------4-------',
+      },
+      lead: {
+        verse: ['4.7.9.7.4.7.9.7.', '5.7.a.7.5.7.a.7.', '6.8.b.8.6.8.b.8.', '7.9.b.9.7---4---'],
+        chorus: ['b---a-9-7-9-b---', 'c---b-a-7-a-c---', 'd---b-8-6-8-b---', 'b-a-9-8-7-------'],
+        brk: ['7-------9-------', 'a-------9-------', '8-------6-------', '7---------------'],
+        outro: ['b.9.7.4.7.9.b---', '7---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'brk' },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'fuego-mambo',
+      theme: 'salsa',
+      tier: 'boss',
+      title: 'Fuego Mambo',
+      blurb: 'The dance floor is on fire: a blazing mambo with racing piano and timbales.',
+      bpm: 172,
+      root: 62,
+      scale: 'harmonic',
+      prog: [0, 3, 4, 0],
+      voice: { lead: 'piano', echo: { steps: 3, fb: 0.25, wet: 0.2 }, toms: 'tom' },
+      drums: {
+        intro: { c: 'x..x..x...x.x...', t: 'x.x.x.x.xxxxxxxx' },
+        verse: { k: 'x.....x.x.....x.', s: '....x.......x...', c: 'x..x..x...x.x...', g: '.x.x.x.x.x.x.x.x' },
+        chorus: { k: 'x.x...x.x.x...x.', s: '....x.......x..x', c: 'x..x..x...x.x...', o: 'x...x...x...x...', g: '.x.x.x.x.x.x.x.x' },
+        brk: { k: 'x...x...x...x...', t: 'x..x..x.x..x..x.' },
+        fill: { k: 'x.x.x.x.........', s: '........xxxxxxxx', t: 'xxxx............' },
+      },
+      bass: {
+        verse: '0...0.0.0...0.7.',
+        chorus: '0...0.0.4...4.7.',
+        brk: '0...0...0...0...',
+      },
+      lead: {
+        intro: ['0.4.7.4.0.4.7.4.', '6.4.6.8.b-------'],
+        verse: ['7.9.b.9.7.9.b.9.', 'a.c.e.c.a.c.e.c.', '8.b.d.b.8.6.4.6.', '7---4---7-------'],
+        chorus: ['e---d-c-b---9---', 'e---c-a-c---a---', 'd---b-8-b---d---', 'e---------------'],
+        brk: ['7.7.7.7.9.9.9.9.', 'a.a.a.a.9.9.9.9.', '8.8.8.8.6.6.6.6.', '7---------------'],
+        outro: ['e-c-b-9-7-4-0---', '7---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'brk', lead: 'intro', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+
+    // ---- Hip hop ----
+    // Booming 808 bass under hard-hitting drums, with a mellow electric piano on top.
+    {
+      id: 'block-party',
+      theme: 'hiphop',
+      tier: 'rookie',
+      title: 'Block Party',
+      blurb: 'Heads nodding on the corner: a laid-back boom-bap groove.',
+      bpm: 88,
+      root: 57,
+      scale: 'minor',
+      prog: [0, 5, 3, 4],
+      voice: { lead: 'keys', bass: '808', echo: { steps: 6, fb: 0.35, wet: 0.3 }, toms: 'tom' },
+      drums: {
+        intro: { k: 'x......x..x.....', h: 'x.x.x.x.x.x.x.x.' },
+        verse: { k: 'x......x..x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        chorus: { k: 'x......x..x.....', s: '....x.......x...', h: 'x.xxx.x.x.xxx.x.' },
+        brk: { k: 'x...............', s: '....x.......x...' },
+        fill: { k: 'x..x..x.........', s: '....x..x.x.xxxx.' },
+      },
+      bass: {
+        verse: '0-------0-----7-',
+        chorus: '0-----0-0---4---',
+        brk: '0---------------',
+      },
+      lead: {
+        verse: ['4---2---0-------', '5---4---2-------', '3---5---7---5---', '4-------6-------'],
+        chorus: ['7-7-9---7---4---', '7-7-9---a---9---', '8-7-5---3---5---', '7---6---4-------'],
+        brk: ['0-------2-------', '3-------2-------', '0-------5-------', '4---------------'],
+        outro: ['7---4---2---0---', '0---------------'],
+      },
+      form: [
+        { bars: 2, drums: 'intro', bass: 'verse' },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 2, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 2, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'cipher-session',
+      theme: 'hiphop',
+      tier: 'pro',
+      title: 'Cipher Session',
+      blurb: 'Pass the mic: crisp drums, rolling hats and a bouncing 808.',
+      bpm: 130,
+      root: 62,
+      scale: 'minor',
+      prog: [0, 3, 5, 4],
+      voice: { lead: 'keys', bass: '808', echo: { steps: 3, fb: 0.35, wet: 0.3 }, toms: 'tom' },
+      drums: {
+        intro: { k: 'x.....x.x.x.....', h: 'x.x.x.x.x.x.x.x.' },
+        verse: { k: 'x..x..x.x.x..x..', s: '....x.......x...', h: 'xxxxxxxxxxxxxxxx' },
+        chorus: { k: 'x.xx..x.x.xx.x..', s: '....x..x....x...', h: 'x.xxx.xxx.xxx.xx', o: '..x...........x.' },
+        brk: { k: 'x.......x.......', s: '....x.......x...' },
+        fill: { k: 'x.x.x.x.........', s: '....x...x.x.xxxx' },
+      },
+      bass: {
+        verse: '0-0-0---0-0-4-4-',
+        chorus: '0-0-0-0-4-4-4-7-',
+        brk: '0-------4-------',
+      },
+      lead: {
+        verse: ['7.7.4.5.7---4---', '8.8.7.5.3---5---', '9.9.8.7.5---7---', '8.7.5.4.7-------'],
+        chorus: ['b.a.9.7.9---7---', 'a.9.7.5.7---a---', 'c.b.9.8.9---b---', 'b---a---9---7---'],
+        brk: ['7-------5-------', '3-------5-------', '5-------9-------', '8---------------'],
+        outro: ['b-9-7-4-0-------', '7---------------'],
+      },
+      form: [
+        { bars: 2, drums: 'intro', bass: 'verse' },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'mic-drop',
+      theme: 'hiphop',
+      tier: 'boss',
+      title: 'Mic Drop',
+      blurb: 'The final battle: a hard trap beat with rapid-fire hats and a sliding 808.',
+      bpm: 165,
+      root: 60,
+      scale: 'minor',
+      prog: [0, 5, 3, 4],
+      voice: { lead: 'keys', bass: '808', echo: { steps: 3, fb: 0.3, wet: 0.25 }, toms: 'tom' },
+      drums: {
+        intro: { k: 'x.......x.......', h: 'x...x...x...x...' },
+        verse: { k: 'x.x...x...x.xx..', s: '....x.......x...', h: 'x.x.x.xxx.x.x.xx' },
+        chorus: { k: 'x.x...x...x.x...', s: '....x.......x...', h: 'xxxxxxxxx.x.xxxx', o: '..............x.' },
+        brk: { k: 'x.......x.......', h: 'x...x...x...x...' },
+        fill: { k: 'x.x.x.x.........', s: '....x...x.x.xxxx' },
+      },
+      bass: {
+        verse: '0-0-0---0-0-7-7-',
+        chorus: '0-0-0-0-4-4-7-4-',
+        brk: '0---------------',
+      },
+      lead: {
+        intro: ['7---5---4---3---', '4-------b-------'],
+        verse: ['7.5.7.a.9.7.5.4.', '5.4.5.7.9.7.5.4.', '3.5.7.8.a.8.7.5.', '4.6.8.b.d---b---'],
+        chorus: ['e---c-b-9---7---', 'c---b-9-7---5---', 'a---8-7-5---3---', 'b-a-9-8-b---d---'],
+        brk: ['7.7.7.7.5.5.5.5.', '5.5.5.5.4.4.4.4.', '3.3.3.3.5.5.5.5.', '4---------------'],
+        outro: ['e-c-b-9-7-5-4---', '7---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'brk', lead: 'intro', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', lead: 'chorus', crash: true },
+        { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
+      ],
+    },
   ];
 
   // Instrument fingerprints for charting: [strength, 5-band spectrum (low → high)].
@@ -773,6 +1023,8 @@
     bass: [0.5, [0.5, 1, 0.1, 0, 0]],
     tom: [0.8, [0.7, 1, 0.3, 0, 0]],
     gtr: [0.6, [0.2, 0.7, 1, 0.3, 0]],
+    clave: [0.5, [0, 0, 0.3, 1, 0.4]],
+    conga: [0.7, [0.3, 1, 0.5, 0.1, 0]],
   };
 
   function validate(song) {
@@ -813,7 +1065,7 @@
         const isFill = sec.fill && b === sec.bars - 1;
         const kit = song.drums[isFill ? 'fill' : sec.drums] || {};
         if (sec.crash && b === 0) events.push({ t: barT, inst: 'crash', vel: 1 });
-        for (const [inst, key] of [['kick', 'k'], ['snare', 's'], ['hat', 'h'], ['ohat', 'o'], ['tom', 't']]) {
+        for (const [inst, key] of [['kick', 'k'], ['snare', 's'], ['hat', 'h'], ['ohat', 'o'], ['tom', 't'], ['clave', 'c'], ['conga', 'g']]) {
           const p = kit[key];
           if (!p) continue;
           for (let i = 0; i < 16; i++) {
@@ -975,6 +1227,15 @@
       const amps = [0, 1, 0.65, 0.4, 0.3, 0, 0.2, 0, 0.15];
       return ctx.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps));
     })();
+    // Bright piano (salsa montunos) and a mellow electric piano (hip hop keys).
+    const piano = (() => {
+      const amps = [0, 1, 0.55, 0.35, 0.22, 0.14, 0.09, 0.06, 0.04];
+      return ctx.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps));
+    })();
+    const epiano = (() => {
+      const amps = [0, 1, 0.22, 0.06, 0.02, 0, 0, 0.05];
+      return ctx.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps));
+    })();
     // Steam calliope: a whistle, nearly pure, with a little breathy edge.
     const calliope = (() => {
       const amps = [0, 1, 0.32, 0.14, 0.07, 0.035];
@@ -1090,6 +1351,35 @@
           noiseHit(t, 'lowpass', timp ? 900 : 1600, 0.2 * e.vel, timp ? 0.12 : 0.05, drumOut);
           break;
         }
+        case 'clave': {
+          // Two hardwood sticks: a short, high, woody click.
+          const o = ctx.createOscillator();
+          o.type = 'triangle';
+          o.frequency.value = 2400;
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.5 * e.vel, t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+          o.connect(g).connect(drumOut);
+          o.start(t);
+          o.stop(t + 0.08);
+          break;
+        }
+        case 'conga': {
+          // A hand drum: a round tone that dips in pitch, with a slap of skin. Accents ring higher.
+          const o = ctx.createOscillator();
+          o.type = 'sine';
+          const f0 = e.vel >= 1 ? 330 : 240;
+          o.frequency.setValueAtTime(f0 * 1.15, t);
+          o.frequency.exponentialRampToValueAtTime(f0, t + 0.03);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.8 * e.vel, t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+          o.connect(g).connect(drumOut);
+          o.start(t);
+          o.stop(t + 0.3);
+          noiseHit(t, 'bandpass', 1800, 0.15 * e.vel, 0.025, drumOut);
+          break;
+        }
         case 'gtr': {
           // A distorted power chord: root, fifth and octave through the crunch.
           // Chugs are palm-muted (short, darker); open chords ring.
@@ -1108,6 +1398,21 @@
         }
         case 'bass': {
           const o = ctx.createOscillator();
+          if (voice.bass === '808') {
+            // Hip hop 808: a deep sine that drops into the note with a punchy start and a long tail.
+            o.type = 'sine';
+            o.frequency.setValueAtTime(hz(e.midi) * 2, t);
+            o.frequency.exponentialRampToValueAtTime(hz(e.midi), t + 0.05);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.55 * e.vel, t + 0.006);
+            g.gain.exponentialRampToValueAtTime(0.2 * e.vel, t + Math.max(0.1, e.dur));
+            g.gain.exponentialRampToValueAtTime(0.0001, t + e.dur + 0.12);
+            o.connect(g).connect(master);
+            o.start(t);
+            o.stop(t + e.dur + 0.15);
+            break;
+          }
           o.type = 'triangle';
           o.frequency.value = hz(e.midi);
           const g = envGain(t, 0.75 * e.vel, 0.004, e.dur, 0.015);
@@ -1138,6 +1443,35 @@
             f.connect(g);
             g.connect(leadOut);
             g.connect(echoIn);
+            break;
+          }
+          if (voice.lead === 'piano' || voice.lead === 'keys') {
+            // Struck notes: a quick attack, then the sound dies away as a piano's does.
+            const o = ctx.createOscillator();
+            o.setPeriodicWave(voice.lead === 'piano' ? piano : epiano);
+            o.frequency.value = hz(e.midi);
+            const g = ctx.createGain();
+            const peak = (voice.lead === 'piano' ? 0.42 : 0.4) * e.vel;
+            const ring = Math.max(0.12, e.dur);
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(peak, t + 0.004);
+            g.gain.exponentialRampToValueAtTime(peak * (voice.lead === 'piano' ? 0.25 : 0.45), t + ring);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + ring + 0.12);
+            if (voice.lead === 'keys') {
+              // Electric piano: a slow, gentle tremolo.
+              const lfo = ctx.createOscillator();
+              lfo.frequency.value = 4.5;
+              const d = ctx.createGain();
+              d.gain.value = peak * 0.15;
+              lfo.connect(d).connect(g.gain);
+              lfo.start(t);
+              lfo.stop(t + ring + 0.15);
+            }
+            o.connect(g);
+            g.connect(leadOut);
+            g.connect(echoIn);
+            o.start(t);
+            o.stop(t + ring + 0.15);
             break;
           }
           const o = ctx.createOscillator();

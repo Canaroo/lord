@@ -861,7 +861,7 @@ async function recordTests(browser) {
   await screenIs(page, 'pack');
   // Categories start closed, each summing up its records.
   const cats = await page.evaluate(() => [...document.querySelectorAll('#pack-list .cat')].map((c) => ({ cat: c.dataset.cat, open: c.classList.contains('open'), hidden: c.querySelector('.cat-body').hidden, tap: c.querySelector('.cat-tap').textContent })));
-  check(cats.length === 6 && cats.every((c) => !c.open && c.hidden && c.tap === 'TAP TO OPEN'), `the song list starts with every category closed, saying TAP TO OPEN (${JSON.stringify(cats.map((c) => c.cat))})`);
+  check(cats.length === 8 && cats.every((c) => !c.open && c.hidden && c.tap === 'TAP TO OPEN'), `the song list starts with every category closed, saying TAP TO OPEN (${JSON.stringify(cats.map((c) => c.cat))})`);
   await page.waitForFunction(() => /CLAIMED/.test(document.querySelector('.cat[data-cat="classic"] .cat-sum').textContent), null, { timeout: 5000 }).catch(() => {});
   const sums = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#pack-list .cat')].map((c) => [c.dataset.cat, c.querySelector('.cat-sum').textContent])));
   check(/2 OF 15 CLAIMED/.test(sums.classic) && /YOU 1/.test(sums.classic) && /ZED 1/.test(sums.classic), `a category sums up its records and who holds them (${sums.classic})`);

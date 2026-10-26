@@ -93,7 +93,7 @@ The menus look like an early-90s arcade cabinet, and every screen fills the disp
   category and song below shows who leads that difficulty and their score, so you can see where
   there's a record to chase without opening anything. A song's board opens on the difficulty picked.
 
-- **Songs come in categories** (Chiptune Classics, Spooky, Rock, Epic Adventure, Space, Carnival, Bonus tracks)
+- **Songs come in categories** (Chiptune Classics, Spooky, Rock, Epic Adventure, Space, Carnival, Salsa, Hip Hop, Bonus tracks)
   that start closed, so even a long list fits on a phone. Each heading says how many of its
   records are claimed and by whom (*👑 7 OF 12 CLAIMED · YOU 2 · ZED 4 · AMY 1*), or *NO RECORDS
   YET · BE THE FIRST*. Tap one to open it (the others close), and the game remembers it for next
@@ -387,6 +387,8 @@ approachable even on Hard; a BOSS song is a challenge even on Easy.
 | Epic | Hero's Dawn (120) | Final Quest (152) | Dragon's Lair (172) | brass fanfares, timpani |
 | Space | Starlight Drift (108) | Warp Speed (140) | Galactic Showdown (168) | glowing synth, twinkling bells, brass for the boss |
 | Carnival | Big Top Parade (112) | Clown Car Chaos (138) | Ringmaster's Gallop (172) | steam calliope, oom-pah bass, chromatic runs |
+| Salsa | Café Cha-Cha (112) | Conga Line (140) | Fuego Mambo (172) | bright piano montunos, clave, congas, timbales |
+| Hip Hop | Block Party (88) | Cipher Session (130) | Mic Drop (165) | electric piano, deep 808 bass, boom-bap and trap drums |
 
 To add a song, give it a `theme` and a `tier` (`rookie`, `pro` or `boss`); the lists show each
 theme's songs in the order they appear in `js/songs.js`. As a guide, on Easy a ROOKIE song has
@@ -416,6 +418,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.34**: two new categories, three songs each. **Salsa**: *Café Cha-Cha*, *Conga Line* and
+  *Fuego Mambo*, with a bright piano, clave and congas. **Hip Hop**: *Block Party*, *Cipher
+  Session* and *Mic Drop*, with an electric piano and deep 808 bass.
 - **1.33**: clear about which way up: upright offers Beat Frets on 2 lanes and Tiles; sideways
   offers only Beat Frets on 4 lanes (Tiles is upright only again, replacing 1.32's sideways Tiles).
 - **1.32**: the game pictures on the home screen are centred on sideways phones (and, briefly,

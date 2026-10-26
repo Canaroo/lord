@@ -560,6 +560,8 @@ body.nav button:focus, body:not(.touch) button:focus-visible, body:not(.touch) .
 .cat.theme-epic { --acc: var(--gold); }
 .cat.theme-space { --acc: #5a8cff; }
 .cat.theme-carnival { --acc: #f88820; }
+.cat.theme-salsa { --acc: #9be22e; }
+.cat.theme-hiphop { --acc: #ff4f9a; }
 .cat.theme-bonus { --acc: var(--magenta); }
 .cat.theme-yours { --acc: var(--magenta); }
 .cat.theme-players { --acc: #9aa4c8; }

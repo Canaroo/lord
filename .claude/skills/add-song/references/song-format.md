@@ -10,7 +10,7 @@ straight from it, which is why every player gets identical notes and the world l
 ```js
 {
   id: 'garage-jam',          // lowercase-hyphenated, unique, permanent (see "ids are forever")
-  theme: 'rock',             // classic (or leave out), spooky, rock, epic, space, carnival — or a new theme
+  theme: 'rock',             // classic (or leave out), spooky, rock, epic, space, carnival, salsa, hiphop — or a new theme
   tier: 'rookie',            // rookie | pro | boss
   title: 'Garage Jam',
   blurb: 'Plug in and stomp along: a simple, chunky first riff.',   // one short line, shown in the list
@@ -34,7 +34,7 @@ Every pattern string is exactly 16 characters; `build()` throws if not.
 
 | Part | Characters |
 | --- | --- |
-| Drums `k` kick, `s` snare, `h` hat, `o` open hat, `t` tom/timpani | `x` hit, `X` accented hit, `.` rest |
+| Drums `k` kick, `s` snare, `h` hat, `o` open hat, `t` tom/timpani, `c` clave, `g` conga | `x` hit, `X` accented hit (a conga's `X` is a higher slap), `.` rest |
 | Bass | `0` `2` `4` `7` = the bar's chord root, third, fifth and octave (an octave below the lead), `-` hold, `.` rest |
 | Guitar (`gtr`) | `x` short palm-muted chug, `o` open power chord that rings through following `-`, `.` rest |
 | Lead | `0`–`9`, `a`–`e` = scale degrees 0–14 above `root` (two octaves; `7` is the octave), `-` hold the previous note, `.` rest. With `leadScale: 'chromatic'` they're semitones instead (0–14: an octave and a minor third; `c` is the octave) |
@@ -63,7 +63,9 @@ voice: { lead: 'organ', vibrato: { rate: 6, depth: 0.012 }, echo: { steps: 3, fb
 ```
 
 - `lead`: `pulse` (default, chiptune), `square` (rock), `organ` (spooky drawbar), `brass` (epic, swells open),
-  `synth` (space: two detuned saws, filter glows open), `calliope` (carnival steam whistle with a puff of air).
+  `synth` (space: two detuned saws, filter glows open), `calliope` (carnival steam whistle with a puff of air),
+  `piano` (salsa montunos: struck, decaying), `keys` (hip hop electric piano with a slow tremolo).
+- `bass`: leave out for the triangle bass, or `808` (hip hop: a deep sine that drops into each note, long tail).
 - `arp`: leave out for chiptune pulse arpeggios, or `bell` for soft twinkling sine bells (space).
 - `vibrato`: `{ rate (Hz), depth (fraction of pitch) }`; organ uses 0.012–0.018, brass about 0.008.
 - `echo`: `{ steps (sixteenths), fb (feedback 0–0.5), wet (0–0.45) }`; longer and wetter = spookier.
@@ -79,6 +81,8 @@ Each theme has its own palette; match it so the theme sounds like one album:
 | epic | major → harmonic for the boss | brass, timpani |
 | space | major → harmonic for the boss | synth lead (brass for the boss), `bell` arps, long echo, timpani |
 | carnival | major, `leadScale: 'chromatic'` | calliope with fast vibrato, oom-pah bass (`0...4...`), chromatic runs, short echo |
+| salsa | harmonic minor (i-iv-V) | `piano` montunos, clave `x..x..x...x.x...` every bar, congas, toms as timbales |
+| hiphop | minor | `keys` lead, `bass: '808'` with held notes, boom-bap kick/snare, 16th hats (trap for the boss) |
 
 ## How notes become a chart (what moves the numbers)
 
@@ -111,6 +115,11 @@ lane gets more than 4% of the notes; Easy has no long notes, every other difficu
 `scripts/song-stats.js` checks all of this in a second, before the slower `npm test`.
 
 ## Tiers
+
+Easy mostly follows the beat (about one note a beat, a few more on busy songs), so tempo sets
+the Easy density more than the patterns do: a slow hip hop groove needs a faster PRO and BOSS
+for the tiers to step up.
+
 
 The badge describes the *song*, whatever difficulty it's played on. Measured on Easy:
 
