@@ -1218,3 +1218,11 @@ body.touch .lane-switch.touch-only { display: flex; }
 .board-now { margin: 6px 0 10px; text-align: center; font: 400 11px var(--pixel); color: var(--text); letter-spacing: 0.04em; }
 .board-now-tier { color: var(--acc); }
 #board-tabs .diff-tabs { flex-basis: 100%; }
+
+/* Boards: pick a difficulty first; every category and song then shows who leads it. */
+.boards-pick { margin-bottom: 10px; padding: 10px 10px 2px; border: 2px solid var(--line); border-radius: 12px; background: rgba(7, 4, 15, 0.45); }
+.boards-pick .chips { margin: 0 0 4px; }
+.boards-pick .board-now { margin: 8px 0 6px; }
+.ldr-score { font: 400 17px var(--body); color: var(--gold); }
+.diff-tabs .tab-lead { font-size: 9px; letter-spacing: 0; }
+@media (max-width: 420px) { .diff-tabs b { font-size: 10px; } .diff-tabs button { padding-inline: 2px; } }

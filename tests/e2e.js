@@ -893,11 +893,22 @@ async function recordTests(browser) {
   await page.click('#tabbar [data-go="boards"]');
   await screenIs(page, 'boards');
   check(await page.evaluate(() => document.querySelectorAll('#boards-list .cat').length >= 4 && !document.querySelector('#boards-list .cat.open')), 'the boards screen groups songs into the same categories, closed to start');
-  await page.waitForFunction(() => /CLAIMED/.test(document.querySelector('#boards-list .cat[data-cat="classic"] .cat-sum').textContent), null, { timeout: 5000 }).catch(() => {});
-  check(/2 OF 15 CLAIMED/.test(await page.textContent('#boards-list .cat[data-cat="classic"] .cat-sum')), 'boards categories sum up their records too');
+  // Pick a difficulty first: tabs say how many songs have a leader there, and every
+  // category and song then shows who leads that difficulty.
+  check(await page.evaluate(() => document.querySelector('[data-pick-tier="easy"]').classList.contains('on') && document.querySelector('[data-pick-family="keys"]').classList.contains('on')), 'Boards opens with a difficulty picker (Easy, the way you play)');
+  await page.waitForFunction(() => /CLAIMED/.test(document.querySelector('#boards-list .cat[data-cat="classic"] .cat-sum').textContent) && /SONG|NO ONE/.test(document.querySelector('[data-pick-tier="hard"]').textContent), null, { timeout: 5000 }).catch(() => {});
+  const pick = await page.evaluate(() => ({ easy: document.querySelector('[data-pick-tier="easy"]').textContent, hard: document.querySelector('[data-pick-tier="hard"]').textContent, sum: document.querySelector('#boards-list .cat[data-cat="classic"] .cat-sum').textContent }));
+  check(/1 SONG/.test(pick.easy) && /NO ONE YET/.test(pick.hard), `each difficulty tab counts the songs with a leader (${pick.easy} | ${pick.hard})`);
+  check(/1 OF 3 CLAIMED/.test(pick.sum) && /ZED 1/.test(pick.sum), `categories sum up that difficulty's leaders (${pick.sum})`);
   await openCat(page, 'classic', 'click');
   await page.waitForFunction(() => /ZED/.test(document.querySelector('#boards-list [data-board-key="pack:pixel-overture"] .leaders').textContent), null, { timeout: 5000 }).catch(() => {});
-  check(/EZED/.test(await page.textContent('#boards-list [data-board-key="pack:pixel-overture"] .leaders')), 'boards rows show who leads each difficulty');
+  check(/ZED.*12,500/.test(await page.textContent('#boards-list [data-board-key="pack:pixel-overture"] .leaders')), 'each song shows that difficulty\'s leader and score');
+  await page.click('[data-pick-tier="medium"]');
+  await page.waitForFunction(() => /YOU/.test(document.querySelector('#boards-list [data-board-key="pack:pixel-overture"] .leaders').textContent), null, { timeout: 5000 }).catch(() => {});
+  const med = await page.evaluate(() => ({ sum: document.querySelector('#boards-list .cat[data-cat="classic"] .cat-sum').textContent, row: document.querySelector('#boards-list [data-board-key="pack:pixel-overture"] .leaders').textContent, now: document.querySelector('#boards-pick .board-now').textContent }));
+  check(/MEDIUM LEADERS/.test(med.now) && /YOU 1/.test(med.sum) && /YOU/.test(med.row), `switching to Medium shows Medium's leaders (${med.sum} | ${med.row})`);
+  await page.click('[data-pick-tier="easy"]');
+  await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(outDir, 'e2e-boards-cats.png') });
   // A song's board: a tab per difficulty, all in view, each saying who leads it.
   await page.click('#boards-list [data-board-key="pack:pixel-overture"]');

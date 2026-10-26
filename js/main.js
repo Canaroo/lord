@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.30';
+  const VERSION = '1.31';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -1191,9 +1191,9 @@
   const worldRecord = (id) => worldRecordOr(id).catch(() => null);
 
   /** The world boards of a song, per tier of the current mode (imported songs: the ones you've played). */
-  function songBoards(key, chartOf) {
+  function songBoards(key, chartOf, tiers = tierIds()) {
     const out = {};
-    for (const d of tierIds()) {
+    for (const d of tiers) {
       let id = null;
       if (/^(pack|bonus):/.test(key)) id = World.boardId(key, d);
       else if (chartOf && chartOf(d)) id = World.boardId(key, d, chartOf(d));
@@ -1225,10 +1225,10 @@
    * record when the world boards answer, otherwise the best on this device.
    * Resolves to { tier: record | null }.
    */
-  async function songRecords(key) {
-    const boards = World.available() ? songBoards(key) : {};
+  async function songRecords(key, tiers = tierIds()) {
+    const boards = World.available() ? songBoards(key, null, tiers) : {};
     const out = {};
-    await Promise.all(tierIds().map(async (d) => {
+    await Promise.all(tiers.map(async (d) => {
       if (!boards[d]) { out[d] = localRecord(key, d); return; }
       try { out[d] = await worldRecordOr(boards[d]); } catch (e) { out[d] = localRecord(key, d); }
     }));
@@ -1244,9 +1244,14 @@
   const holderName = (r) => (r.mine ? 'YOU' : String(r.initials || '???').toUpperCase());
 
   /** A song row's leader tags: one per tier, "E ZED", "M YOU", "H —". */
-  function leaderTags(recs) {
-    const ds = tierIds().filter((d) => d in recs);
+  function leaderTags(recs, tiers = tierIds()) {
+    const ds = tiers.filter((d) => d in recs);
     if (!ds.some((d) => recs[d])) return '<span class="ldr none">NO LEADER YET</span>';
+    // One difficulty picked (Boards): just its leader and score.
+    if (ds.length === 1) {
+      const r = recs[ds[0]];
+      return `<svg class="ldr-crown"><use href="#i-crown"/></svg><span class="ldr${r.mine ? ' you' : ''}">${esc(holderName(r))}</span><span class="ldr-score">${Number(r.score).toLocaleString('en-US')}</span>`;
+    }
     return '<svg class="ldr-crown"><use href="#i-crown"/></svg>' + ds.map((d) => {
       const r = recs[d];
       return `<span class="ldr${r ? (r.mine ? ' you' : '') : ' open'}"><i>${SHORT_BASE[parseId(d).difficulty] || SHORT[d]}</i>${r ? esc(holderName(r)) : '—'}</span>`;
@@ -1272,14 +1277,14 @@
   }
 
   /** Fill in every category summary and song-row leader tags under `root`. */
-  function fillCatSummaries(root) {
+  function fillCatSummaries(root, tiers = tierIds()) {
     if (!root) return;
     for (const cat of $$('.cat', root)) {
       const rows = $$('[data-key]', $('.cat-body', cat));
       const sum = $('.cat-sum', cat);
-      Promise.all(rows.map((row) => songRecords(row.dataset.key).then((recs) => {
+      Promise.all(rows.map((row) => songRecords(row.dataset.key, tiers).then((recs) => {
         const el = $('.leaders', row);
-        if (el) el.innerHTML = leaderTags(recs);
+        if (el) el.innerHTML = leaderTags(recs, tiers);
         row.classList.toggle('led', Object.values(recs).some(Boolean));
         return recs;
       }))).then((all) => { if (sum && sum.isConnected) sum.innerHTML = catSummary(all); });
@@ -2516,8 +2521,59 @@
 
   let boardState = { key: null, title: '', songTitle: '', diff: 'easy', back: 'boards', scope: World.available() ? 'world' : 'local', worldId: null };
 
+  // The Boards screen starts with a difficulty picker (and how it was played), so every
+  // category and song shows who leads that difficulty before anything is opened.
+  function defaultBoardsPick() {
+    const p = save.active;
+    const run = save.data.runs.slice().reverse().find((r) => !p || r.profileId === p.id);
+    const fam = run ? familyOf(run.difficulty) : layoutMode();
+    return { fam, base: 'easy' };
+  }
+  let boardsPick = (() => {
+    try {
+      const v = JSON.parse((storage && storage.getItem('beatfrets.boardsPick')) || 'null');
+      if (v && FAMILIES[v.fam]) return v;
+    } catch (e) { /* use the default */ }
+    return null;
+  })();
+  function boardsTier() {
+    if (!boardsPick) boardsPick = defaultBoardsPick();
+    const ids = idsFor(boardsPick.fam);
+    return ids.find((d) => parseId(d).difficulty === boardsPick.base) || ids[0];
+  }
+  function setBoardsPick(fam, base) {
+    boardsPick = { fam, base };
+    try { if (storage) storage.setItem('beatfrets.boardsPick', JSON.stringify(boardsPick)); } catch (e) { /* not kept */ }
+  }
+
+  function boardsPicker() {
+    const tier = boardsTier();
+    const fam = boardsPick.fam;
+    return '<div class="boards-pick">' +
+      '<div class="chips">' + Object.entries(FAMILIES).map(([f, label]) => `<button data-pick-family="${f}" class="${f === fam ? 'on' : ''}">${label}</button>`).join('') + '</div>' +
+      `<div class="diff-tabs" role="tablist" aria-label="Difficulty">${idsFor(fam).map((d) =>
+        `<button role="tab" data-pick-tier="${d}" data-base="${parseId(d).difficulty}" class="${d === tier ? 'on' : ''}" aria-selected="${d === tier}">` +
+        `<b>${BASE_LABEL(parseId(d).difficulty)}</b><small class="tab-lead">…</small></button>`).join('')}</div>` +
+      `<p class="board-now"><span class="board-now-tier" data-base="${parseId(tier).difficulty}">${BASE_LABEL(parseId(tier).difficulty)}</span> LEADERS · ${FAMILIES[fam]}</p></div>`;
+  }
+
+  /** Each difficulty tab on the Boards screen: how many songs have a leader there. */
+  function fillPickCounts(keys) {
+    for (const tab of $$('#boards-pick [data-pick-tier]')) {
+      const d = tab.dataset.pickTier;
+      const el = $('.tab-lead', tab);
+      Promise.all(keys.map((k) => songRecords(k, [d]).then((r) => (r[d] ? 1 : 0)))).then((n) => {
+        if (!el.isConnected) return;
+        const led = n.reduce((a, b) => a + b, 0);
+        tab.classList.toggle('led', led > 0);
+        el.innerHTML = led ? `<svg><use href="#i-crown"/></svg>${led} SONG${led === 1 ? '' : 'S'}` : 'NO ONE YET';
+      });
+    }
+  }
+
   function renderBoards() {
     const where = 'boards';
+    const tier = boardsTier();
     const bonus = (bonusIndex || []).map((s) => ({ key: BonusPack.keyFor(s.id), title: s.title }));
     if (!bonusIndex) fetchBonusIndex().then((l) => { if (l.length && screen === 'boards') renderBoards(); });
     const played = save.playedSongs().filter((s) => s.key.startsWith('mp3:'))
@@ -2528,12 +2584,14 @@
       const songs = SongPack.SONGS.filter((s) => (s.theme || 'classic') === theme);
       return songs.length ? catBlock(where, theme, heading, songs.length, songs.map((s) => row({ key: SongPack.keyFor(s), title: s.title, tier: s.tier })).join('')) : '';
     }).join('');
-    $('#boards-list').innerHTML = '<p class="hint boards-hint">Each category shows how many of its records are claimed, and by whom. Open one to see who leads each song.</p>' + themes +
+    $('#boards-pick').innerHTML = boardsPicker();
+    $('#boards-list').innerHTML = themes +
       (bonus.length ? catBlock(where, 'bonus', 'BONUS TRACKS', bonus.length, bonus.map(row).join('')) : '') +
       (played.length ? catBlock(where, 'yours', 'YOUR MUSIC', played.length, played.map(row).join('')) : '') +
       (World.available() ? catBlock(where, 'players', 'PLAYERS\' MUSIC', '…', '<div id="remote-songs"><p class="hint">Loading songs other players posted…</p></div>', { summary: false }) : '');
     autofocusCat($('#boards-list'));
-    fillCatSummaries($('#boards-list'));
+    fillCatSummaries($('#boards-list'), [tier]);
+    fillPickCounts([...SongPack.SONGS.map((x) => SongPack.keyFor(x)), ...bonus.map((x) => x.key), ...played.map((x) => x.key)]);
     if (World.available()) renderRemoteSongs();
   }
 
@@ -2592,9 +2650,24 @@
     return bestScore >= 1.5 ? best : null;
   }
 
+  $('#boards-pick').addEventListener('click', (e) => {
+    const pf = e.target.closest('[data-pick-family]');
+    const pt = e.target.closest('[data-pick-tier]');
+    if (!pf && !pt) return;
+    const fam = pf ? pf.dataset.pickFamily : boardsPick.fam;
+    setBoardsPick(fam, pt ? parseId(pt.dataset.pickTier).difficulty : boardsPick.base);
+    const keep = $('#boards-list').closest('.scroll');
+    const top = keep ? keep.scrollTop : 0;
+    renderBoards();
+    if (keep) keep.scrollTop = top;
+    const sel = pf ? `[data-pick-family="${fam}"]` : `[data-pick-tier="${boardsTier()}"]`;
+    requestAnimationFrame(() => { const el = $(sel); if (el) el.focus({ preventScroll: true }); });
+  });
+
   $('#boards-list').addEventListener('click', (e) => {
     const h = e.target.closest('[data-cat-toggle]');
     if (h) { toggleCat('boards', h); return; }
+
     const rb = e.target.closest('[data-remote]');
     if (rb) {
       const g = remoteSongs[+rb.dataset.remote];
@@ -2602,15 +2675,8 @@
       return;
     }
     const b = e.target.closest('[data-board-key]');
-    if (b) openBoard(b.dataset.boardKey, b.dataset.title, lastTierFor(b.dataset.boardKey), 'boards');
+    if (b) openBoard(b.dataset.boardKey, b.dataset.title, boardsTier(), 'boards');
   });
-
-  /** The tier you last played a song on (so its board opens there), else Easy the way you're playing now. */
-  function lastTierFor(key) {
-    const p = save.active;
-    const run = save.data.runs.slice().reverse().find((r) => r.songKey === key && (!p || r.profileId === p.id));
-    return run ? run.difficulty : idFor('easy');
-  }
 
   /** Open a leaderboard. `remote`: someone else's imported song ({ key, title, fp, boards: {tier: boardId} }). */
   function openBoard(key, title, diff, back, scope = boardState.scope, remote = null) {

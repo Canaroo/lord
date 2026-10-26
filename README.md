@@ -86,7 +86,11 @@ The menus look like an early-90s arcade cabinet, and every screen fills the disp
   with gold, silver and bronze medals, and your own best is pinned under the list. Every
   difficulty has its own tab, all in view and colour-coded (EASY, MEDIUM, MEDIUM+, HARD), each
   saying who leads it or *NO ONE YET*; a heading says which board you're on (*EASY LEADERBOARD ·
-  SIDEWAYS*). A song's board opens on the difficulty you last played it on.
+  SIDEWAYS*).
+- **The Boards tab starts with the same difficulty tabs** (and Keys / Sideways / Upright / Tiles).
+  Each tab counts the songs that have a leader there (*👑 3 SONGS* or *NO ONE YET*), and every
+  category and song below shows who leads that difficulty and their score, so you can see where
+  there's a record to chase without opening anything. A song's board opens on the difficulty picked.
 
 - **Songs come in categories** (Chiptune Classics, Spooky, Rock, Epic Adventure, Space, Carnival, Bonus tracks)
   that start closed, so even a long list fits on a phone. Each heading says how many of its
@@ -407,6 +411,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.31**: the Boards screen starts with a difficulty picker (and how it was played): each
+  tab counts the songs with a leader there, and every category and song shows who leads that
+  difficulty, with their score, before you open anything.
 - **1.30**: leaderboards have a tab for every difficulty, each showing its leader (or NO ONE
   YET), and a heading naming the board you're looking at; they open on the difficulty you last
   played. Clearer message when the world board can't be reached.
