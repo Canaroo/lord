@@ -1251,3 +1251,40 @@ body.touch .lane-switch.touch-only { display: flex; }
 /* No-fail is practice: a clear note on the song screen. */
 .nofail-note { margin: 6px auto 2px; padding: 6px 10px; max-width: 520px; border: 2px dashed var(--gold); border-radius: 8px; font: 700 10px/1.4 var(--act); color: var(--gold); text-align: center; }
 .nofail-note[hidden] { display: none; }
+
+/* Boards → Players: everyone with a world score, and their arcade license. */
+.boards-view { margin-bottom: 10px; }
+#players-list[hidden], #boards-list[hidden], #boards-pick[hidden] { display: none; }
+.player-row { --acc: var(--line-hi); }
+.player-row.led { --acc: var(--gold); }
+.pl-rank { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: var(--muted); font: 400 11px var(--pixel); }
+.player-row.led .pl-rank { background: var(--gold); color: var(--ink); }
+.player-row .row-main b { font: 400 16px var(--pixel); letter-spacing: 0.1em; }
+.pl-trophies { display: inline-flex; align-items: center; gap: 4px; color: var(--gold); }
+.pl-trophies svg { width: 13px; height: 13px; fill: currentColor; }
+
+.license { margin: 4px auto 6px; max-width: 560px; border: 3px solid var(--gold); border-radius: 14px; overflow: hidden;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 6px, transparent 6px 12px), linear-gradient(160deg, #2d1f5c, #140c2c);
+  box-shadow: 0 6px 0 var(--ink), 0 0 22px rgba(248, 216, 48, 0.18); }
+.license.mine { border-color: var(--green); }
+.lic-top { display: flex; justify-content: space-between; padding: 7px 12px; background: var(--gold); color: var(--ink); font: 400 10px var(--pixel); letter-spacing: 0.08em; }
+.license.mine .lic-top { background: var(--green); }
+.lic-body { display: flex; align-items: center; gap: 14px; padding: 14px 14px 8px; }
+.lic-photo { flex: none; width: 74px; height: 86px; display: grid; place-items: center; border: 3px solid var(--ink); border-radius: 8px; background: linear-gradient(180deg, #4a7cf8, #24347e); color: var(--text); font: 400 18px var(--pixel); text-shadow: 2px 2px 0 var(--ink); }
+.lic-id { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lic-id b { font: 400 26px var(--pixel); color: var(--text); letter-spacing: 0.12em; text-shadow: 3px 3px 0 var(--ink); }
+.lic-id small { font: 700 10px var(--act); color: var(--muted); letter-spacing: 0.06em; }
+.lic-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin: 6px 12px 12px; border: 2px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--line); }
+.lic-stats span { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 2px; background: var(--cab); font: 700 8px var(--act); color: var(--muted); text-align: center; }
+.lic-stats b { font: 400 15px var(--pixel); color: var(--gold); }
+.lic-list { display: flex; flex-direction: column; gap: 8px; max-width: 560px; margin: 0 auto; }
+.lic-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 2px solid var(--line); border-left: 6px solid var(--line-hi); border-radius: 10px; background: linear-gradient(180deg, var(--panel-2), var(--panel)); box-shadow: 0 3px 0 var(--ink); }
+.lic-row.lead { border-left-color: var(--gold); }
+.lic-song { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 0; border: 0; background: none; text-align: left; color: var(--text); }
+.lic-song b { font-size: 12px; line-height: 1.5; max-width: 100%; overflow-wrap: anywhere; }
+.lic-how { font: 700 10px var(--act); color: var(--muted); }
+.lic-score { display: inline-flex; align-items: center; gap: 5px; font: 400 17px var(--body); color: var(--gold); }
+.lic-score svg { width: 13px; height: 13px; fill: currentColor; }
+.lic-only { flex: none; font: 700 9px var(--act); color: var(--muted); }
+.lic-row .ch-btn { flex: none; padding: 7px 9px; font-size: 10px; gap: 4px; }
+.lic-row .ch-btn svg { width: 11px; height: 11px; }

@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.35';
+  const VERSION = '1.36';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -1634,6 +1634,7 @@
       parts.push(MODE_LABEL[session.mode] + (session.mode === 'frets' && lm !== 'keys' ? (lm === 'touch4' ? ' · 4 LANES' : ' · 2 LANES') : ''));
       if (current && !['frets-setup', 'pack', 'import'].includes(name)) parts.push(current.title.toUpperCase().slice(0, 28));
     } else if (name === 'board' && boardState.title) parts.push(boardState.title.toUpperCase().slice(0, 28));
+    else if (name === 'license') { const lp = worldPlayers.find((x) => x.sid === licenseSid); if (lp) parts.push(lp.initials); }
     $('#crumbs-path').textContent = parts.join(' › ');
   }
   $('#btn-mode-frets').addEventListener('click', () => enterMode('frets'));
@@ -2098,6 +2099,7 @@
         return World.submit({ id: world.id, meta: world.meta, profileId: p.id, entry });
       })().then((r) => {
         recordCache.delete(world.id);
+        World.forgetPlayers();
         if (seq === postSeq) {
           btn.hidden = true;
           line.textContent = `POSTED! WORLD RANK #${r.rank}`;
@@ -2593,7 +2595,22 @@
     }
   }
 
+  // Boards shows songs, or players: everyone who has posted a world score.
+  let boardsView = 'songs';
+  $('#boards-view').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-boards-view]');
+    if (!b || b.dataset.boardsView === boardsView) return;
+    boardsView = b.dataset.boardsView;
+    renderBoards();
+    requestAnimationFrame(() => { const el = $(`[data-boards-view="${boardsView}"]`); if (el) el.focus({ preventScroll: true }); });
+  });
+
   function renderBoards() {
+    for (const b of $$('#boards-view [data-boards-view]')) b.classList.toggle('on', b.dataset.boardsView === boardsView);
+    $('#boards-pick').hidden = boardsView !== 'songs';
+    $('#boards-list').hidden = boardsView !== 'songs';
+    $('#players-list').hidden = boardsView !== 'players';
+    if (boardsView === 'players') { renderPlayersBoard(); return; }
     const where = 'boards';
     const tier = boardsTier();
     const bonus = (bonusIndex || []).map((s) => ({ key: BonusPack.keyFor(s.id), title: s.title }));
@@ -2616,6 +2633,136 @@
     fillPickCounts([...SongPack.SONGS.map((x) => SongPack.keyFor(x)), ...bonus.map((x) => x.key), ...played.map((x) => x.key)]);
     if (World.available()) renderRemoteSongs();
   }
+
+  // ---- players: who holds which trophies ----------------------------------------------------------------
+
+  /** What a world board is: its song, how it was played and the difficulty. Null if unknown. */
+  let remoteIndex = new Map(); // board id → imported-song group (from World.songs)
+  function boardInfo(boardId) {
+    const cut = boardId.lastIndexOf('__');
+    if (cut < 0) return null;
+    const head = boardId.slice(0, cut), tail = boardId.slice(cut + 2);
+    const all = Object.keys(FAMILIES).flatMap((f) => idsFor(f));
+    const diff = all.find((d) => d.replace(/[^a-z0-9]/gi, '-') === tail);
+    if (!diff) return null;
+    if (head.startsWith('pack-')) {
+      const def = SongPack.SONGS.find((s) => s.id === head.slice(5));
+      return def ? { key: SongPack.keyFor(def), title: def.title, tier: def.tier, diff } : null;
+    }
+    if (head.startsWith('bonus-')) {
+      const def = (bonusIndex || []).find((s) => s.id === head.slice(6));
+      return { key: BonusPack.keyFor(head.slice(6)), title: def ? def.title : 'Bonus track', diff };
+    }
+    const g = remoteIndex.get(boardId);
+    if (g) return { key: g.key, title: g.title, diff, remote: { key: g.key, title: g.title, fp: g.fp, boards: g.boards } };
+    const run = save.data.runs.slice().reverse().find((r) => r.world === boardId);
+    return run ? { key: run.songKey, title: save.songTitle(run.songKey) || run.title, diff } : null;
+  }
+  const playLabel = (d) => `${BASE_LABEL(parseId(d).difficulty)} · ${FAMILIES[familyOf(d)]}`;
+
+  let worldPlayers = [];
+  async function loadPlayers(fresh) {
+    const [list, groups] = await Promise.all([World.players({ fresh }), World.songs(80).catch(() => [])]);
+    remoteIndex = new Map();
+    for (const g of groups) for (const id of Object.values(g.boards)) remoteIndex.set(id, g);
+    if (!bonusIndex) await fetchBonusIndex();
+    // Imported songs not in the listing: read their board for the title and fingerprint.
+    const unknown = [...new Set(list.flatMap((p) => p.scores.map((s) => s.board)))].filter((id) => id.startsWith('chart-') && !remoteIndex.has(id));
+    await Promise.all(unknown.slice(0, 20).map(async (id) => {
+      try {
+        const m = await World.board(id);
+        if (m) remoteIndex.set(id, { key: m.songKey, title: m.title || 'Imported song', fp: m.fp || null, boards: { [m.difficulty]: id } });
+      } catch (e) { /* left out */ }
+    }));
+    worldPlayers = list.map((p) => ({ ...p, scores: p.scores.map((s) => ({ ...s, info: boardInfo(s.board) })).filter((s) => s.info) }))
+      .map((p) => ({ ...p, trophies: p.scores.filter((s) => s.leader).length }))
+      .filter((p) => p.scores.length)
+      .sort((x, y) => y.trophies - x.trophies || y.scores.length - x.scores.length);
+    return worldPlayers;
+  }
+
+  async function renderPlayersBoard() {
+    const box = $('#players-list');
+    if (!World.available()) { box.innerHTML = '<p class="hint">World leaderboards aren\'t switched on, so there are no players to show yet.</p>'; return; }
+    box.innerHTML = '<p class="hint">Loading everyone who has posted a score…</p>';
+    let list;
+    try { list = await loadPlayers(); } catch (e) {
+      console.warn(e);
+      if (screen === 'boards' && boardsView === 'players') box.innerHTML = '<p class="hint">Couldn\'t reach the world boards (no internet?).</p>';
+      return;
+    }
+    if (screen !== 'boards' || boardsView !== 'players') return;
+    if (!list.length) { box.innerHTML = '<p class="hint">Nobody has posted a world score yet. Be the first!</p>'; return; }
+    box.innerHTML = '<p class="hint">Everyone who has posted a world score, most trophies first. Tap a player to see their license.</p>' +
+      '<div class="list">' + list.map((p, i) => `<button class="player-row${p.trophies ? ' led' : ''}" data-license="${esc(p.sid)}" ${i === 0 ? 'data-autofocus' : ''}>` +
+        `<span class="pl-rank">${i + 1}</span><span class="row-main"><b>${esc(p.initials)}${p.mine ? '<span class="you-tag">YOU</span>' : ''}</b>` +
+        `<small>${p.trophies ? `<span class="pl-trophies"><svg><use href="#i-crown"/></svg>${p.trophies} TROPH${p.trophies === 1 ? 'Y' : 'IES'}</span> · ` : ''}${p.scores.length} SCORE${p.scores.length === 1 ? '' : 'S'} POSTED</small></span>` +
+        '<svg class="chev"><use href="#i-chev"/></svg></button>').join('') + '</div>';
+  }
+
+  $('#players-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-license]');
+    if (b) openLicense(b.dataset.license);
+  });
+
+  /** A player's license: an arcade card with their trophies, then their other posted scores. */
+  let licenseSid = null;
+  function openLicense(sid) {
+    licenseSid = sid;
+    renderLicense();
+    show('license');
+  }
+  function renderLicense() {
+    const p = worldPlayers.find((x) => x.sid === licenseSid);
+    if (!p) { $('#license').innerHTML = '<p class="hint">That player isn\'t on the world boards any more.</p>'; return; }
+    const fmt = (n) => Number(n).toLocaleString('en-US');
+    const trophies = p.scores.filter((s) => s.leader);
+    const others = p.scores.filter((s) => !s.leader);
+    const grades = ['S', 'A', 'B', 'C', 'D'];
+    const best = grades.find((g) => p.scores.some((s) => String(s.grade).startsWith(g))) || '–';
+    const since = p.scores.map((s) => s.date).filter(Boolean).sort()[0];
+    const row = (s, i) => {
+      const d = s.info.diff;
+      return `<div class="lic-row${s.leader ? ' lead' : ''}">` +
+        `<button class="lic-song" data-lic-board="${i}"><b>${tierBadge(s.info.tier)}${esc(String(s.info.title).toUpperCase().slice(0, 34))}</b>` +
+        `<span class="lic-how"><span class="board-now-tier" data-base="${parseId(d).difficulty}">${BASE_LABEL(parseId(d).difficulty)}</span> · ${FAMILIES[familyOf(d)]}</span>` +
+        `<span class="lic-score">${s.leader ? '<svg><use href="#i-crown"/></svg>' : `#${s.rank} of ${s.players} · `}${fmt(s.score)}${s.fullCombo ? ' · FC' : ''}</span></button>` +
+        (p.mine ? '' : canChallenge(d) === true
+          ? `<button class="btn small primary ch-btn" data-lic-challenge="${i}"><svg><use href="#i-sword"/></svg>CHALLENGE</button>`
+          : `<span class="lic-only">${Input.touch ? 'KEYBOARD ONLY' : 'PHONE ONLY'}</span>`) +
+        '</div>';
+    };
+    $('#license').innerHTML = `<div class="license${p.mine ? ' mine' : ''}">
+      <div class="lic-top"><span>BEAT FRETS</span><span>PLAYER LICENSE</span></div>
+      <div class="lic-body">
+        <div class="lic-photo" aria-hidden="true">${esc(p.initials)}</div>
+        <div class="lic-id"><b>${esc(p.initials)}${p.mine ? '<span class="you-tag">YOU</span>' : ''}</b>
+          <small>NO. ${esc(p.sid.slice(-6).toUpperCase())}${since ? ` · SINCE ${esc(fmtDate(since))}` : ''}</small></div>
+      </div>
+      <div class="lic-stats">
+        <span><b>${trophies.length}</b>TROPHIES</span><span><b>${p.scores.length}</b>SCORES</span>
+        <span><b>${p.scores.filter((s) => s.fullCombo).length}</b>FULL COMBOS</span><span><b>${best}</b>BEST GRADE</span>
+      </div>
+    </div>` +
+      `<p class="label">${trophies.length ? `TROPHIES HELD (${trophies.length})` : 'NO TROPHIES YET'}</p>` +
+      (trophies.length ? `<div class="lic-list">${trophies.map((s) => row(s, p.scores.indexOf(s))).join('')}</div>`
+        : `<p class="hint">${esc(p.initials)} hasn't taken a #1 spot yet. Their posted high scores are below.</p>`) +
+      (others.length ? `<p class="label">HIGH SCORES (${others.length})</p><div class="lic-list">${others.map((s) => row(s, p.scores.indexOf(s))).join('')}</div>` : '');
+  }
+
+  $('#license').addEventListener('click', async (e) => {
+    const p = worldPlayers.find((x) => x.sid === licenseSid);
+    if (!p) return;
+    const ch = e.target.closest('[data-lic-challenge]');
+    const open = e.target.closest('[data-lic-board]');
+    const s = p.scores[+((ch || open || {}).dataset || {})[ch ? 'licChallenge' : 'licBoard']];
+    if (!s) return;
+    // The song's world board, on that difficulty; a challenge then opens the versus pop-up.
+    await openBoard(s.info.key, s.info.title, s.info.diff, 'license', 'world', s.info.remote || null);
+    if (!ch) return;
+    const r = worldRows.find((x) => x.id === s.id);
+    if (r) openVersus(r);
+  });
 
   /** Imported songs other players have posted: browse them, and challenge with your own copy. */
   let remoteSongs = [];

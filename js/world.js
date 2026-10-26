@@ -212,6 +212,22 @@
         return (await fs.getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data(), at: d.data().at && d.data().at.toMillis ? d.data().at.toMillis() : 0 }));
       },
       async deleteNotice(id) { await fs.deleteDoc(fs.doc(db, NOTICES, id)); },
+      /**
+       * Every posted score, with its board. One query across all boards (needs the
+       * collection-group read rule); if that isn't published, board by board.
+       */
+      async allScores(limit) {
+        const out = (d, board) => ({ board, id: d.id, ...d.data(), at: undefined });
+        try {
+          const q = fs.query(fs.collectionGroup(db, 'scores'), fs.limit(limit));
+          return (await fs.getDocs(q)).docs.filter((d) => d.ref.parent.parent && d.ref.parent.parent.parent.id === COLLECTION)
+            .map((d) => out(d, d.ref.parent.parent.id));
+        } catch (e) {
+          const boards = await fs.getDocs(fs.collection(db, COLLECTION));
+          const lists = await Promise.all(boards.docs.map(async (bd) => (await fs.getDocs(scores(bd.id))).docs.map((d) => out(d, bd.id))));
+          return lists.flat().slice(0, limit);
+        }
+      },
       async findBoards(difficulty, bpmKeys) {
         const q = fs.query(fs.collection(db, COLLECTION), fs.where('difficulty', '==', difficulty),
           fs.where('bpmKey', 'in', bpmKeys), fs.limit(30));
@@ -326,6 +342,46 @@
     }).sort((a, c) => c.likeness - a.likeness).slice(0, 6);
   }
 
+  // ---- players ----------------------------------------------------------------------------
+
+  /**
+   * Everyone who has posted a score: for each player (a device's sign-in + profile),
+   * their best on every board, its rank there, and whether it's the #1 (a trophy).
+   * Most trophies first.
+   */
+  let playersCache = null;
+  async function players({ fresh = false } = {}) {
+    if (!fresh && playersCache && Date.now() - playersCache.at < 60000) return playersCache.list;
+    const b = await backend();
+    if (!b.allScores) return [];
+    const rows = (await b.allScores(3000)).filter((r) => !/^selftest/.test(r.board) && typeof r.score === 'number');
+    const byBoard = new Map();
+    for (const r of rows) {
+      if (!byBoard.has(r.board)) byBoard.set(r.board, []);
+      byBoard.get(r.board).push(r);
+    }
+    const people = new Map();
+    for (const [board, list] of byBoard) {
+      // Highest first; on a tie, whoever got there first.
+      list.sort((x, y) => y.score - x.score || String(x.date || '').localeCompare(String(y.date || '')));
+      list.forEach((r, i) => {
+        if (!people.has(r.id)) people.set(r.id, { sid: r.id, initials: r.initials, mine: r.id.startsWith(b.uid + '_'), scores: [] });
+        const p = people.get(r.id);
+        p.initials = r.initials || p.initials;
+        p.scores.push({ ...r, board, rank: i + 1, leader: i === 0, players: list.length });
+      });
+    }
+    const list = [...people.values()].map((p) => ({
+      ...p,
+      trophies: p.scores.filter((s) => s.leader).length,
+      fullCombos: p.scores.filter((s) => s.fullCombo).length,
+      scores: p.scores.sort((x, y) => (y.leader - x.leader) || x.rank - y.rank || y.score - x.score),
+    })).sort((x, y) => y.trophies - x.trophies || y.scores.length - x.scores.length || String(x.initials).localeCompare(String(y.initials)));
+    playersCache = { at: Date.now(), list };
+    return list;
+  }
+  const forgetPlayers = () => { playersCache = null; };
+
   // ---- "you've been beaten" ----------------------------------------------------------------
 
   /**
@@ -356,7 +412,7 @@
   }
 
   return {
-    available, peek, submit, top, board, versions, songs, tempoKeys, notify, inbox, dismiss,
+    available, peek, submit, top, board, versions, songs, tempoKeys, notify, inbox, dismiss, players, forgetPlayers,
     boardId, chartHash, packChart, unpackChart, alignShift, alignChart,
     GOOD_MATCH, COLLECTION,
   };

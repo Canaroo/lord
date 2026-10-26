@@ -88,6 +88,13 @@ The menus look like an early-90s arcade cabinet, and every screen fills the disp
   difficulty has its own tab, all in view and colour-coded (EASY, MEDIUM, MEDIUM+, HARD), each
   saying who leads it or *NO ONE YET*; a heading says which board you're on (*EASY LEADERBOARD ·
   SIDEWAYS*).
+- **Boards → PLAYERS** lists everyone who has posted a world score, most trophies (#1 spots)
+  first. Tap a player for their **player license**: an arcade-style card with their trophies,
+  scores posted, full combos and best grade, then every trophy they hold (song, difficulty and
+  how it was played: Keys, Sideways, Upright or Tiles) and their other high scores with their rank.
+  Each has a **⚔ CHALLENGE** button that opens the versus pop-up against them, just like on a
+  song's board (scores played on a keyboard can only be challenged from a computer, and phone
+  scores from a phone). Tap a song to open its board.
 - **The Boards tab starts with the same difficulty tabs** (and Keys / Sideways / Upright / Tiles).
   Each tab counts the songs that have a leader there (*👑 3 SONGS* or *NO ONE YET*), and every
   category and song below shows who leads that difficulty and their score, so you can see where
@@ -421,6 +428,8 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.36**: Boards → PLAYERS: everyone with a world score, and each player's license with the
+  trophies they hold and their high scores, each with a CHALLENGE button.
 - **1.35**: No-fail runs are practice: never on a leaderboard, posted, shared or counted as a
   challenge win, and clearly marked before, during and after the song.
 - **1.34**: two new categories, three songs each. **Salsa**: *Café Cha-Cha*, *Conga Line* and

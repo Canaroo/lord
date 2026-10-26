@@ -580,6 +580,7 @@ const MEMORY_WORLD = () => {
     async getSong(id) { return songs.get(id) || null; },
     async createSong(id, data) { songs.set(id, { ...data, created: Date.now() }); },
     async listSongs(limit) { return [...songs].map(([id, v]) => ({ id, ...v })).sort((a, b) => b.created - a.created).slice(0, limit); },
+    async allScores(limit) { return [...scores].map(([k, v]) => ({ board: k.split('/')[0], id: k.split('/')[1], ...v })).slice(0, limit); },
     async findBoards(difficulty, keys) { return [...boards].filter(([, b]) => b.difficulty === difficulty && keys.includes(b.bpmKey)).map(([id, b]) => ({ id, ...b })); },
   };
 };
@@ -943,6 +944,28 @@ async function recordTests(browser) {
   await page.waitForTimeout(300);
   check(/MEDIUM LEADERBOARD/.test(await page.textContent('#board-now')) && await page.evaluate(() => document.querySelector('[data-board-tier="medium"]').classList.contains('on')), 'tapping a tab switches the board and the heading');
   await page.screenshot({ path: path.join(outDir, 'e2e-board-tabs.png') });
+
+  // Boards → PLAYERS: everyone with a world score, most trophies first; each has a license.
+  await page.click('#btn-back');
+  await screenIs(page, 'boards');
+  await page.click('[data-boards-view="players"]');
+  await page.waitForSelector('#players-list [data-license]', { timeout: 5000 }).catch(() => {});
+  const plist = await page.evaluate(() => [...document.querySelectorAll('#players-list [data-license]')].map((b) => b.textContent));
+  check(plist.length === 2 && plist.some((t) => /ZED.*1 TROPHY/.test(t)) && plist.some((t) => /JDT.*YOU.*1 TROPHY/.test(t)), `Players lists everyone with their trophies (${plist.join(' | ')})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-players.png') });
+  await page.click('#players-list [data-license]:has-text("ZED")');
+  await screenIs(page, 'license');
+  const lic = await page.evaluate(() => ({ text: document.getElementById('license').textContent, ch: document.querySelectorAll('#license [data-lic-challenge]').length }));
+  check(/PLAYER LICENSE/.test(lic.text) && /TROPHIES HELD \(1\)/.test(lic.text) && /PIXEL OVERTURE/.test(lic.text) && /EASY · KEYS/.test(lic.text) && lic.ch === 1, `a license shows the trophies held, the song, difficulty and way it was played (${lic.ch} challenge)`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-license.png') });
+  await page.click('#license [data-lic-challenge]');
+  await page.waitForFunction(() => !document.querySelector('#vs').hidden, null, { timeout: 8000 }).catch(() => {});
+  check(await page.evaluate(() => BeatFrets.screen === 'board' && !document.getElementById('vs').hidden && /ZED/.test(document.getElementById('vs').textContent)), 'CHALLENGE on a license opens the versus pop-up against that player');
+  await page.click('#btn-vs-cancel');
+  await page.waitForTimeout(300);
+  await page.click('#btn-back');
+  await screenIs(page, 'license');
+  check(true, 'back from that board returns to the license');
   check(!errors.length, 'no errors with world records ' + errors.join(' | '));
 
   // Options: nothing takes effect until SAVE.

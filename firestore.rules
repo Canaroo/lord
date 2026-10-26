@@ -33,6 +33,12 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // Every score at once (Boards → Players): a read across all the boards' score lists.
+    // Scores are already readable one board at a time; this only allows reading them together.
+    match /{path=**}/scores/{scoreId} {
+      allow read: if true;
+    }
+
     match /beatfrets_boards/{boardId} {
       // The most a score can be. Beat Frets: a song has a fixed number of notes.
       // Tiles loops, and each lap's tiles are worth more (lap 1 x1, lap 2 x2, ...),
