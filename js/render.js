@@ -1110,18 +1110,22 @@
         const k = (nowMs - j.at) / 450;
         const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS' }[j.kind];
         const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red }[j.kind];
-        const jy = LAYOUT === 'touch2' ? HIT_Y - 106 : LAYOUT === 'touch4' ? HIT_Y - 86 : HIT_Y - 62;
+        // Keys: in the sky above the highway (between the score and streak boxes), so it
+        // never covers incoming notes.
+        const jy = LAYOUT === 'touch2' ? HIT_Y - 106 : LAYOUT === 'touch4' ? HIT_Y - 86 : 12;
         const y = jy - (k < 0.15 ? (0.15 - k) * 40 : 0);
         this.g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
-        this.text(label, W / 2, y, color, LAYOUT === 'touch2' ? 8 : 16, 'center');
-        if (j.kind === 'good' || j.kind === 'ok') this.text(j.early ? 'EARLY' : 'LATE', W / 2, y + 20, PAL.grey, 8, 'center');
+        // Keys: centred in the gap between the multiplier badge and the streak box.
+        const jx = LAYOUT === 'keys' ? Math.round(W / 2 + 14) : W / 2;
+        this.text(label, jx, y, color, LAYOUT === 'touch2' ? 8 : 16, 'center');
+        if (j.kind === 'good' || j.kind === 'ok') this.text(j.early ? 'EARLY' : 'LATE', jx, y + (LAYOUT === 'keys' ? 18 : 20), PAL.grey, 8, 'center');
         this.g.globalAlpha = 1;
       }
 
       // Banners slide in from the right and out to the left.
       for (const b of v.banners || []) {
-        // Phones: in the sky just above the highway, never over the notes.
-        const by = touch ? Math.max(HUD_TOP + 2, HORIZON - (b.sub ? 32 : 22)) : b.y;
+        // In the sky just above the highway, never over the notes.
+        const by = Math.max(HUD_TOP + 2, HORIZON - (b.sub ? 32 : 22));
         const age = (nowMs - b.at) / 1000;
         if (age > 1.6) continue;
         const x = age < 0.2 ? W / 2 + (0.2 - age) * 1500 : age > 1.35 ? W / 2 - (age - 1.35) * 1600 : W / 2;

@@ -428,6 +428,8 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.37**: on a computer, PERFECT / GOOD / OK / MISS and the streak and overdrive banners show
+  above the highway instead of over the incoming notes.
 - **1.36**: Boards → PLAYERS: everyone with a world score, and each player's license with the
   trophies they hold and their high scores, each with a CHALLENGE button.
 - **1.35**: No-fail runs are practice: never on a leaderboard, posted, shared or counted as a
