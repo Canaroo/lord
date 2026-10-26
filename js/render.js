@@ -213,15 +213,9 @@
         // tap pads, so thumbs rest under the line and never hide incoming notes.
         hit = Math.round(h * this.strike.touch4);
       } else if (mode === 'tiles') {
-        // Tiles: an upright board on an upright screen; held sideways, a wide board
-        // that fills it (the tiles take the same time to fall either way).
-        if (aspect > 1) {
-          h = 225;
-          w = Math.max(320, Math.min(540, Math.round(225 * aspect)));
-        } else {
-          w = 225;
-          h = Math.max(380, Math.min(500, Math.round(225 / aspect)));
-        }
+        // Tiles mode: an upright board, whatever the screen.
+        w = 225;
+        h = Math.max(380, Math.min(500, Math.round(225 / Math.min(1, aspect))));
         hz = 0;
         hit = Math.round(h * 0.8);
       } else if (mode === 'touch2') {

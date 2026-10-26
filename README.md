@@ -42,8 +42,8 @@ The keyboard keeps working alongside it.
 A second way to play every song, in the style of *Magic Tiles*. Pick **Tiles Mode** on the main
 menu, or the **TILES** switch on any song's screen.
 
-- **Hold the phone either way.** Four columns fill the screen (tall upright, wide sideways) and
-  dark tiles fall straight down.
+- **Hold the phone upright** (Tiles is upright only). Four columns fill the screen and dark tiles
+  fall straight down.
   Tap a tile's column as its coloured edge reaches the line near the bottom (a little early is
   fine). A tapped tile floods with colour from its border inward.
 - **Long tiles** have coloured side rails, a dashed track and a start pad with an arrow. Press and
@@ -114,8 +114,11 @@ press a key or a controller button.
 - **Beat Frets follows how you hold the phone:** sideways is 4 lanes, upright is 2. No question
   asked: turn the phone and the song screen switches. A **SIDEWAYS · 4 LANES / UPRIGHT · 2 LANES**
   switch on the song screen shows which you're on; tap the other to change (an installed app turns
-  the screen for you; otherwise a hint asks you to turn the phone). Tiles plays either way up:
-  a tall board upright, a wide one sideways.
+  the screen for you; otherwise a hint asks you to turn the phone). Tiles is upright only.
+- **Home tells you what each way up offers.** Upright: Beat Frets (marked *UPRIGHT · 2 LANES*,
+  turn sideways for 4) and Tiles (*UPRIGHT ONLY*). Sideways: only Beat Frets, on 4 lanes, with a
+  note to turn the phone upright for Tiles. Turn the phone sideways in Tiles' menus and you're in
+  Beat Frets on 4 lanes.
 - **Menus work either way up.** Only a song in progress needs the phone held its way: turn it
   mid-song and the song pauses, offering **PLAY UPRIGHT/SIDEWAYS INSTEAD** (the same song on the
   lanes for how you're holding it now) or **BACK TO THE SONG**.
@@ -413,8 +416,10 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
-- **1.32**: Tiles plays sideways too, on a wide board that fills the screen (same falling time,
-  so scores stay comparable); the game pictures on the home screen are centred on sideways phones.
+- **1.33**: clear about which way up: upright offers Beat Frets on 2 lanes and Tiles; sideways
+  offers only Beat Frets on 4 lanes (Tiles is upright only again, replacing 1.32's sideways Tiles).
+- **1.32**: the game pictures on the home screen are centred on sideways phones (and, briefly,
+  sideways Tiles).
 - **1.31**: the Boards screen starts with a difficulty picker (and how it was played): each
   tab counts the songs with a leader there, and every category and song shows who leads that
   difficulty, with their score, before you open anything.

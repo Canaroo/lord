@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.32';
+  const VERSION = '1.33';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -76,7 +76,7 @@
   };
   // Menus work either way up; only a song in progress needs the phone held its way.
   function wantedOrientation() {
-    if (!Input.touch || !game || !game.running || gameLayout === 'keys' || gameLayout === 'tiles') return null;
+    if (!Input.touch || !game || !game.running || gameLayout === 'keys') return null;
     return gameLayout === 'touch4' ? 'landscape' : 'portrait';
   }
   /** Show the "turn your phone" prompt (and pause a song) while it's held the wrong way. */
@@ -354,6 +354,7 @@
   Input.on('device', updateDeviceUI);
 
   function updateDeviceUI() {
+    renderModes();
     const pad = Input.device.type === 'gamepad';
     const fam = { xbox: 'XBOX-STYLE PAD', playstation: 'PLAYSTATION PAD', nintendo: 'SWITCH PRO PAD' }[Input.device.family];
     $('#hints').innerHTML = pad
@@ -391,7 +392,23 @@
     else { renderMain(); show('main'); }
   });
 
+  /**
+   * Phones: upright offers Beat Frets on 2 lanes and Tiles; sideways offers only Beat Frets,
+   * on 4 lanes (Tiles is played upright).
+   */
+  function renderModes() {
+    const side = Input.touch && window.innerWidth > window.innerHeight;
+    $('#btn-mode-tiles').hidden = side;
+    $('#tiles-hint').hidden = !side;
+    $('.modes').classList.toggle('single', side);
+    $('#frets-lanes').innerHTML = !Input.touch ? ''
+      : side ? '<b>SIDEWAYS · 4 LANES</b>'
+        : '<b>UPRIGHT · 2 LANES</b><span>Turn your phone sideways for 4 lanes</span>';
+    $('#tiles-lanes').innerHTML = Input.touch ? '<b>UPRIGHT ONLY</b>' : '';
+  }
+
   function renderMain() {
+    renderModes();
     const p = save.active;
     $('#main-player').textContent = p ? p.initials : '---';
     setTimeout(checkInbox, 600);
@@ -1555,7 +1572,9 @@
     session.orient = null;
     save.setSetting('playMode', mode);
     if (mode === 'tiles') {
-      // Tiles plays either way up: upright is a tall board, sideways a wide one.
+      // Tiles is played upright only (locked that way where the phone allows).
+      session.orient = Input.touch ? 'portrait' : null;
+      orientation.want(session.orient);
       goSongs();
       return;
     }
@@ -2305,7 +2324,7 @@
     vs = {
       key, diff,
       id: worldBoardFor(key, diff),
-      want: Input.touch ? (t.tiles ? null : t.touch ? (t.lanes === 4 ? 'landscape' : 'portrait') : null) : null,
+      want: Input.touch ? (t.tiles ? 'portrait' : t.touch ? (t.lanes === 4 ? 'landscape' : 'portrait') : null) : null,
       tiles: !!t.tiles,
       prevWant: orientation.wanted,
       target: r ? { initials: r.initials, score: Number(r.score), timeline: Array.isArray(r.tl) && r.tl.length > 1 ? r.tl : null, laps: Number(r.laps) || 0, rank, sid: r.id || null } : null,
@@ -3164,6 +3183,18 @@
       if (game) {
         // Turned the wrong way mid-song: pause and ask to turn it back.
         if (!checkOrientation()) stage.setLayout(gameLayout, window.innerWidth / window.innerHeight);
+        return;
+      }
+      renderModes();
+      // Tiles is upright only: turned sideways in its menus, you're in Beat Frets (4 lanes).
+      if (Input.touch && session.mode === 'tiles' && window.innerWidth > window.innerHeight && ['pack', 'import', 'song'].includes(screen)) {
+        session.mode = 'frets';
+        session.orient = null;
+        orientation.release();
+        applyLayout();
+        if (screen === 'song' && current) showSong(); else if (screen === 'pack') renderPack(); else renderImport();
+        renderCrumbs(screen);
+        toast('Sideways: Beat Frets on 4 lanes. Tiles is played upright.');
         return;
       }
       // A sideways/upright choice the browser couldn't lock gives way to how the phone is held.

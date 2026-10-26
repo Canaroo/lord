@@ -175,6 +175,10 @@ async function touchTests(browser) {
   await page.tap('#btn-initials-ok');
   await screenIs(page, 'main');
   check(await page.evaluate(() => BeatFrets.save.active.initials) === 'KID', 'the letters picked become the initials');
+  // Sideways, home offers only Beat Frets on 4 lanes; Tiles is played upright.
+  const side = await page.evaluate(() => ({ tiles: !document.getElementById('btn-mode-tiles').hidden, hint: !document.getElementById('tiles-hint').hidden, frets: document.getElementById('frets-lanes').textContent }));
+  await page.screenshot({ path: path.join(outDir, 'e2e-home-sideways.png') });
+  check(!side.tiles && side.hint && /SIDEWAYS · 4 LANES/.test(side.frets), `sideways, home offers only Beat Frets on 4 lanes, with a note that Tiles is upright (${JSON.stringify(side)})`);
 
   // Top-level screens are tabs along the bottom; every screen below them has a back
   // button in the top bar; and the phone's own Back steps back one screen.
@@ -202,7 +206,7 @@ async function touchTests(browser) {
   await screenIs(page, 'main');
   check(page.url().startsWith(url), "repeated phone Back stays in the game");
   // Home → BEAT FRETS → song list (sideways phone: 4 lanes, no question asked) → a song.
-  check(await page.isVisible('#btn-mode-frets') && await page.isVisible('#btn-mode-tiles'), 'home screen offers the two games');
+  check(await page.isVisible('#btn-mode-frets'), 'home screen offers Beat Frets');
   await page.tap('#btn-mode-frets');
   await screenIs(page, 'pack');
   check(true, 'Beat Frets goes straight to the songs, following how the phone is held');
@@ -431,24 +435,11 @@ async function touchTests(browser) {
   await page.tap('#btn-quit').catch(() => {});
   await page.tap('#btn-home');
   await screenIs(page, 'main');
-  // Held sideways, Tiles plays on a wide board that fills the screen (no "turn your phone").
-  await page.setViewportSize(LAND);
-  await page.waitForTimeout(400);
-  await page.tap('#btn-mode-tiles');
-  await screenIs(page, 'pack');
-  await openCat(page, 'classic');
-  await page.tap('[data-pack="pixel-overture"]');
-  await screenIs(page, 'song');
-  await page.tap('[data-diff="tiles:easy"]');
-  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game instanceof TilesGame, null, { timeout: 30000 });
-  await page.waitForTimeout(500);
-  const wide = await page.evaluate(() => { const r = document.getElementById('stage').getBoundingClientRect(); return { w: BeatFrets.stage.width, h: BeatFrets.stage.height, cw: Math.round(r.width), vw: innerWidth, prompt: !document.getElementById('rotate').hidden }; });
-  await page.screenshot({ path: path.join(outDir, 'e2e-tiles-land.png') });
-  check(wide.w > wide.h && wide.cw >= wide.vw * 0.95 && !wide.prompt, `sideways Tiles uses a wide board across the whole screen (${JSON.stringify(wide)})`);
-  await page.evaluate(() => BeatFrets.goHome());
-  await screenIs(page, 'main');
   await page.setViewportSize(PORT);
   await page.waitForTimeout(400);
+  const upright = await page.evaluate(() => ({ tiles: !document.getElementById('btn-mode-tiles').hidden, frets: document.getElementById('frets-lanes').textContent, tl: document.getElementById('tiles-lanes').textContent }));
+  check(upright.tiles && /UPRIGHT · 2 LANES/.test(upright.frets) && /sideways for 4 lanes/.test(upright.frets) && /UPRIGHT ONLY/.test(upright.tl), `upright, home offers Beat Frets on 2 lanes (sideways for 4) and Tiles (${upright.frets})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-home-upright.png') });
   await page.tap('#btn-mode-tiles');
   await screenIs(page, 'pack');
   check(/TILES/.test(await page.textContent('#crumbs-path')), 'Tiles mode goes straight to its song list');
@@ -457,6 +448,20 @@ async function touchTests(browser) {
   await screenIs(page, 'song');
   const tilesIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join(' '));
   check(tilesIds === 'tiles:easy tiles:medium tiles:hard', `song screen switches to Tiles tiers (${tilesIds})`);
+  // Tiles is upright only: turned sideways, the menus become Beat Frets on 4 lanes.
+  await page.setViewportSize(LAND);
+  await page.waitForTimeout(500);
+  const turned = await page.evaluate(() => ({ crumbs: document.getElementById('crumbs-path').textContent, ids: [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join(' ') }));
+  check(/BEAT FRETS · 4 LANES/.test(turned.crumbs) && turned.ids.startsWith('touch4:'), `turned sideways in Tiles, the song screen becomes Beat Frets on 4 lanes (${turned.crumbs})`);
+  await page.setViewportSize(PORT);
+  await page.waitForTimeout(400);
+  await page.tap('#btn-home');
+  await screenIs(page, 'main');
+  await page.tap('#btn-mode-tiles');
+  await screenIs(page, 'pack');
+  await openCat(page, 'classic');
+  await page.tap('[data-pack="pixel-overture"]');
+  await screenIs(page, 'song');
   await page.tap('[data-diff="tiles:hard"]');
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game instanceof TilesGame, null, { timeout: 30000 });
   // The song waits on a START tile until it's tapped.

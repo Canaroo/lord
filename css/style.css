@@ -1235,3 +1235,13 @@ body.touch .lane-switch.touch-only { display: flex; }
 .ldr-score { font: 400 17px var(--body); color: var(--gold); }
 .diff-tabs .tab-lead { font-size: 9px; letter-spacing: 0; }
 @media (max-width: 420px) { .diff-tabs b { font-size: 10px; } .diff-tabs button { padding-inline: 2px; } }
+
+/* Home on a phone: which way up each game is played. Sideways shows only Beat Frets. */
+.mode-lanes { display: flex; flex-direction: column; gap: 3px; padding: 0 4px; }
+.mode-lanes:empty { display: none; }
+.mode-lanes b { align-self: flex-start; padding: 3px 7px; border-radius: 5px; background: var(--acc); color: var(--ink); font: 700 10px var(--act); letter-spacing: 0.04em; }
+.mode-lanes span { font: 400 16px/1.1 var(--body); color: var(--gold); }
+.mode-card[hidden] { display: none !important; }
+.modes.single { grid-template-columns: minmax(0, 520px); justify-content: center; }
+.tiles-hint { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 14px 0 0; font: 700 11px var(--act); color: var(--muted); }
+.tiles-hint[hidden] { display: none; }
