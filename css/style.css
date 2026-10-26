@@ -1199,3 +1199,22 @@ body.touch .diff .play-tag { padding: 4px 6px; font-size: 10px; gap: 4px; }
 body.touch .diff-top { gap: 4px; }
 body.touch .lane-switch.touch-only { display: flex; }
 @media (orientation: landscape) and (max-height: 500px) { body.touch #screen-song .frets-help { display: none !important; } }
+
+/* Leaderboard difficulty tabs: every difficulty in view, the lit one is the board below,
+   each says who leads it. Colours match the difficulty cards. */
+.diff-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); gap: 6px; width: 100%; margin: 8px 0 4px; }
+.diff-tabs button { --acc: var(--green); display: flex; flex-direction: column; align-items: center; gap: 5px; min-height: 56px; padding: 8px 4px 7px; border: 2px solid var(--line); border-top: 5px solid var(--acc); border-radius: 9px; background: var(--cab-2); box-shadow: 0 3px 0 var(--ink); color: var(--muted); }
+.diff-tabs b { font: 400 11px var(--pixel); color: var(--text); white-space: nowrap; }
+.diff-tabs .tab-lead { display: inline-flex; align-items: center; gap: 3px; font: 700 10px var(--act); color: var(--muted); white-space: nowrap; }
+.diff-tabs .tab-lead svg { width: 10px; height: 10px; fill: currentColor; }
+.diff-tabs button.led .tab-lead { color: var(--gold); }
+.diff-tabs button.on { background: var(--acc); border-color: var(--acc); color: var(--ink); transform: translateY(2px); box-shadow: 0 1px 0 var(--ink), 0 0 12px color-mix(in srgb, var(--acc) 55%, transparent); }
+.diff-tabs button.on b, .diff-tabs button.on .tab-lead { color: var(--ink); }
+:is(.diff-tabs button, .board-now-tier)[data-base="easy"] { --acc: var(--green); }
+:is(.diff-tabs button, .board-now-tier)[data-base="medium"] { --acc: var(--blue); }
+:is(.diff-tabs button, .board-now-tier)[data-base="mediumplus"] { --acc: var(--gold); }
+:is(.diff-tabs button, .board-now-tier)[data-base="hard"] { --acc: var(--red); }
+:is(.diff-tabs button, .board-now-tier)[data-base="duo"] { --acc: var(--magenta); }
+.board-now { margin: 6px 0 10px; text-align: center; font: 400 11px var(--pixel); color: var(--text); letter-spacing: 0.04em; }
+.board-now-tier { color: var(--acc); }
+#board-tabs .diff-tabs { flex-basis: 100%; }

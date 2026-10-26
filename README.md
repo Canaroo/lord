@@ -82,8 +82,11 @@ The menus look like an early-90s arcade cabinet, and every screen fills the disp
   list rows with a **›**, lit switches and chips for filters, and ◀ ▶ pickers. Headings are flat
   gold text and section labels are small cyan caps between lines, so they never look like buttons.
 - **Leaderboards** open on the **World** board (when it's switched on), with chips for how the
-  song was played (Keys, Sideways, Upright, Tiles) and a ◀ ▶ difficulty picker. Scores are cards
-  with gold, silver and bronze medals, and your own best is pinned under the list.
+  song was played (Keys, Sideways, Upright, Tiles). Scores are cards
+  with gold, silver and bronze medals, and your own best is pinned under the list. Every
+  difficulty has its own tab, all in view and colour-coded (EASY, MEDIUM, MEDIUM+, HARD), each
+  saying who leads it or *NO ONE YET*; a heading says which board you're on (*EASY LEADERBOARD ·
+  SIDEWAYS*). A song's board opens on the difficulty you last played it on.
 
 - **Songs come in categories** (Chiptune Classics, Spooky, Rock, Epic Adventure, Space, Carnival, Bonus tracks)
   that start closed, so even a long list fits on a phone. Each heading says how many of its
@@ -404,6 +407,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.30**: leaderboards have a tab for every difficulty, each showing its leader (or NO ONE
+  YET), and a heading naming the board you're looking at; they open on the difficulty you last
+  played. Clearer message when the world board can't be reached.
 - **1.29**: easier on a phone. Beat Frets follows how you hold the phone (no "how will you hold
   it?" screen) with a sideways/upright switch on the song screen; menus work either way up, and
   turning the phone mid-song offers to carry on the other way; compact difficulty cards with PLAY

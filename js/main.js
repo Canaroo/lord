@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.29';
+  const VERSION = '1.30';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -2244,7 +2244,7 @@
       }
     } catch (e) {
       console.warn(e);
-      if (seq === worldSeq) table.innerHTML = boardMsg("Couldn't reach the world board. Check your connection.");
+      if (seq === worldSeq) table.innerHTML = boardMsg("Couldn't reach the world board (no internet?). Scores on this phone are under THIS DEVICE.");
     }
   }
 
@@ -2602,8 +2602,15 @@
       return;
     }
     const b = e.target.closest('[data-board-key]');
-    if (b) openBoard(b.dataset.boardKey, b.dataset.title, idFor('easy'), 'boards');
+    if (b) openBoard(b.dataset.boardKey, b.dataset.title, lastTierFor(b.dataset.boardKey), 'boards');
   });
+
+  /** The tier you last played a song on (so its board opens there), else Easy the way you're playing now. */
+  function lastTierFor(key) {
+    const p = save.active;
+    const run = save.data.runs.slice().reverse().find((r) => r.songKey === key && (!p || r.profileId === p.id));
+    return run ? run.difficulty : idFor('easy');
+  }
 
   /** Open a leaderboard. `remote`: someone else's imported song ({ key, title, fp, boards: {tier: boardId} }). */
   function openBoard(key, title, diff, back, scope = boardState.scope, remote = null) {
@@ -2646,9 +2653,13 @@
     const fam = familyOf(diff);
     $('#board-tabs').innerHTML =
       '<div class="chips">' + Object.entries(FAMILIES).map(([f, label]) => `<button data-board-family="${f}" class="${f === fam ? 'on' : ''}">${label}</button>`).join('') + '</div>' +
-      `<div class="picker"><button class="round prev" data-board-step="-1" aria-label="Easier"><svg><use href="#i-chev"/></svg></button>` +
-      `<div class="val" data-board-diff="${diff}"><small>DIFFICULTY</small>${BASE_LABEL(parseId(diff).difficulty)}</div>` +
-      `<button class="round" data-board-step="1" aria-label="Harder"><svg><use href="#i-chev"/></svg></button></div>`;
+      // One tab per difficulty, all in view: the lit one is the board below, and each says
+      // who leads it (or that nobody has a score there yet).
+      `<div class="diff-tabs" role="tablist" aria-label="Difficulty">${idsFor(fam).map((d) =>
+        `<button role="tab" data-board-tier="${d}" data-base="${parseId(d).difficulty}" class="${d === diff ? 'on' : ''}" aria-selected="${d === diff}">` +
+        `<b>${BASE_LABEL(parseId(d).difficulty)}</b><small class="tab-lead">…</small></button>`).join('')}</div>`;
+    $('#board-now').innerHTML = `<span class="board-now-tier" data-base="${parseId(diff).difficulty}">${BASE_LABEL(parseId(diff).difficulty)}</span> LEADERBOARD · ${FAMILIES[fam]}`;
+    fillTabLeaders();
     $('#board-scope').innerHTML = ['world', 'local'].map((sc) =>
       `<button data-board-scope="${sc}" class="${sc === boardState.scope ? 'on' : ''}">${sc === 'local' ? 'THIS DEVICE' : 'WORLD'}</button>`).join('');
     $('#board-versions').innerHTML = '';
@@ -2679,15 +2690,51 @@
       requestAnimationFrame(() => { const el = $(`[data-board-family="${f.dataset.boardFamily}"]`); if (el) el.focus(); });
       return;
     }
-    const step = e.target.closest('[data-board-step]');
-    if (!step) return;
-    // ◀ ▶ through the tiers of this family, wrapping around.
-    const ids = idsFor(familyOf(boardState.diff));
-    const i = ids.indexOf(boardState.diff);
-    boardState.diff = ids[(i + +step.dataset.boardStep + ids.length) % ids.length];
+    const tab = e.target.closest('[data-board-tier]');
+    if (!tab || tab.dataset.boardTier === boardState.diff) return;
+    boardState.diff = tab.dataset.boardTier;
     renderBoard();
-    requestAnimationFrame(() => { const el = $(`[data-board-step="${step.dataset.boardStep}"]`); if (el) el.focus(); });
+    requestAnimationFrame(() => { const el = $(`[data-board-tier="${tab.dataset.boardTier}"]`); if (el) el.focus(); });
   });
+
+  /** The world board for a tier of the song on screen, if it has one. */
+  function boardIdFor(d) {
+    const { key, remote } = boardState;
+    if (remote) return remote.boards[d] || null;
+    return songBoardsAll(key)[d] || null;
+  }
+  /** Like songBoards, for every tier of every way to play (not just the current one). */
+  function songBoardsAll(key) {
+    const out = {};
+    for (const fam of Object.keys(FAMILIES)) {
+      for (const d of idsFor(fam)) {
+        if (/^(pack|bonus):/.test(key)) out[d] = World.boardId(key, d);
+        else {
+          const run = save.data.runs.slice().reverse().find((r) => r.songKey === key && r.difficulty === d && r.world);
+          if (run) out[d] = run.world;
+        }
+      }
+    }
+    return out;
+  }
+
+  /** Each difficulty tab: who leads that board, or that nobody's on it yet. */
+  function fillTabLeaders() {
+    const { key, scope } = boardState;
+    for (const tab of $$('#board-tabs [data-board-tier]')) {
+      const d = tab.dataset.boardTier;
+      const el = $('.tab-lead', tab);
+      const show = (r) => {
+        if (!el.isConnected) return;
+        tab.classList.toggle('led', !!r);
+        el.innerHTML = r ? `<svg><use href="#i-crown"/></svg>${esc(r.mine ? 'YOU' : String(r.initials || '???').toUpperCase())}` : 'NO ONE YET';
+      };
+      if (scope === 'local' || !World.available()) { show(localRecord(key, d)); continue; }
+      const id = boardIdFor(d);
+      if (!id) { show(null); continue; }
+      worldRecordOr(id).then(show, () => { if (el.isConnected) el.textContent = '—'; });
+    }
+  }
 
   $('#btn-board-play').addEventListener('click', async () => {
     const { key, title, diff } = boardState;

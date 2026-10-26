@@ -899,6 +899,18 @@ async function recordTests(browser) {
   await page.waitForFunction(() => /ZED/.test(document.querySelector('#boards-list [data-board-key="pack:pixel-overture"] .leaders').textContent), null, { timeout: 5000 }).catch(() => {});
   check(/EZED/.test(await page.textContent('#boards-list [data-board-key="pack:pixel-overture"] .leaders')), 'boards rows show who leads each difficulty');
   await page.screenshot({ path: path.join(outDir, 'e2e-boards-cats.png') });
+  // A song's board: a tab per difficulty, all in view, each saying who leads it.
+  await page.click('#boards-list [data-board-key="pack:pixel-overture"]');
+  await screenIs(page, 'board');
+  await page.waitForFunction(() => /ZED/.test(document.querySelector('[data-board-tier="easy"]').textContent), null, { timeout: 5000 }).catch(() => {});
+  const tabs = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-board-tier]')].map((b) => [b.dataset.boardTier, { txt: b.textContent, on: b.classList.contains('on') }])));
+  check(Object.keys(tabs).join() === 'easy,medium,mediumplus,hard,duo' && tabs.easy.on, `the board has a tab for every difficulty, Easy lit (${Object.keys(tabs).join(' ')})`);
+  check(/ZED/.test(tabs.easy.txt) && /YOU/.test(tabs.medium.txt) && /NO ONE YET/.test(tabs.hard.txt), `each tab says who leads it (${tabs.easy.txt} | ${tabs.medium.txt} | ${tabs.hard.txt})`);
+  check(/EASY LEADERBOARD/.test(await page.textContent('#board-now')), 'a heading says which difficulty the board is for');
+  await page.click('[data-board-tier="medium"]');
+  await page.waitForTimeout(300);
+  check(/MEDIUM LEADERBOARD/.test(await page.textContent('#board-now')) && await page.evaluate(() => document.querySelector('[data-board-tier="medium"]').classList.contains('on')), 'tapping a tab switches the board and the heading');
+  await page.screenshot({ path: path.join(outDir, 'e2e-board-tabs.png') });
   check(!errors.length, 'no errors with world records ' + errors.join(' | '));
 
   // Options: nothing takes effect until SAVE.
