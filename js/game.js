@@ -24,6 +24,7 @@
   const STAR_STEPS = [0.2, 0.4, 0.6, 0.8, 0.95];
   const PACE_STEP = 2; // seconds between pace samples
   const GRAPH_BUCKETS = 48;
+  const FIREBALL_FLIGHT = 380; // ms from launch to hitting the boss
 
   /** Highest score a chart allows without overdrive: every note perfect, every tail held. */
   function maxScore(notes) {
@@ -63,6 +64,8 @@
      * @param {{score:number, timeline:number[]}|null} o.best  personal best, for pace
      * @param {{initials:string, score:number, timeline:number[]|null}|null} o.rival
      *        a challenge: race this score instead of your personal best
+     * @param {{id:string, name:string, color:string}|null} o.boss  a boss battle (boss.js):
+     *        power notes charge a Fireball in place of Overdrive
      * @param {{title:string, sub:string}} o.intro
      * @param {(results:object)=>void} o.onEnd
      * @param {(paused:boolean)=>void} o.onPauseChange
@@ -134,6 +137,14 @@
       this.lastT = null;
       this.highT = -Infinity; // furthest song time already scored
       this.lastDanger = 0;
+      this.boss = null;
+      if (o.boss) {
+        const power = Boss.powerNotes(this.notes);
+        for (const i of power) this.notes[i].power = true;
+        const tune = Boss.tuning(this.notes, power);
+        this.boss = { ...o.boss, tune, hp: tune.hp, fb: 0, fbAnnounced: false, hitAt: 0, healAt: 0, fireballs: [], downAt: 0, launched: 0 };
+      }
+      this.endingAt = 0; // the boss laughs for a moment before the results
       this._frame = this._frame.bind(this);
     }
 
@@ -218,6 +229,9 @@
     }
 
     results() {
+      // A boss battle is only won by beating the boss: the song alone isn't enough.
+      const bossWon = this.bossAlive && !this.failed;
+      if (bossWon) this.failed = true;
       const total = this.notes.length || 1;
       const earned = this.counts.perfect * 100 + this.counts.good * 70 + this.counts.ok * 40;
       const accuracy = earned / total;
@@ -246,6 +260,7 @@
         timingSamples: this.offsets.length,
         graph: this.graph.map((b) => ({ acc: b.max ? b.earned / b.max : null, miss: b.miss })),
         timeline: this.timeline.slice(),
+        boss: this.boss ? { id: this.boss.id, name: this.boss.name, defeated: this.boss.hp <= 0, hp: Math.ceil(this.boss.hp), bossWon } : null,
       };
     }
 
@@ -288,6 +303,7 @@
     }
 
     activateOverdrive() {
+      if (this.boss) { this._launchFireball(); return; }
       if (!this.running || this.paused || this.failed || this.odActive || this.od < 0.5) return;
       this.odActive = true;
       Sfx.overdrive();
@@ -296,6 +312,55 @@
       this.stage.kick(3);
       this.banners = this.banners.filter((b) => b.text !== 'SWIPE UP!');
       this._banner('OVERDRIVE!', '#58f8f8');
+    }
+
+    // ---- boss battles ----------------------------------------------------------------
+
+    get bossAlive() { return !!this.boss && this.boss.hp > 0; }
+
+    /** A charged Fireball flies at the boss; the damage lands when it does. */
+    _launchFireball() {
+      const b = this.boss;
+      if (!this.running || this.paused || this.failed || this.endingAt || !this.bossAlive || b.fb < 1) return;
+      b.fb = 0;
+      b.fbAnnounced = false;
+      b.launched++;
+      b.fireballs.push({ at: performance.now(), dmg: b.tune.fireball, landed: false });
+      Sfx.fireball();
+      this.stage.kick(2);
+      this.banners = this.banners.filter((x) => x.text !== 'FIREBALL READY!');
+    }
+
+    /** Fireballs that have reached the boss (they take FIREBALL_FLIGHT ms to get there). */
+    _landFireballs() {
+      const b = this.boss;
+      const now = performance.now();
+      for (const f of b.fireballs) {
+        if (f.landed || now - f.at < FIREBALL_FLIGHT) continue;
+        f.landed = true;
+        this._damage(f.dmg);
+        b.bigHitAt = now;
+        b.lastDmg = Math.round(f.dmg);
+        Sfx.bossHit();
+        this.stage.kick(4);
+        this.stage.flashScreen(0.35);
+        this._buzz([30, 30, 60]);
+      }
+      b.fireballs = b.fireballs.filter((f) => now - f.at < FIREBALL_FLIGHT + 600);
+    }
+
+    _damage(amount) {
+      const b = this.boss;
+      if (b.hp <= 0) return;
+      b.hp = Math.max(0, b.hp - amount);
+      if (b.hp === 0) {
+        b.downAt = performance.now();
+        b.fb = 0;
+        Sfx.bossDown();
+        this.stage.kick(5);
+        this.stage.flashScreen(0.6);
+        this._banner('BOSS DEFEATED!', '#f8d830', b.name);
+      }
     }
 
     _buzz(pattern) {
@@ -354,7 +419,20 @@
       this.popups = this.popups.filter((p) => p.lane !== lane);
       this.popups.push({ lane, text: '+' + pts, at: performance.now(), mult: this.multiplier });
       this.rock = Math.min(1, this.rock + ROCK[kind] * (this.odActive ? 2 : 1));
-      if (!this.odActive) this.od = Math.min(1, this.od + OD_PER_HIT);
+      if (this.boss) {
+        // Every hit chips at the boss; a power note also charges the Fireball.
+        if (this.bossAlive) {
+          this._damage(this.boss.tune.hit * Boss.JUDGE_DAMAGE[kind]);
+          this.boss.hitAt = performance.now();
+          if (best.power) this.boss.fb = Math.min(1, this.boss.fb + this.boss.tune.charge + 1e-9);
+          if (this.boss.fb >= 1 && !this.boss.fbAnnounced && this.bossAlive) {
+            this.boss.fbAnnounced = true;
+            this.boss.readyAt = performance.now();
+            Sfx.fireballReady();
+            this._banner('FIREBALL READY!', '#f88820', this.stage.layout !== 'keys' ? 'SWIPE UP TO LAUNCH' : `PRESS ${Input.glyph('overdrive')}`);
+          }
+        }
+      } else if (!this.odActive) this.od = Math.min(1, this.od + OD_PER_HIT);
       this.judgement = { kind, at: performance.now(), early: best.t > t };
       if (this.hitSounds) Sfx.hitTick();
 
@@ -373,7 +451,7 @@
         this._buzz([15, 40, 15]);
         this.stage.kick(2);
         this.stage.flashScreen(0.25);
-        if (!this.odActive) this.od = Math.min(1, this.od + 0.1);
+        if (!this.odActive && !this.boss) this.od = Math.min(1, this.od + 0.1);
       }
       if (this.od >= 0.5 && !this.odActive && !this.odReadyAnnounced) {
         this.odReadyAnnounced = true;
@@ -385,6 +463,12 @@
 
     _miss(note) {
       this.counts.miss++;
+      if (note && note.power && this.bossAlive) {
+        // A dropped power note: the boss gets some health back.
+        this.boss.hp = Math.min(this.boss.tune.hp, this.boss.hp + this.boss.tune.heal);
+        this.boss.healAt = performance.now();
+        Sfx.bossHeal();
+      }
       if (note) this._graph(note.t, 0);
       if (this.combo >= 10) {
         Sfx.miss();
@@ -518,6 +602,7 @@
         if (this.lastT != null && t > this.highT) {
           const from = Math.max(this.lastT, this.highT);
           this._updateHolds(from, t);
+          if (this.boss) this._landFireballs();
           if (this.odActive) {
             this.od = Math.max(0, this.od - OD_DRAIN * (t - from));
             if (this.od === 0) { this.odActive = false; this.odReadyAnnounced = false; Sfx.setOverdrive(false); }
@@ -535,7 +620,19 @@
       }
       this.stage.shakeEnabled = this.shakeEnabled !== false;
       this.stage.draw(this._view(t));
-      const done = t > Math.min(this.duration, this.lastNoteT + 3) && this.nextIdx >= this.notes.length;
+      let done = t > Math.min(this.duration, this.lastNoteT + 3) && this.nextIdx >= this.notes.length;
+      if (done && this.bossAlive && !this.paused && !this.failed) {
+        // The song's over and the boss is still standing (once any Fireball in the air
+        // has landed): it gets the last laugh.
+        const inFlight = this.boss.fireballs.some((f) => !f.landed);
+        if (inFlight) done = false;
+        else if (!this.endingAt) {
+          this.endingAt = performance.now();
+          Sfx.bossLaugh();
+          this._banner('BOSS WINS!', '#f84848', 'TRY AGAIN');
+        }
+        if (this.endingAt) done = performance.now() - this.endingAt > 2200;
+      }
       if (!this.paused && !this.failed && done) {
         const res = this.results();
         this.stop();
@@ -581,15 +678,22 @@
         countdown,
         failed: this.failed,
         restart: this.restartProgress,
+        boss: this.boss ? {
+          id: this.boss.id, name: this.boss.name, color: this.boss.color,
+          hp: this.boss.hp / this.boss.tune.hp, hitAt: this.boss.hitAt, healAt: this.boss.healAt, bigHitAt: this.boss.bigHitAt || 0,
+          lastDmg: this.boss.lastDmg || 0, downAt: this.boss.downAt, fireballs: this.boss.fireballs, flight: FIREBALL_FLIGHT, laughAt: this.endingAt,
+        } : null,
         hud: {
           score,
           combo: this.combo,
           mult: this.multiplier,
           pips: this.level >= 4 ? 10 : this.combo % 10,
           rock: this.rock,
-          od: this.od,
-          odReady: this.od >= 0.5,
-          odReadyAt: this.odReadyAt || 0,
+          // Boss battles: the Fireball meter takes the Overdrive meter's place.
+          fire: !!this.boss,
+          od: this.boss ? this.boss.fb : this.od,
+          odReady: this.boss ? this.boss.fb >= 1 && this.bossAlive : this.od >= 0.5,
+          odReadyAt: this.boss ? this.boss.readyAt || 0 : this.odReadyAt || 0,
           odKey: Input.glyph('overdrive'),
           progress: Math.max(0, Math.min(1, t / this.duration)),
           intro: t < 1.5 && !this.resumeAt ? this.intro : null,

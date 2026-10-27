@@ -85,6 +85,29 @@ practice runs don't count. Compared with Hard, INSANE has:
 Hard and every other level are exactly as before, so their leaderboards are unchanged. INSANE has
 its own leaderboards.
 
+## Boss battles
+
+The BOSS songs of three categories have a **BOSS BATTLE** under their difficulties: *Witching
+Hour* (Spooky) against **the Vampire Count**, *Amp Overload* (Rock) against **the Amp Titan** and
+*Dragon's Lair* (Epic Adventure) against **the Dragon**.
+
+- **Unlock it** with a B or better on each of the category's three songs (ROOKIE, PRO and BOSS),
+  on any difficulty and any way of playing. The card ticks them off as you go.
+- **The fight** uses the song's Hard notes, on keys or a phone (sideways or upright; not Tiles).
+  The boss stands across the stage with a health bar. Every note you hit chips at it (PERFECT
+  most, OK least).
+- **Power notes** have flames on top, about one note in twelve. Each one fills a quarter of the
+  **Fireball** meter (FB, where the Overdrive meter usually is). When it's full, press the
+  Overdrive key (Space) or swipe up to launch a Fireball for a big hit. A full meter doesn't
+  charge any further, so launch it soon. Miss a power note and the boss heals a little.
+- **Win or lose:** beat the boss before the song ends and the run counts, with **BOSS DEFEATED!**.
+  If the boss is still standing at the end, **BOSS WINS: TRY AGAIN**. The run is a loss and isn't
+  posted anywhere, even if you played the whole song.
+- **Leaderboards:** each battle has its own boards (a **BOSS BATTLE** tab on the song's boards),
+  and only wins go on them. A boss board you lead counts as a trophy on your license.
+- **Tuning** (`js/boss.js`): the boss has 100 health. Hitting every note deals 60 of it and
+  launching every Fireball deals 80, so a win takes a solid run with most Fireballs launched.
+
 ## Song of the Day
 
 Every day one song-pack song and difficulty is picked for everyone, the same on every device, and
@@ -467,6 +490,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.41**: **Boss battles** on the BOSS songs of Spooky, Rock and Epic Adventure: fight the Vampire
+  Count, the Amp Titan and the Dragon. Glowing power notes charge a Fireball (in place of
+  Overdrive); only a defeated boss goes on the leaderboards.
 - **1.40**: **CLASSICAL REMIX**, a new category: Beethoven's *Ode to Joy* (ROOKIE) and *Für Elise*
   (PRO), and Grieg's *Hall of the Mountain King* (BOSS), which speeds up from 126 to 208 BPM. A new
   harpsichord sound; songs can now change tempo between sections. The Song of the Day board now

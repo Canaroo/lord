@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.40';
+  const VERSION = '1.41';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -29,18 +29,24 @@
   };
   const TILES_IDS = ['tiles:easy', 'tiles:medium', 'tiles:hard', 'tiles:insane'];
   /** The chart a tier plays: Tiles mode uses the 4-lane phone chart. */
-  const chartFor = (id) => (parseId(id).tiles ? current.charts['touch4:' + parseId(id).difficulty] : current.charts[id]);
-  const BASE_LABEL = (d) => (ChartGen.DIFFICULTIES[d] ? ChartGen.DIFFICULTIES[d].label : d).toUpperCase();
+  // A boss battle plays the Hard chart of its way of playing: 'touch4:boss' → 'touch4:hard'.
+  const hardOf = (id) => id.replace(/boss$/, 'hard');
+  const chartFor = (id) => (parseId(id).tiles ? current.charts['touch4:' + parseId(id).difficulty] : current.charts[parseId(id).difficulty === 'boss' ? hardOf(id) : id]);
+  const BASE_LABEL = (d) => (d === 'boss' ? 'BOSS BATTLE' : (ChartGen.DIFFICULTIES[d] ? ChartGen.DIFFICULTIES[d].label : d).toUpperCase());
   /** 'hard' → HARD; 'touch4:hard' → HARD · TOUCH 4 */
   const LABEL = (id) => {
     const p = parseId(id);
     return BASE_LABEL(p.difficulty) + (p.tiles ? ' · TILES' : p.touch ? ` · TOUCH ${p.lanes}` : '');
   };
-  const SHORT_BASE = { easy: 'E', medium: 'M', mediumplus: 'M+', hard: 'H', duo: 'DUO', insane: 'INS' };
+  const SHORT_BASE = { easy: 'E', medium: 'M', mediumplus: 'M+', hard: 'H', duo: 'DUO', insane: 'INS', boss: 'BOSS' };
   const SHORT = new Proxy({}, { get: (_, id) => { const p = parseId(String(id)); return (p.tiles ? 'T' : '') + (SHORT_BASE[p.difficulty] || id) + (p.touch ? p.lanes : ''); } });
   const FAMILIES = { keys: 'KEYS', touch4: 'SIDEWAYS', touch2: 'UPRIGHT', tiles: 'TILES' };
   const familyOf = (id) => { const p = parseId(id); return p.tiles ? 'tiles' : p.touch ? 'touch' + p.lanes : 'keys'; };
   const idsFor = (family) => (family === 'keys' ? DIFFS : family === 'tiles' ? TILES_IDS : ChartGen.TOUCH_TIERS.map((d) => family + ':' + d));
+  /** The boss battle on a song (key 'pack:witching-hour'), or null. */
+  const battleOf = (key) => (key && key.startsWith('pack:') ? Boss.battleFor(key.slice(5)) : null);
+  /** A way of playing's tiers for a song: a boss battle song adds its battle (not in Tiles). */
+  const tiersFor = (family, key) => idsFor(family).concat(battleOf(key) && family !== 'tiles' ? [family === 'keys' ? 'boss' : family + ':boss'] : []);
 
   // Which game the player picked on the home screen, and for Beat Frets on a
   // phone, which way up (sideways = 4 lanes, upright = 2 lanes).
@@ -147,6 +153,21 @@
       (t.tiles ? (r.stars || 0) >= 3 && (r.accuracy || 0) >= 75 : /^[SAB]/.test(String(r.grade))));
   }
   const insaneLocked = (id) => parseId(id).difficulty === 'insane' && !(current && insaneUnlocked(current.key, id));
+
+  /**
+   * A boss battle unlocks for the player with a B or better on each of its category's
+   * ROOKIE, PRO and BOSS songs, on any difficulty and any way of playing. Returns each
+   * song and whether it's done.
+   */
+  function bossProgress(songId) {
+    const battle = Boss.battleFor(songId);
+    const p = save.active;
+    return SongPack.SONGS.filter((d) => d.theme === battle.theme).map((d) => ({
+      title: d.title, tier: d.tier,
+      done: !!p && save.data.runs.some((r) => r.profileId === p.id && r.songKey === SongPack.keyFor(d) && !r.failed && !r.practice && /^[SAB]/.test(String(r.grade))),
+    }));
+  }
+  const bossLocked = (id) => parseId(id).difficulty === 'boss' && !(current && current.kind === 'pack' && bossProgress(current.packId).every((x) => x.done));
   const UNLOCK_HINT = (id) => (parseId(id).tiles ? 'Clear lap 1 on Hard at 75%+ to unlock' : 'Get a B or better on Hard to unlock');
 
   function safeStorage() {
@@ -1292,10 +1313,45 @@
         <ol class="mini-board">${miniBoard(current.key, d)}</ol>
       </div>`;
     }).join('');
+    renderBossBattle(def);
     updateDeviceUI();
     show('song', { focus: `[data-diff="${idFor(parseId(lastDifficulty).difficulty)}"]` });
     fillRecords();
   }
+
+  /** The BOSS BATTLE card under the difficulties, on a song that has one (not in Tiles). */
+  function renderBossBattle(def) {
+    const box = $('#boss-battle');
+    const battle = def && Boss.battleFor(def.id);
+    box.hidden = !battle || tilesMode();
+    if (box.hidden) { box.innerHTML = ''; return; }
+    const id = idFor('boss');
+    const locked = bossLocked(id);
+    const prog = bossProgress(def.id);
+    const c = chartFor(id);
+    box.innerHTML = `<button class="boss-card${locked ? ' locked' : ''}" data-diff="${id}" style="--boss:${battle.color}">
+        <canvas class="boss-art" width="16" height="20" aria-hidden="true"></canvas>
+        <span class="boss-main">
+          <span class="boss-top"><strong>☠ BOSS BATTLE</strong>${locked ? '<span class="play-tag lock-tag">🔒 LOCKED</span>' : '<span class="play-tag">FIGHT <svg><use href="#i-play"/></svg></span>'}</span>
+          <span class="boss-name">${esc(battle.name)}</span>
+          <span class="what">${locked ? 'Get a B or better on all three songs to unlock:' : 'Hard notes. Hit the glowing notes to charge a Fireball, then ' + (layoutMode() === 'keys' ? `press ${esc(Input.glyph('overdrive'))}` : 'swipe up') + ' to launch it. Beat the boss before the song ends!'}</span>
+          ${locked ? `<span class="boss-need">${prog.map((x) => `<span class="${x.done ? 'done' : ''}">${x.done ? '✓' : '·'} ${esc(x.title)}</span>`).join('')}</span>` : `<span class="stats">${c.notes.length} notes · ${Math.floor(Boss.powerNotes(c.notes).size)} power notes</span>`}
+          ${cardStars(id)}
+          <span class="wr" data-wr="${id}"></span>
+        </span>
+      </button>
+      <ol class="mini-board">${miniBoard(current.key, id)}</ol>`;
+    // The boss's portrait, from its sprite.
+    const art = Boss.SPRITES[battle.id];
+    const cv = $('.boss-art', box);
+    cv.height = art.rows.length;
+    const g = cv.getContext('2d');
+    art.rows.forEach((row, y) => [...row].forEach((k, x) => { if (k !== '.') { g.fillStyle = art.palette[k]; g.fillRect(x, y, 1, 1); } }));
+  }
+  $('#boss-battle').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-diff]');
+    if (b) play(b.dataset.diff, {});
+  });
 
   // ---- world records on the song list and difficulty cards ---------------------------------------------
 
@@ -1442,8 +1498,8 @@
     if (!World.available() || !current) return;
     const key = current.key;
     const fmt = (n) => Number(n).toLocaleString('en-US');
-    const boards = songBoards(key, chartFor);
-    for (const el of $$('#diffs [data-wr]')) {
+    const boards = songBoards(key, chartFor, tilesMode() ? tierIds() : tiersFor(layoutMode(), key));
+    for (const el of $$('#screen-song [data-wr]')) {
       const d = el.dataset.wr;
       if (!boards[d]) continue;
       el.innerHTML = '<span class="wr-wait">WORLD RECORD…</span>';
@@ -1492,6 +1548,8 @@
     if (playOpts.key && playOpts.key !== current.key) playOpts = {};
     const tier = parseId(difficulty);
     if (insaneLocked(difficulty)) { toast(`INSANE is locked: ${UNLOCK_HINT(difficulty)}.`); return; }
+    if (bossLocked(difficulty)) { toast('The boss battle is locked: get a B or better on all three of its category\'s songs.'); return; }
+    const battle = tier.difficulty === 'boss' ? battleOf(current.key) : null;
     if (tier.tiles) { playTiles(difficulty); return; }
     // The first game starts straight away; moving the strike line and the timing test are
     // offered on the results screen when they'd help.
@@ -1509,7 +1567,7 @@
     gameLayout = tier.touch ? 'touch' + tier.lanes : 'keys';
     stage.setLayout(gameLayout, window.innerWidth / window.innerHeight);
     wakeLock.acquire();
-    const chart = playOpts.chart || current.charts[difficulty];
+    const chart = playOpts.chart || chartFor(difficulty);
     Input.setGameplay(true, chart.lanes);
     game = new Game({
       audioCtx,
@@ -1529,7 +1587,8 @@
       playerColor: save.active ? save.active.color : '#58f8f8',
       best: !playOpts.chart && save.active ? save.pace(save.active.id, current.key, difficulty) : null,
       rival: playOpts.target ? { initials: playOpts.target.initials, score: playOpts.target.score, timeline: playOpts.target.timeline || null } : null,
-      intro: { title: current.title.toUpperCase().slice(0, 40), sub: (playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : LABEL(difficulty)) + (settings.noFail ? ' · NO-FAIL PRACTICE' : '') },
+      boss: battle,
+      intro: { title: current.title.toUpperCase().slice(0, 40), sub: (playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : battle ? 'BOSS BATTLE: ' + battle.name : LABEL(difficulty)) + (settings.noFail ? ' · NO-FAIL PRACTICE' : '') },
       onEnd: (res) => {
         game = null;
         wakeLock.release();
@@ -1792,7 +1851,7 @@
     orientation.release();
     applyLayout();
     const id = idFor(base);
-    play(tierIds().includes(id) ? id : idFor('medium'), {});
+    play(tierIds().includes(id) || base === 'boss' ? id : idFor('medium'), {});
   });
 
   $('#btn-resume').addEventListener('click', () => game && game.resume());
@@ -1934,7 +1993,10 @@
     let suggest = '';
     const base = parseId(difficulty).difficulty;
     const tierLabel = (b) => LABEL(idFor(b));
-    if (res.failed) {
+    if (res.boss && !res.boss.defeated) {
+      suggest = res.boss.bossWon ? `${res.boss.name} had ${res.boss.hp}% health left. Hit the glowing notes to charge Fireballs, and launch each one as soon as it's ready.`
+        : 'Tough one. Hit the glowing notes to charge Fireballs, and launch each one as soon as it\'s ready.';
+    } else if (res.failed) {
       suggest = PREV_TIER[base] ? `Tough one. Try ${tierLabel(PREV_TIER[base])}, or turn on No-fail in Options.` : 'Tough one. Turn on No-fail in Options to play it through.';
     } else if ((res.grade === 'S' || res.stars >= 4) && NEXT_TIER[base]) {
       suggest = `Ready for ${tierLabel(NEXT_TIER[base])}?`;
@@ -1945,7 +2007,8 @@
 
     let flag = '';
     let celebrate = false;
-    if (res.failed) flag = 'SONG FAILED. TRY NO-FAIL MODE IN OPTIONS.';
+    if (res.boss && res.boss.bossWon) flag = 'BOSS WINS: TRY AGAIN';
+    else if (res.failed) flag = 'SONG FAILED. TRY NO-FAIL MODE IN OPTIONS.';
     else if (res.practice) flag = 'NO-FAIL PRACTICE RUN · NOT ON LEADERBOARDS';
     else if (outcome) {
       const board = save.leaderboard(current.key, difficulty, 100);
@@ -1953,7 +2016,9 @@
       else if (outcome.rank === 1 && board.length > 1) { flag = '#1 ON THIS BOARD!'; celebrate = true; }
       else if (outcome.rank) flag = `RANK #${outcome.rank} ON THIS BOARD`;
       if (res.fullCombo) flag += (flag ? ' · ' : '') + 'FULL COMBO!';
+      if (res.boss && res.boss.defeated) { flag = 'BOSS DEFEATED!' + (flag ? ' · ' + flag : ''); celebrate = true; }
     }
+    if (res.boss && res.boss.defeated && res.practice) flag = 'BOSS DEFEATED (NO-FAIL PRACTICE: NOT ON LEADERBOARDS)';
     const target = res.practice ? null : playOpts.target;
     if (playOpts.target && res.practice) flag = 'NO-FAIL PRACTICE: TURN IT OFF IN OPTIONS TO TAKE ON THE CHALLENGE';
     if (target && !res.failed) {
@@ -2784,7 +2849,7 @@
     const cut = boardId.lastIndexOf('__');
     if (cut < 0) return null;
     const head = boardId.slice(0, cut), tail = boardId.slice(cut + 2);
-    const all = Object.keys(FAMILIES).flatMap((f) => idsFor(f));
+    const all = Object.keys(FAMILIES).flatMap((f) => idsFor(f)).concat(['boss', 'touch4:boss', 'touch2:boss']);
     const diff = all.find((d) => d.replace(/[^a-z0-9]/gi, '-') === tail);
     if (!diff) return null;
     if (head.startsWith('pack-')) {
@@ -3039,7 +3104,7 @@
       '<div class="chips">' + Object.entries(FAMILIES).map(([f, label]) => `<button data-board-family="${f}" class="${f === fam ? 'on' : ''}">${label}</button>`).join('') + '</div>' +
       // One tab per difficulty, all in view: the lit one is the board below, and each says
       // who leads it (or that nobody has a score there yet).
-      `<div class="diff-tabs" role="tablist" aria-label="Difficulty">${idsFor(fam).filter((d) => !boardState.daily || d === diff).map((d) =>
+      `<div class="diff-tabs" role="tablist" aria-label="Difficulty">${tiersFor(fam, boardState.daily || boardState.remote ? null : key).filter((d) => !boardState.daily || d === diff).map((d) =>
         `<button role="tab" data-board-tier="${d}" data-base="${parseId(d).difficulty}" class="${d === diff ? 'on' : ''}" aria-selected="${d === diff}">` +
         `<b>${BASE_LABEL(parseId(d).difficulty)}</b><small class="tab-lead">…</small></button>`).join('')}</div>`;
     $('#board-now').innerHTML = (boardState.daily ? `★ SONG OF THE DAY ${esc(boardState.daily)} · ` : '') +
@@ -3077,7 +3142,7 @@
     if (f) {
       // Same tier, other input: 'hard' ↔ 'touch4:hard' ↔ 'touch2:hard'.
       const base = parseId(boardState.diff).difficulty;
-      const ids = idsFor(f.dataset.boardFamily);
+      const ids = tiersFor(f.dataset.boardFamily, boardState.remote ? null : boardState.key);
       boardState.diff = ids.find((id) => parseId(id).difficulty === base) || ids[0];
       renderBoard();
       requestAnimationFrame(() => { const el = $(`[data-board-family="${f.dataset.boardFamily}"]`); if (el) el.focus(); });
@@ -3101,7 +3166,7 @@
   function songBoardsAll(key) {
     const out = {};
     for (const fam of Object.keys(FAMILIES)) {
-      for (const d of idsFor(fam)) {
+      for (const d of tiersFor(fam, key)) {
         if (/^(pack|bonus):/.test(key)) out[d] = World.boardId(key, d);
         else {
           const run = save.data.runs.slice().reverse().find((r) => r.songKey === key && r.difficulty === d && r.world);

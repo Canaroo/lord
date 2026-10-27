@@ -188,6 +188,20 @@
     },
     takeLead: () => seq([[84, 0.06], [88, 0.06], [91, 0.06], [96, 0.18]], { duty: 0.125, vol: 0.22, gap: 0.005 }),
     loseLead: () => seq([[67, 0.08], [62, 0.14]], { duty: 0.5, vol: 0.16 }),
+    // Boss battles: a Fireball whooshes up and bursts on the boss; a dropped power
+    // note lets the boss heal; the boss goes down, or laughs when the song is over.
+    fireballReady: () => seq([[67, 0.05], [72, 0.05], [79, 0.05], [84, 0.2]], { duty: 0.5, vol: 0.22, gap: 0.008 }),
+    fireball: () => {
+      seq([[48, 0.3]], { duty: 0.5, vol: 0.2, slide: 30 });
+      burst(0.35, 1200, 0.2, 'bandpass');
+    },
+    bossHit: () => { burst(0.4, 180, 0.4, 'lowpass'); seq([[40, 0.18]], { duty: 'tri', vol: 0.45, slide: -10 }); },
+    bossHeal: () => seq([[64, 0.05], [71, 0.08]], { duty: 0.125, vol: 0.14 }),
+    bossDown: () => {
+      burst(0.9, 400, 0.35, 'lowpass');
+      seq([[60, 0.1], [64, 0.1], [67, 0.1], [72, 0.1], [76, 0.1], [79, 0.1], [84, 0.4]], { duty: 0.25, vol: 0.22, gap: 0.01 });
+    },
+    bossLaugh: () => seq([[55, 0.1], [53, 0.1], [55, 0.1], [53, 0.1], [50, 0.1], [48, 0.45]], { duty: 0.5, vol: 0.22, gap: 0.04 }),
   };
 
   root.Sfx = Sfx;

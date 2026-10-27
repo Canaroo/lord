@@ -12,7 +12,7 @@
 // an update loads as one matching set: a page from the new version never picks up
 // an old file from the cache, or the other way round. Keep these in step with
 // VERSION in js/main.js and the ?v= in index.html (npm test checks).
-const V = '1.40';
+const V = '1.41';
 const CACHE = 'beat-frets-' + V;
 const SHELL = [
   './',
@@ -22,7 +22,7 @@ const SHELL = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'css/style.css?v=' + V,
-  ...['analyzer', 'chartgen', 'songs', 'bonus', 'save', 'library', 'sfx', 'input', 'render', 'game', 'tiles', 'share', 'firebase-config', 'world', 'daily', 'main'].map((f) => `js/${f}.js?v=${V}`),
+  ...['analyzer', 'chartgen', 'songs', 'bonus', 'save', 'library', 'sfx', 'input', 'render', 'boss', 'game', 'tiles', 'share', 'firebase-config', 'world', 'daily', 'main'].map((f) => `js/${f}.js?v=${V}`),
 ];
 
 self.addEventListener('install', (e) => {

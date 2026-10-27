@@ -53,6 +53,7 @@
     gold: '#f8d830',
     red: '#f84848',
     green: '#38d838',
+    orange: '#f88820',
     window: '#1a2378',
     windowEdge: '#c8ccf8',
   };
@@ -277,6 +278,7 @@
 
       this.drawBackdrop(v, bi, phase, pulse, energy, powerDown);
       this.drawGuitarist(v, bi, phase, energy, powerDown);
+      if (v.boss) this.drawBoss(v, phase, nowMs);
       if (LAYOUT === 'keys') this.drawCrowd(bi, phase, hype, energy, v.attract);
       this.drawHighway(v, geo, pulse, level, energy);
       if (v.hud && LAYOUT !== 'keys') this.drawTrackHud(v, geo, nowMs);
@@ -285,6 +287,7 @@
       this.drawFlames(v, geo, nowMs, energy);
       if (v.fingers) this.drawGrabs(v, geo, nowMs);
       this.drawParticles(dt);
+      if (v.boss) this.drawFireballs(v, geo, nowMs);
       if (powerDown > 0) {
         this.g.fillStyle = `rgba(8,8,26,${0.45 * powerDown})`;
         this.g.fillRect(0, 0, W, H);
@@ -481,7 +484,7 @@
           const w = geo.laneW * sc;
           const k = (y - hy) / (H - hy); // 0 at the line, 1 at the bottom
           g.globalAlpha = down ? 0.6 - 0.25 * k : 0.34 - 0.16 * k;
-          g.fillStyle = down ? LANES_LIGHT[l] : ready && (y >> 2) % 2 ? PAL.cyan : LANES_DARK[l];
+          g.fillStyle = down ? LANES_LIGHT[l] : ready && (y >> 2) % 2 ? (v.hud.fire ? PAL.orange : PAL.cyan) : LANES_DARK[l];
           g.fillRect(Math.round(x0 + 2 * sc), y, Math.round(w - 4 * sc), 1);
           // Pad edges.
           g.globalAlpha = down ? 0.9 : 0.45;
@@ -647,7 +650,7 @@
         const ry = rx * 0.55;
         if (LAYOUT !== 'keys') {
           const len = Math.min(NOTE_TIME[LAYOUT] || 0.08, (room.get(n) ?? Infinity) * NOTE_GAP);
-          this.drawBar(n, geo, z, len / v.lookahead, v.odActive);
+          this.drawBar(n, geo, z, len / v.lookahead, v.odActive, v.t);
           continue;
         }
         if (n.judged === 'miss') {
@@ -658,11 +661,26 @@
           continue;
         }
         if (z > 0.95) this.g.globalAlpha = Math.max(0, (1.15 - z) / 0.2);
-        this.ellipse(x, y + 1, rx + 1, ry + 1, v.odActive ? PAL.cyan : PAL.ink);
+        if (n.power) this.noteFlames(x, y - ry, rx, s, v.t);
+        this.ellipse(x, y + 1, rx + 1, ry + 1, n.power ? PAL.white : v.odActive ? PAL.cyan : PAL.ink);
         this.ellipse(x, y, rx, ry, LANES_DARK[n.lane]);
         this.ellipse(x, y - ry * 0.25, rx, ry * 0.75, LANES[n.lane]);
         this.ellipse(x - rx * 0.25, y - ry * 0.45, rx * 0.35, ry * 0.25, v.odActive ? PAL.cyan : PAL.white);
         this.g.globalAlpha = 1;
+      }
+    }
+
+    /** Boss battles: little flames dance on top of a power note (whatever its lane's colour). */
+    noteFlames(x, top, rx, s, t) {
+      const tongues = 3;
+      const unit = Math.max(1, Math.round(2 * s + 0.4));
+      for (let i = 0; i < tongues; i++) {
+        const fx = x + (i - 1) * rx * 0.6;
+        const h = Math.max(2, Math.round((4 + 3 * Math.abs(Math.sin(t * 14 + i * 2.1))) * unit * (i === 1 ? 1.3 : 1)));
+        for (let k = 0; k < h; k++) {
+          const w = Math.max(1, Math.round((h - k) / h * 3 * unit));
+          this.rect(fx - w / 2, top - k, w, 1, k < h * 0.4 ? PAL.red : k < h * 0.75 ? PAL.orange : PAL.gold);
+        }
       }
     }
 
@@ -691,7 +709,7 @@
      * top, a dark rim at the front and a shadow under it. The strike line passes
      * through its middle on the beat, and in the last moment before that it glows.
      */
-    drawBar(n, geo, z, dz, od) {
+    drawBar(n, geo, z, dz, od, t = 0) {
       let yNear = Math.round(geo.yAt(Math.max(-0.2, z - dz / 2)));
       let yFar = Math.round(geo.yAt(z + dz / 2));
       // Never thinner than a few pixels (less toward the horizon, where it's small anyway).
@@ -708,6 +726,13 @@
         const sc = (y - HORIZON) / (HIT_Y - HORIZON);
         return [geo.cx + geo.laneX(L) * sc, Math.max(2, geo.laneW * 0.78 * sc)];
       };
+      // Boss battles: flames dance along the top of a power note.
+      if (n.power && !missed) {
+        const [x, w] = rowAt(yFar);
+        const sc = (yFar - HORIZON) / (HIT_Y - HORIZON);
+        g.globalAlpha = alpha;
+        this.noteFlames(x, yFar - 2, w * 0.45, sc * 1.4, t);
+      }
       // Glow: brightens over the last stretch before the line.
       const near = !missed && z > -0.03 && z < GLOW_Z ? 1 - Math.max(0, z) / GLOW_Z : 0;
       if (near > 0) {
@@ -735,7 +760,7 @@
         const inset = edge === 0 ? 2 : edge === 1 && span > 3 ? 1 : 0;
         const x0 = Math.round(x - w / 2) + inset;
         const ww = Math.max(1, Math.round(w) - inset * 2);
-        g.fillStyle = od ? PAL.cyan : PAL.ink;
+        g.fillStyle = n.power && !missed ? PAL.white : od ? PAL.cyan : PAL.ink;
         if (y < yFar || y > yNear) { g.fillRect(x0, y, ww, 1); continue; }
         g.fillRect(x0 - 1, y, ww + 2, 1);
         if (missed) { g.fillStyle = '#4a4a60'; g.fillRect(x0, y, ww, 1); continue; }
@@ -867,6 +892,8 @@
       const danger = h.rock < 0.25 && Math.floor(nowMs / 180) % 2 === 0;
       const climb = Math.floor(nowMs / 28);
       const glow = ready ? 0.5 + 0.5 * Math.sin(nowMs / 110) : 0;
+      // Boss battles: the meter charges a Fireball, in fire colours.
+      const odc = h.fire ? PAL.orange : PAL.cyan;
 
       // Overdrive ready: a cyan wash rising from the frets.
       if (ready) {
@@ -874,7 +901,7 @@
           const s = (y - HORIZON) / (HIT_Y - HORIZON);
           const k = (yBot - y) / span;
           this.g.globalAlpha = (0.05 + 0.13 * glow) * (1 - k);
-          this.rect(geo.cx - geo.halfW * s, y, geo.halfW * s * 2, 1, PAL.cyan);
+          this.rect(geo.cx - geo.halfW * s, y, geo.halfW * s * 2, 1, odc);
         }
         this.g.globalAlpha = 1;
       }
@@ -895,8 +922,8 @@
         let c = '#141c44';
         if (k <= h.od) {
           if (v.odActive) c = (d + climb) % 10 < 5 ? PAL.white : PAL.cyan;
-          else if (ready) c = ((d - climb) % 14 + 14) % 14 < 5 ? PAL.white : PAL.cyan;
-          else c = PAL.cyan;
+          else if (ready) c = ((d - climb) % 14 + 14) % 14 < 5 ? PAL.white : odc;
+          else c = odc;
         }
         this.rect(xl, y, w, 1, c);
         c = '#141c44';
@@ -906,22 +933,22 @@
       const sTop = (yTop - HORIZON) / (HIT_Y - HORIZON);
       const lx = geo.cx - geo.halfW * sTop - 6;
       const rx = geo.cx + geo.halfW * sTop + 6;
-      this.text('OD', lx, yTop - 11, ready && glow > 0.5 ? PAL.white : PAL.cyan, 8, 'center');
+      this.text(h.fire ? 'FB' : 'OD', lx, yTop - 11, ready && glow > 0.5 ? PAL.white : odc, 8, 'center');
       this.text('ROCK', rx, yTop - 11, h.rock < 0.25 ? PAL.red : PAL.grey, 8, 'center');
 
-      if (ready) this.drawSwipeArrows(geo, nowMs);
+      if (ready) this.drawSwipeArrows(geo, nowMs, odc);
 
       // Ready: a halo pulses round the strike plates (and the pads turn cyan), so
       // it's seen without looking away.
       if (ready) {
         const hy = Math.round(geo.yAt(0));
         this.g.globalAlpha = 0.4 + 0.6 * glow;
-        this.rect(geo.cx - geo.halfW - 4, hy - 8, geo.halfW * 2 + 8, 17, glow > 0.5 ? PAL.white : PAL.cyan);
+        this.rect(geo.cx - geo.halfW - 4, hy - 8, geo.halfW * 2 + 8, 17, glow > 0.5 ? PAL.white : odc);
         this.g.globalAlpha = 1;
       }
 
       this.drawSideHud(v, geo, nowMs);
-      if (ready && glow > 0.3) this.text('SWIPE UP', geo.cx, Math.min(H - 10, HIT_Y + 22), PAL.cyan, 8, 'center');
+      if (ready && glow > 0.3) this.text(h.fire ? 'SWIPE UP: FIREBALL' : 'SWIPE UP', geo.cx, Math.min(H - 10, HIT_Y + 22), odc, 8, 'center');
     }
 
     /**
@@ -1005,7 +1032,7 @@
      * Overdrive ready: big chevrons climbing up both sides of the highway, from
      * near the frets to mid-screen, in the open space beside the rails.
      */
-    drawSwipeArrows(geo, nowMs) {
+    drawSwipeArrows(geo, nowMs, tint = PAL.cyan) {
       const span = HIT_Y - HORIZON;
       const yLo = HORIZON + span * 0.95;
       const yHi = HORIZON + span * 0.5;
@@ -1022,7 +1049,7 @@
           const x = Math.round(geo.cx + side * (edge + margin / 2));
           const size = Math.max(6, Math.min(14, Math.floor(margin / 2) - 2));
           this.g.globalAlpha = Math.sin(f * Math.PI) * 0.95;
-          const color = k === count - 1 || f > 0.6 ? PAL.white : PAL.cyan;
+          const color = k === count - 1 || f > 0.6 ? PAL.white : tint;
           for (let i = 0; i <= size; i++) {
             this.rect(x - i - 1, y + i - 1, 5, 5, PAL.ink);
             this.rect(x + i - 3, y + i - 1, 5, 5, PAL.ink);
@@ -1083,14 +1110,15 @@
       const mx = 64, rx = W - 72, my = 74, segH = 6;
       this.window(mx - 5, my - 18, 18, segs * segH + 24);
       this.window(rx - 5, my - 18, 18, segs * segH + 24);
-      this.text('OD', mx + 4, my - 13, PAL.cyan, 8, 'center');
+      const odc = h.fire ? PAL.orange : PAL.cyan; // boss battles: the Fireball meter
+      this.text(h.fire ? 'FB' : 'OD', mx + 4, my - 13, odc, 8, 'center');
       const odBlink = h.odReady && !v.odActive && Math.floor(nowMs / 250) % 2 === 0;
       for (let i = 0; i < segs; i++) {
-        const filled = h.od * segs > i;
+        const filled = h.od * segs > i + 1e-6;
         const y = my + (segs - 1 - i) * segH;
-        this.rect(mx, y, 8, segH - 1, filled ? (v.odActive || odBlink ? PAL.white : PAL.cyan) : '#101838');
+        this.rect(mx, y, 8, segH - 1, filled ? (v.odActive || odBlink ? PAL.white : odc) : '#101838');
       }
-      if (h.odReady && !v.odActive) this.text(h.odKey, mx + 4, my + segs * segH + 9, odBlink ? PAL.white : PAL.cyan, 8, 'center');
+      if (h.odReady && !v.odActive) this.text(h.odKey, mx + 4, my + segs * segH + 9, odBlink ? PAL.white : odc, 8, 'center');
       this.text('RK', rx + 4, my - 13, PAL.grey, 8, 'center');
       const danger = h.rock < 0.25;
       for (let i = 0; i < segs; i++) {
@@ -1286,6 +1314,93 @@
       const strum = !sad && energy > 0.2 && eighth ? -1 : 0;
       R(9, ty + 1, 1, Math.max(1, gy + strum - ty - 1), color);
       R(9, gy + strum, 2, 2, SKIN);
+    }
+
+    // ---- boss battles ----------------------------------------------------------------
+
+    /** Where the boss stands: its feet's centre, on the other side of the stage from the guitarist. */
+    bossSpot() {
+      return LAYOUT === 'touch4' ? [W - 62, HORIZON] : LAYOUT === 'touch2' ? [W - 34, HORIZON] : [W - 108, 160];
+    }
+
+    /**
+     * The boss: sways to the beat, flashes when hit, reels from a Fireball, glows
+     * green as it heals, and blows apart when beaten. Its health bar sits above it.
+     */
+    drawBoss(v, phase, nowMs) {
+      const b = v.boss;
+      const art = Boss.SPRITES[b.id];
+      if (!art) return;
+      const S = 2;
+      const [fx, fy] = this.bossSpot();
+      const rows = art.rows;
+      const w = 16 * S, h = rows.length * S;
+      const down = b.downAt ? nowMs - b.downAt : 0;
+      if (down > 1400) return; // gone
+      const big = b.bigHitAt && nowMs - b.bigHitAt < 350;
+      const laughing = b.laughAt && nowMs - b.laughAt < 2200;
+      let x = Math.round(fx - w / 2), y = Math.round(fy - h);
+      y -= phase < 0.3 && !down ? 1 : 0; // sways to the beat
+      if (laughing && Math.floor(nowMs / 120) % 2) y -= 2;
+      if (big) x += Math.round(Math.sin(nowMs / 18) * 3);
+      if (down) x += Math.round(Math.sin(nowMs / 25) * 2);
+      const flash = big ? (Math.floor(nowMs / 60) % 2 ? PAL.white : PAL.red)
+        : b.hitAt && nowMs - b.hitAt < 60 ? PAL.white
+          : down && Math.floor(nowMs / 90) % 2 ? PAL.white : null;
+      const healing = b.healAt && nowMs - b.healAt < 450;
+      // A dark halo in the boss's colour, so it stands out from the stage.
+      this.g.globalAlpha = 0.18 + (big ? 0.2 : 0);
+      this.ellipse(fx, y + h / 2, w * 0.62, h * 0.55, healing ? PAL.green : b.color);
+      this.g.globalAlpha = down ? Math.max(0, 1 - down / 1400) : 1;
+      rows.forEach((row, r) => {
+        for (let c = 0; c < 16; c++) {
+          const k = row[c];
+          if (k === '.') continue;
+          this.rect(x + c * S, y + r * S, S, S, flash && (big || r % 2 === 0 || !b.hitAt || nowMs - b.hitAt >= 60) ? flash : art.palette[k]);
+        }
+      });
+      this.g.globalAlpha = 1;
+      if (healing) {
+        const k = (nowMs - b.healAt) / 450;
+        this.text('+', fx + w / 2 + 2, y + 4 - k * 10, PAL.green, 8, 'center');
+      }
+      if (down && this.boomFor !== b.downAt) {
+        this.boomFor = b.downAt;
+        for (const c of [PAL.gold, PAL.orange, PAL.white, b.color]) this.burst(fx, y + h / 2, c, 14, 110);
+      }
+      if (down) return;
+      // Health bar (and, with room for it, the boss's name).
+      const bw = LAYOUT === 'keys' ? 48 : 44;
+      const by = y - 8;
+      const bx = Math.round(fx - bw / 2);
+      if (this.shownHp == null || b.hp > this.shownHp) this.shownHp = b.hp;
+      this.shownHp = Math.max(b.hp, this.shownHp - 0.004 * 16);
+      this.rect(bx - 1, by - 1, bw + 2, 6, PAL.ink);
+      this.rect(bx, by, bw, 4, '#3a1020');
+      this.rect(bx, by, bw * this.shownHp, 4, PAL.white);
+      this.rect(bx, by, bw * b.hp, 4, b.hp < 0.25 ? PAL.red : b.hp < 0.6 ? PAL.orange : PAL.gold);
+      if (big && b.lastDmg) this.text('-' + b.lastDmg, fx, y + h / 2 - 4 - (nowMs - b.bigHitAt) / 30, PAL.gold, 8, 'center');
+    }
+
+    /** Fireballs fly from the strike line up to the boss, with a trail of sparks. */
+    drawFireballs(v, geo, nowMs) {
+      const b = v.boss;
+      const [fx, fy] = this.bossSpot();
+      const tx = fx, ty = fy - 18;
+      const sx = geo.cx, sy = geo.yAt(0) - 6;
+      for (const f of b.fireballs) {
+        const k = (nowMs - f.at) / b.flight;
+        if (k >= 1) continue;
+        const e = k * k * (3 - 2 * k);
+        const x = sx + (tx - sx) * e;
+        const y = sy + (ty - sy) * e - Math.sin(k * Math.PI) * 30; // a little arc
+        const r = 4 + 3 * k;
+        this.ellipse(x, y, r + 2, r + 2, '#801808');
+        this.ellipse(x, y, r + 1, r + 1, PAL.red);
+        this.ellipse(x, y, r, r, PAL.orange);
+        this.ellipse(x - 1, y - 1, r * 0.5, r * 0.5, PAL.gold);
+        if (Math.random() < 0.8) this.particles.push({ x, y, vx: (Math.random() - 0.5) * 30, vy: 20 + Math.random() * 30, life: 0.3, color: Math.random() < 0.5 ? PAL.orange : PAL.gold });
+      }
     }
 
     blit(dt) {

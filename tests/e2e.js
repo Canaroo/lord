@@ -98,6 +98,118 @@ const BOT = (laneButtons) => {
   loop();
 };
 
+// Boss battles: plays the game directly, hitting every note on time, and (with `fire`)
+// launching each Fireball as soon as it's charged.
+const BOSS_BOT = (fire) => {
+  const g = BeatFrets.game;
+  let i = 0;
+  const loop = () => {
+    if (!g.running) return;
+    const t = g.now();
+    while (i < g.notes.length && g.notes[i].t <= t) {
+      const n = g.notes[i];
+      g.lane(n.lane, true, performance.now());
+      setTimeout(() => g.lane(n.lane, false, performance.now()), Math.max(45, n.len * 1000 + 30));
+      i++;
+    }
+    if (fire && g.boss.fb >= 1) g.activateOverdrive();
+    requestAnimationFrame(loop);
+  };
+  loop();
+};
+
+async function bossTests(browser) {
+  const { page, errors } = await newPage(browser);
+  await page.addInitScript(MEMORY_WORLD);
+  await page.goto(url);
+  await screenIs(page, 'title');
+  await page.evaluate(() => { window.BeatFretsWorldBackend.uid = 'devB'; BeatFrets.save.createProfile('JDT'); document.querySelector('#btn-start').click(); });
+  await page.click('#btn-mode-frets');
+  await screenIs(page, 'pack');
+  await openCat(page, 'spooky', 'click');
+  await page.click('[data-pack="witching-hour"]');
+  await page.waitForFunction(() => BeatFrets.screen === 'song', null, { timeout: 240000 });
+
+  // Locked until a B on each of the category's three songs.
+  const locked = await page.evaluate(() => {
+    const c = document.querySelector('#boss-battle .boss-card');
+    return c && { locked: c.classList.contains('locked'), need: c.querySelectorAll('.boss-need span').length, diff: c.dataset.diff, text: c.textContent };
+  });
+  check(locked && locked.locked && locked.need === 3 && locked.diff === 'boss' && /VAMPIRE COUNT/.test(locked.text), `the BOSS song has a locked boss battle listing the three songs to beat (${JSON.stringify(locked)})`);
+  check(await page.evaluate(() => document.querySelectorAll('#diffs [data-diff]').length === 6), 'the six usual difficulties are still there');
+  await page.click('#boss-battle .boss-card');
+  await page.waitForTimeout(300);
+  check(await page.evaluate(() => BeatFrets.screen === 'song' && !BeatFrets.game), 'a locked boss battle does not start');
+  // A B on two of them isn't enough; all three unlocks it.
+  const seedB = (ids) => page.evaluate((list) => {
+    const p = BeatFrets.save.active;
+    for (const s of SongPack.SONGS.filter((x) => list.includes(x.tier) && x.theme === 'spooky')) {
+      BeatFrets.save.addRun({ profileId: p.id, initials: p.initials, songKey: SongPack.keyFor(s), title: s.title, difficulty: 'easy', score: 1000, grade: 'B', accuracy: 80, maxCombo: 10, fullCombo: false, hits: 10, failed: false, practice: false, stars: 2 });
+    }
+  }, ids);
+  const reopen = async () => {
+    await page.click('#btn-back');
+    await screenIs(page, 'pack');
+    await page.click('[data-pack="witching-hour"]');
+    await screenIs(page, 'song');
+  };
+  await seedB(['rookie', 'pro']);
+  await reopen();
+  check(await page.evaluate(() => document.querySelector('#boss-battle .boss-card').classList.contains('locked') && document.querySelectorAll('#boss-battle .boss-need .done').length === 2), 'two of three songs ticked: still locked');
+  await seedB(['boss']);
+  await reopen();
+  const open = await page.evaluate(() => ({ locked: document.querySelector('#boss-battle .boss-card').classList.contains('locked'), text: document.querySelector('#boss-battle').textContent }));
+  check(!open.locked && /FIGHT/.test(open.text) && /power notes/.test(open.text), `a B on all three unlocks the battle (${open.text.replace(/\s+/g, ' ').slice(0, 120)})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-card.png') });
+
+  // Round 1: every note hit, but no Fireballs launched: the boss survives and wins.
+  await page.evaluate(() => BeatFrets.play('boss', {}));
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 60000 });
+  const setup = await page.evaluate(() => {
+    const g = BeatFrets.game;
+    return { boss: g.boss && g.boss.name, power: g.notes.filter((n) => n.power).length, notes: g.notes.length, hard: BeatFrets.current.charts.hard.notes.length, od: g.od };
+  });
+  check(setup.boss === 'THE VAMPIRE COUNT' && setup.power >= 8 && setup.notes === setup.hard, `the battle plays the Hard chart with power notes (${JSON.stringify(setup)})`);
+  await page.evaluate(BOSS_BOT, false);
+  await page.waitForTimeout(20000);
+  const mid = await page.evaluate(() => { const g = BeatFrets.game; return { hp: g.boss.hp, fb: g.boss.fb, od: g.od, mult: g.multiplier, ready: g._view(g.now()).hud.odReady }; });
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-play.png') });
+  check(mid.hp < 100 && mid.hp > 50 && mid.od === 0 && mid.mult <= 4, `hits chip at the boss; no Overdrive in a boss battle (${JSON.stringify(mid)})`);
+  check(mid.fb === 1 && mid.ready, 'power notes charge the Fireball meter');
+  await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 150000 });
+  await page.waitForTimeout(2500);
+  const lost = await page.evaluate(() => ({ flag: document.getElementById('res-flag').textContent, grade: document.getElementById('res-grade').textContent, board: BeatFrets.save.leaderboard('pack:witching-hour', 'boss').length, suggest: document.getElementById('res-suggest').textContent, world: !document.getElementById('res-world-box').hidden }));
+  check(/BOSS WINS/.test(lost.flag) && lost.grade === 'F' && lost.board === 0 && !lost.world, `the song done but the boss standing: BOSS WINS, nothing posted (${JSON.stringify(lost)})`);
+  check(/Fireball/.test(lost.suggest), `the results say how to win (${lost.suggest})`);
+
+  // Round 2: Fireballs launched as they charge: the boss goes down.
+  await page.click('#btn-retry');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 60000 });
+  await page.evaluate(BOSS_BOT, true);
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.boss.launched >= 1, null, { timeout: 40000 });
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-fireball.png') });
+  await page.waitForTimeout(600);
+  const hitBy = await page.evaluate(() => { const g = BeatFrets.game; return { hp: g.boss.hp, launched: g.boss.launched, fb: g.boss.fb, dmg: g.boss.tune.fireball }; });
+  check(hitBy.launched >= 1 && hitBy.fb < 1 && hitBy.dmg > 5, `a Fireball empties the meter and does big damage (${JSON.stringify(hitBy)})`);
+  await page.waitForFunction(() => !BeatFrets.game || BeatFrets.game.boss.hp <= 0, null, { timeout: 120000 });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-down.png') });
+  await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 120000 });
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-results.png') });
+  const won = await page.evaluate(() => ({ flag: document.getElementById('res-flag').textContent, grade: document.getElementById('res-grade').textContent, board: BeatFrets.save.leaderboard('pack:witching-hour', 'boss').length, title: document.getElementById('res-title').textContent }));
+  check(/BOSS DEFEATED/.test(won.flag) && won.grade !== 'F' && won.board === 1 && /BOSS BATTLE/.test(won.title), `beating the boss is a win that goes on the board (${JSON.stringify(won)})`);
+  await page.waitForFunction(() => /#1|WORLD/.test(document.getElementById('res-world').textContent), null, { timeout: 8000 }).catch(() => {});
+  check(await page.evaluate(() => !document.getElementById('res-world-box').hidden), 'a boss win can go on the world board');
+  // Its board has a BOSS BATTLE tab.
+  await page.click('#btn-res-board');
+  await screenIs(page, 'board');
+  const tabs = await page.evaluate(() => [...document.querySelectorAll('#board-tabs [data-board-tier]')].map((b) => b.dataset.boardTier + (b.classList.contains('on') ? '*' : '')).join());
+  check(/boss\*/.test(tabs), `the song's boards include the boss battle, lit (${tabs})`);
+  check(errors.length === 0, 'no errors in the boss battle ' + errors.join(' | '));
+}
+
 // ---- phones: touch input, 4 lanes sideways / 2 upright, PWA ----------------------------------------------------
 
 const LAND = { width: 844, height: 390 };
@@ -1115,6 +1227,14 @@ async function recordTests(browser) {
     console.log('\nPASS');
     return;
   }
+  if (process.env.E2E_ONLY === 'boss') {
+    await bossTests(browser);
+    await browser.close();
+    server.close();
+    if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }
+    console.log('\nPASS');
+    return;
+  }
   if (process.env.E2E_ONLY === 'touch') {
     await touchTests(browser);
     await browser.close();
@@ -1410,6 +1530,7 @@ async function recordTests(browser) {
   await touchTests(browser);
   await worldTests(browser);
   await recordTests(browser);
+  await bossTests(browser);
 
   await browser.close();
   server.close();

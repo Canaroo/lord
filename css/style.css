@@ -1329,3 +1329,31 @@ body.touch .lane-switch.touch-only { display: flex; }
 .diff.locked { filter: saturate(0.35); opacity: 0.8; }
 .diff.locked .what { color: var(--gold); }
 .diff .lock-tag { background: var(--line); color: var(--text); }
+
+/* ---- boss battles ---------------------------------------------------------------------------------- */
+
+.boss-battle { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.boss-card {
+  --boss: var(--red);
+  display: flex; align-items: center; gap: 14px; width: 100%;
+  padding: 12px 14px; text-align: left; color: var(--text);
+  border: 3px solid var(--ink); border-radius: 12px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--boss) 30%, #1a0820), #12061c 70%);
+  box-shadow: inset 0 0 0 2px var(--boss), 0 5px 0 #0e0724, 0 5px 0 3px var(--ink);
+}
+.boss-card:active { transform: translateY(4px); box-shadow: inset 0 0 0 2px var(--boss), 0 1px 0 #0e0724, 0 1px 0 3px var(--ink); }
+.boss-art { flex: none; width: 64px; height: 80px; image-rendering: pixelated; filter: drop-shadow(0 0 6px var(--boss)); }
+.boss-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.boss-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.boss-top strong { font-size: 16px; color: var(--red); text-shadow: 2px 2px 0 var(--ink); }
+.boss-name { font-size: 11px; color: var(--boss); }
+.boss-card .what { font: 400 18px/1.05 var(--body); color: var(--cyan); }
+.boss-card .stats { font: 400 18px/1.1 var(--body); color: var(--muted); }
+.boss-card .play-tag { flex: none; padding: 5px 8px; border-radius: 6px; background: var(--red); color: var(--ink); font-size: 11px; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 0 var(--ink); }
+.boss-card .play-tag svg { width: 12px; height: 12px; fill: currentColor; }
+.boss-card .lock-tag { background: var(--line); color: var(--text); }
+.boss-card.locked .boss-art { filter: grayscale(1) brightness(0.6); }
+.boss-card.locked .what { color: var(--gold); }
+.boss-need { display: flex; flex-direction: column; gap: 2px; font: 400 18px/1 var(--body); color: var(--muted); }
+.boss-need .done { color: var(--green); }
+:is(.diff-tabs button, .board-now-tier)[data-base="boss"] { --acc: #ff2f6d; }
