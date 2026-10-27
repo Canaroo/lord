@@ -71,6 +71,23 @@
       chordThreshold: 0.9,
       holds: { share: 0.12, concurrent: 1, maxLen: 1.2 },
     },
+    insane: {
+      label: 'Insane',
+      lanes: 5,
+      // Unlocked by a B on Hard. Nearly every 8th and 16th the music offers, more
+      // two-key chords, quicker repeats; the game also plays it faster, with a
+      // tighter timing window and a hungrier rock meter.
+      thresholds: [0.05, 0.1, 0.2],
+      minGap: 0.085,
+      maxRun: 5,
+      jackGap: 0.17,
+      chordThreshold: 0.45,
+      chordGap: 0.5,
+      holds: { share: 0.18, concurrent: 2, maxLen: 3 },
+      // Never more than this many notes a second (the gap between notes widens until
+      // it fits), so the busiest songs stay humanly playable.
+      maxNps: 8.5,
+    },
   };
   const HOLD_MIN_SUSTAIN = 0.5; // seconds a sound must ring to become a long note
   const HOLD_MIN_LEN = 0.35;
@@ -138,6 +155,17 @@
     if (!base) throw new Error('Unknown difficulty: ' + difficulty);
     const touch = !!opts.touch;
     const cfg = touch ? touchConfig(base, opts.lanes || 4) : base;
+    if (!cfg.maxNps) return generateWith(analysis, difficulty, cfg, touch);
+    // A density cap: leave out more of the weakest in-between notes until the chart fits.
+    let chart = null;
+    for (let keep = 1, i = 0; i < 20; i++, keep *= 0.95) {
+      chart = generateWith(analysis, difficulty, { ...cfg, keep }, touch);
+      if (chart.notes.length / Math.max(1, analysis.duration) <= cfg.maxNps) break;
+    }
+    return chart;
+  }
+
+  function generateWith(analysis, difficulty, cfg, touch) {
     const grid = buildGrid(analysis.beats, analysis.duration);
     if (!grid.length) return { difficulty, lanes: cfg.lanes, notes: [] };
 
@@ -167,6 +195,13 @@
       if (before && t - before.t < cfg.minGap) continue;
       if (after && after.t - t < cfg.minGap) continue;
       chosen.splice(lo, 0, { t, level: c.level, s: c.onset.s, b: c.onset.b, d: c.onset.d || 0 });
+    }
+    // Capped tiers: drop the weakest off-beat notes (16ths first, then 8ths) down to `keep`.
+    if (cfg.keep != null && cfg.keep < 1) {
+      const target = Math.round(chosen.length * cfg.keep);
+      const order = chosen.filter((c) => c.level > 0).sort((a, b) => b.level - a.level || a.s - b.s || a.t - b.t);
+      const drop = new Set(order.slice(0, Math.max(0, chosen.length - target)));
+      for (let i = chosen.length - 1; i >= 0; i--) if (drop.has(chosen[i])) chosen.splice(i, 1);
     }
 
     // Lane assignment. A note on a ringing sound reserves its lane for as long
@@ -226,8 +261,10 @@
         reservations++;
       }
 
-      if (c.level === 0 && c.s >= cfg.chordThreshold && c.t - lastChordT > 1.0) {
-        const second = order.find((l) => l !== lane && (!touch || hand(l, cfg.lanes) !== hand(lane, cfg.lanes)));
+      if (c.level === 0 && c.s >= cfg.chordThreshold && c.t - lastChordT > (cfg.chordGap || 1.0)) {
+        let second = order.find((l) => l !== lane && (!touch || hand(l, cfg.lanes) !== hand(lane, cfg.lanes)));
+        // Insane: a chord can also use a free lane for the other thumb.
+        if (second == null && cfg.chordGap) second = ranked.find((l) => l !== lane && reservedUntil[l] <= c.t && (!touch || hand(l, cfg.lanes) !== hand(lane, cfg.lanes)));
         if (second == null) continue;
         notes.push({ t: +c.t.toFixed(4), lane: second, d: 0 });
         lastChordT = c.t;
@@ -261,11 +298,13 @@
       maxRun: lanes === 2 ? 2 : base.maxRun,
       jackGap: Math.max(base.jackGap, lanes === 2 ? 0.3 : 0.22),
       holds: base.holds ? { ...base.holds, concurrent: 1, maxLen: Math.min(base.holds.maxLen, 2) } : null,
+      // Thumbs: a lower ceiling than keys, lower still on two lanes.
+      maxNps: base.maxNps ? (lanes === 2 ? 7 : 8) : 0,
     };
   }
 
   // Touch tiers (Duo is left out: upright Hard already is two-lane Hard).
-  const TOUCH_TIERS = ['easy', 'medium', 'mediumplus', 'hard'];
+  const TOUCH_TIERS = ['easy', 'medium', 'mediumplus', 'hard', 'insane'];
 
   /** Chart ids: 'hard' (keys) or 'touch4:hard' / 'touch2:hard' (phone sideways / upright). */
   function parseId(id) {
@@ -384,7 +423,7 @@
   const ALL_IDS = [...Object.keys(DIFFICULTIES), ...TOUCH_TIERS.map((d) => 'touch4:' + d), ...TOUCH_TIERS.map((d) => 'touch2:' + d)];
 
   // Bump when charts change shape, so pre-built bonus charts get rebuilt.
-  const VERSION = 2; // 2: slides on touch charts
+  const VERSION = 3; // 2: slides on touch charts; 3: Insane
 
   return { generate, generateId, parseId, slideLaneAt, DIFFICULTIES, TOUCH_TIERS, ALL_IDS, VERSION };
 });

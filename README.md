@@ -68,6 +68,23 @@ menu, or the **TILES** switch on any song's screen.
 - **Easy, Medium and Hard** use the same note charts as the phone game. Tiles scores have their
   own leaderboard tab. On a keyboard, the columns are `A` `S` `D` `F`.
 
+## INSANE
+
+A level above Hard, for every song and every way of playing (Keys, Sideways, Upright and
+Tiles). It's **locked** at first: get a **B or better on that song's Hard**, the same way of
+playing (Tiles: clear lap 1 on Hard at 75% accuracy or better), and it unlocks for you. No-fail
+practice runs don't count. Compared with Hard, INSANE has:
+
+- **More notes:** nearly every beat and in-between beat the music offers, and many more two-key
+  chords (two thumbs at once on a phone): typically 1.1 to 1.5 times Hard's notes.
+- **A ceiling, so it's never impossible:** at most 8.5 notes a second on keys, 8 sideways and 7
+  upright. When a song would go over, its weakest in-between notes are left out.
+- **Faster notes** (about 20%), a **tighter timing window** (15%) and a **hungrier rock meter**
+  (misses cost 30% more).
+
+Hard and every other level are exactly as before, so their leaderboards are unchanged. INSANE has
+its own leaderboards.
+
 ## Song of the Day
 
 Every day one song-pack song and difficulty is picked for everyone, the same on every device, and
@@ -449,6 +466,7 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.39**: **INSANE**, a level above Hard on every song, unlocked by a B on that song's Hard.
 - **1.38**: **Song of the Day**: one song and difficulty for everyone each day (midnight US
   Eastern), a weekly rhythm from Easy to a Sunday BOSS, its own board for each way of playing, a
   🔥 streak and daily wins on the player license.

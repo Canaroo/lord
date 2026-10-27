@@ -82,6 +82,7 @@
       const ws = o.windowScale || 1;
       this.holdGrace = o.holdGrace || 0;
       this.win = { perfect: WINDOWS.perfect * ws, good: WINDOWS.good * ws, ok: WINDOWS.ok * ws };
+      this.missMul = o.missMul || 1; // Insane: misses cost more of the rock meter
       this.vibrate = !!o.vibrate && typeof navigator !== 'undefined' && !!navigator.vibrate;
       this.playerColor = o.playerColor || '#58f8f8';
       this.rival = o.rival && typeof o.rival.score === 'number' ? o.rival : null;
@@ -395,7 +396,7 @@
       this.combo = 0;
       this.judgement = { kind: 'miss', at: performance.now() };
       const was = this.rock;
-      this.rock = Math.max(0, this.rock + ROCK.miss);
+      this.rock = Math.max(0, this.rock + ROCK.miss * this.missMul);
       if (was >= 0.25 && this.rock < 0.25) Sfx.rockDanger();
       if (this.rock <= 0 && !this.noFail) this._fail();
     }

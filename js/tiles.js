@@ -34,7 +34,7 @@
   const STAR_AT = [1 / 3, 2 / 3, 1]; // share of the first lap
   const BOUNCE = 0.12; // a second tap this soon after a hit in the same column is ignored
   // Pixels per song-second on a 450-tall board, by tier.
-  const SCROLL = { easy: 230, medium: 270, mediumplus: 290, hard: 310 };
+  const SCROLL = { easy: 230, medium: 270, mediumplus: 290, hard: 310, insane: 350 };
 
   const COLORS = ['#38d838', '#f84848', '#f8d830', '#4878f8'];
   const PAL_INK = '#08081a';

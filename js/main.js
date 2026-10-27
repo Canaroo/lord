@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.38';
+  const VERSION = '1.39';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -27,7 +27,7 @@
     const m = /^tiles:(\w+)$/.exec(id);
     return m ? { difficulty: m[1], lanes: 4, touch: false, tiles: true } : ChartGen.parseId(id);
   };
-  const TILES_IDS = ['tiles:easy', 'tiles:medium', 'tiles:hard'];
+  const TILES_IDS = ['tiles:easy', 'tiles:medium', 'tiles:hard', 'tiles:insane'];
   /** The chart a tier plays: Tiles mode uses the 4-lane phone chart. */
   const chartFor = (id) => (parseId(id).tiles ? current.charts['touch4:' + parseId(id).difficulty] : current.charts[id]);
   const BASE_LABEL = (d) => (ChartGen.DIFFICULTIES[d] ? ChartGen.DIFFICULTIES[d].label : d).toUpperCase();
@@ -36,7 +36,7 @@
     const p = parseId(id);
     return BASE_LABEL(p.difficulty) + (p.tiles ? ' · TILES' : p.touch ? ` · TOUCH ${p.lanes}` : '');
   };
-  const SHORT_BASE = { easy: 'E', medium: 'M', mediumplus: 'M+', hard: 'H', duo: 'DUO' };
+  const SHORT_BASE = { easy: 'E', medium: 'M', mediumplus: 'M+', hard: 'H', duo: 'DUO', insane: 'INS' };
   const SHORT = new Proxy({}, { get: (_, id) => { const p = parseId(String(id)); return (p.tiles ? 'T' : '') + (SHORT_BASE[p.difficulty] || id) + (p.touch ? p.lanes : ''); } });
   const FAMILIES = { keys: 'KEYS', touch4: 'SIDEWAYS', touch2: 'UPRIGHT', tiles: 'TILES' };
   const familyOf = (id) => { const p = parseId(id); return p.tiles ? 'tiles' : p.touch ? 'touch' + p.lanes : 'keys'; };
@@ -106,7 +106,7 @@
   const tierIds = () => (tilesMode() ? TILES_IDS : idsFor(layoutMode()));
   /** The chart id for a tier in the current layout ('hard' → 'touch4:hard' when sideways). */
   function idFor(base) {
-    if (tilesMode()) return 'tiles:' + (base === 'easy' ? 'easy' : base === 'medium' ? 'medium' : 'hard');
+    if (tilesMode()) return 'tiles:' + (base === 'easy' ? 'easy' : base === 'medium' ? 'medium' : base === 'insane' ? 'insane' : 'hard');
     const m = layoutMode();
     return m === 'keys' ? base : m + ':' + (base === 'duo' ? 'hard' : base);
   }
@@ -116,19 +116,38 @@
     mediumplus: 'Near-Hard speed on 4 keys',
     hard: 'Everything, with chords',
     duo: 'Hard speed on 2 keys',
+    insane: 'Faster, tighter, chords everywhere',
   };
   const WHAT_TOUCH = {
     easy: 'Strong beats only',
     medium: 'Off-beats and long notes',
     mediumplus: 'Faster runs',
     hard: 'Everything, with two-thumb chords',
+    insane: 'Faster, tighter, chords everywhere',
   };
   const WHAT_TILES = {
     easy: 'Strong beats, gentle speed',
     medium: 'More tiles, long tiles',
     hard: 'Every tile, with doubles',
+    insane: 'Fastest, every tile',
   };
-  const LOOKAHEAD = { easy: 2.0, medium: 1.75, mediumplus: 1.55, hard: 1.5, duo: 1.5 };
+  const LOOKAHEAD = { easy: 2.0, medium: 1.75, mediumplus: 1.55, hard: 1.5, duo: 1.5, insane: 1.25 };
+
+  /**
+   * INSANE unlocks per song and way of playing, for the player: a B or better on
+   * that song's Hard (Tiles: lap 1 cleared at 75% or better). Practice and failed
+   * runs don't count.
+   */
+  function insaneUnlocked(key, id) {
+    const p = save.active;
+    if (!p) return false;
+    const t = parseId(id);
+    const hardId = t.tiles ? 'tiles:hard' : t.touch ? `touch${t.lanes}:hard` : 'hard';
+    return save.data.runs.some((r) => r.profileId === p.id && r.songKey === key && r.difficulty === hardId && !r.failed && !r.practice &&
+      (t.tiles ? (r.stars || 0) >= 3 && (r.accuracy || 0) >= 75 : /^[SAB]/.test(String(r.grade))));
+  }
+  const insaneLocked = (id) => parseId(id).difficulty === 'insane' && !(current && insaneUnlocked(current.key, id));
+  const UNLOCK_HINT = (id) => (parseId(id).tiles ? 'Clear lap 1 on Hard at 75%+ to unlock' : 'Get a B or better on Hard to unlock');
 
   function safeStorage() {
     try {
@@ -1249,8 +1268,8 @@
       if (tilesMode()) {
         const base = parseId(d).difficulty;
         return `<div class="diff-col">
-          <button class="diff${ribbon(d) ? ' daily' : ''}" data-diff="${d}">${ribbon(d)}<span class="diff-top"><strong>${BASE_LABEL(base)}</strong><span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span></span>
-            <span class="what">${esc(WHAT_TILES[base])}</span>
+          <button class="diff${ribbon(d) ? ' daily' : ''}${insaneLocked(d) ? ' locked' : ''}" data-diff="${d}">${ribbon(d)}<span class="diff-top"><strong>${BASE_LABEL(base)}</strong>${insaneLocked(d) ? '<span class="play-tag lock-tag">🔒 LOCKED</span>' : '<span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span>'}</span>
+            <span class="what">${esc(insaneLocked(d) ? UNLOCK_HINT(d) : WHAT_TILES[base])}</span>
             <span class="keys" data-keys="4">${Input.touch ? '<span class="lanes-tag">4 COLUMNS</span>' : ''}</span>
             <span class="stats">${c.notes.length} tiles a lap</span>
             ${tilesBest(d)}
@@ -1262,8 +1281,8 @@
       const n = c.notes.length;
       const holds = c.notes.filter((x) => x.len).length;
       return `<div class="diff-col">
-        <button class="diff${ribbon(d) ? ' daily' : ''}" data-diff="${d}">${ribbon(d)}<span class="diff-top"><strong>${BASE_LABEL(parseId(d).difficulty)}</strong><span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span></span>
-          <span class="what">${esc((mode === 'keys' ? WHAT : WHAT_TOUCH)[parseId(d).difficulty] || '')}</span>
+        <button class="diff${ribbon(d) ? ' daily' : ''}${insaneLocked(d) ? ' locked' : ''}" data-diff="${d}">${ribbon(d)}<span class="diff-top"><strong>${BASE_LABEL(parseId(d).difficulty)}</strong>${insaneLocked(d) ? '<span class="play-tag lock-tag">🔒 LOCKED</span>' : '<span class="play-tag">PLAY <svg><use href="#i-play"/></svg></span>'}</span>
+          <span class="what">${esc(insaneLocked(d) ? UNLOCK_HINT(d) : (mode === 'keys' ? WHAT : WHAT_TOUCH)[parseId(d).difficulty] || '')}</span>
           <span class="keys" data-keys="${c.lanes}">${mode === 'keys' ? '' : `<span class="lanes-tag">${c.lanes} LANES</span>`}</span>
           <span class="stats">${n} notes · ${(n / Math.max(1, current.analysis.duration)).toFixed(1)}/sec${holds ? ` · ${holds} long` : ''}</span>
           ${cardStars(d)}
@@ -1471,6 +1490,7 @@
     if (opts) playOpts = opts;
     if (playOpts.key && playOpts.key !== current.key) playOpts = {};
     const tier = parseId(difficulty);
+    if (insaneLocked(difficulty)) { toast(`INSANE is locked: ${UNLOCK_HINT(difficulty)}.`); return; }
     if (tier.tiles) { playTiles(difficulty); return; }
     // The first game starts straight away; moving the strike line and the timing test are
     // offered on the results screen when they'd help.
@@ -1499,7 +1519,9 @@
       lookahead: (LOOKAHEAD[tier.difficulty] || 1.5) / settings.speed,
       calibration: (tier.touch ? settings.calibrationTouchMs : settings.calibrationMs) / 1000,
       noFail: settings.noFail,
-      windowScale: tier.touch ? 1.15 : 1,
+      // Insane: a tighter timing window, and misses drain the rock meter faster.
+      windowScale: (tier.touch ? 1.15 : 1) * (tier.difficulty === 'insane' ? 0.85 : 1),
+      missMul: tier.difficulty === 'insane' ? 1.3 : 1,
       holdGrace: tier.touch ? 0.12 : 0,
       vibrate: tier.touch && settings.vibrate,
       hitSounds: settings.hitSounds,

@@ -1058,7 +1058,9 @@ body.touch .song-head .hint, body.touch .song-tier { margin-block: 2px; }
 .mini-phone.side { width: 13px; height: 8px; }
 .lane-hint { margin: 4px auto 0; font: 700 10px var(--act); color: var(--gold); }
 @media (orientation: landscape) and (max-height: 500px) {
-  body.touch .diffs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  body.touch .diffs { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+  body.touch .diff-top { flex-direction: column; align-items: flex-start; gap: 5px; }
+  body.touch .diff { padding-inline: 9px; }
   body.touch .song-head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 12px; text-align: left; }
   body.touch .song-head > * { margin-inline: 0 !important; grid-column: 1; }
   body.touch .song-head .lane-switch { grid-column: 2; grid-row: 1 / span 3; margin: 0; }
@@ -1319,3 +1321,10 @@ body.touch .lane-switch.touch-only { display: flex; }
 .lic-streak { color: #ff9a3c !important; }
 #board-scope[hidden] { display: none; }
 @media (max-height: 520px) { .daily-card { margin-bottom: 10px; } .daily-body { gap: 4px; padding-block: 6px 4px; } .daily-acts { padding-block: 4px 8px; } .daily-acts .btn { min-height: 36px; } }
+
+/* INSANE: violet, and locked until a B on Hard. */
+.diff[data-diff$="insane"] { --acc: #b44cff; }
+:is(.diff-tabs button, .board-now-tier)[data-base="insane"] { --acc: #b44cff; }
+.diff.locked { filter: saturate(0.35); opacity: 0.8; }
+.diff.locked .what { color: var(--gold); }
+.diff .lock-tag { background: var(--line); color: var(--text); }

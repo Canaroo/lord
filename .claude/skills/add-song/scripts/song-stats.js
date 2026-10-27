@@ -15,7 +15,7 @@ const SongPack = require(path.join(root, 'js/songs.js'));
 const ChartGen = require(path.join(root, 'js/chartgen.js'));
 
 // Same limits as tests/songs.test.js (keep in step if those change).
-const RANGE = { easy: [1, 3.5], medium: [1.8, 5.5], mediumplus: [2.8, 7], hard: [3, 8], duo: [2.8, 7.5] };
+const RANGE = { easy: [1, 3.5], medium: [1.8, 5.5], mediumplus: [2.8, 7], hard: [3, 8], duo: [2.8, 7.5], insane: [3.5, 8.6] };
 // Where each tier usually sits on Easy (notes a second), from the songs already in the pack.
 const TIER_EASY = { rookie: [1.2, 2.0], pro: [1.8, 2.6], boss: [2.4, 3.5] };
 const ORDER = { rookie: 0, pro: 1, boss: 2 };

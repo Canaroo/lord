@@ -9,7 +9,7 @@ for (const song of SongPack.SONGS) {
   test(`${song.title}: deterministic, playable charts`, () => {
     const a1 = SongPack.toAnalysis(SongPack.build(song));
     const a2 = SongPack.toAnalysis(SongPack.build(song));
-    const RANGE = { easy: [1, 3.5], medium: [1.8, 5.5], mediumplus: [2.8, 7], hard: [3, 8], duo: [2.8, 7.5] };
+    const RANGE = { easy: [1, 3.5], medium: [1.8, 5.5], mediumplus: [2.8, 7], hard: [3, 8], duo: [2.8, 7.5], insane: [3.5, 8.6] };
     const total = {};
     for (const d of Object.keys(ChartGen.DIFFICULTIES)) {
       const c1 = ChartGen.generate(a1, d);
@@ -26,6 +26,12 @@ for (const song of SongPack.SONGS) {
     assert.ok(total.easy < total.medium && total.medium < total.mediumplus && total.mediumplus <= total.hard, `difficulty should step up: ${JSON.stringify(total)}`);
     assert.ok(total.mediumplus >= 0.75 * total.hard, `Medium+ should be close to Hard: ${JSON.stringify(total)}`);
     assert.ok(total.duo >= 0.75 * total.hard, `Duo should be close to Hard's density: ${JSON.stringify(total)}`);
+    // Insane is a step up from Hard, on keys and on both phone layouts, but stays playable.
+    for (const [h, i, cap] of [['hard', 'insane', 8.6], ['touch4:hard', 'touch4:insane', 8.1], ['touch2:hard', 'touch2:insane', 7.1]]) {
+      const H = ChartGen.generateId(a1, h).notes.length, I = ChartGen.generateId(a1, i).notes.length;
+      assert.ok(I > H * 1.04, `${i} should have more notes than ${h}: ${I} vs ${H}`);
+      assert.ok(I / a1.duration <= cap, `${i} stays under ${cap}/s: ${(I / a1.duration).toFixed(2)}`);
+    }
     // Beats are evenly spaced at the song's tempo.
     const gap = 60 / song.bpm;
     for (let i = 1; i < a1.beats.length; i++) assert.ok(Math.abs(a1.beats[i] - a1.beats[i - 1] - gap) < 0.001);

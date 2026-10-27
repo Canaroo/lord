@@ -221,7 +221,7 @@ async function touchTests(browser) {
   await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   const landIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
-  check(landIds.join() === 'touch4:easy,touch4:medium,touch4:mediumplus,touch4:hard', 'sideways: four touch tiers (' + landIds.join(' ') + ')');
+  check(landIds.join() === 'touch4:easy,touch4:medium,touch4:mediumplus,touch4:hard,touch4:insane', 'sideways: five touch tiers (' + landIds.join(' ') + ')');
   check(await page.evaluate(() => document.querySelector('#lane-switch [data-lanes="landscape"]').classList.contains('on') && document.getElementById('lane-hint').hidden), 'the song screen shows SIDEWAYS · 4 LANES lit');
   const fits = await page.evaluate(() => [...document.querySelectorAll('.diff .play-tag')].every((t) => { const r = t.getBoundingClientRect(); return r.bottom <= innerHeight && r.height > 0; }));
   await page.screenshot({ path: path.join(outDir, 'e2e-touch-song.png') });
@@ -312,7 +312,7 @@ async function touchTests(browser) {
   check(!(await page.isVisible('#rotate')) && await page.evaluate(() => BeatFrets.stage.layout === 'touch2' && document.getElementById('lane-hint').hidden), 'turned upright: the 2-lane layout is used and the hint goes');
   await screenIs(page, 'song');
   const portIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
-  check(portIds.length === 4 && portIds.every((d) => d.startsWith('touch2:')), 'upright: four 2-lane tiers');
+  check(portIds.length === 5 && portIds.every((d) => d.startsWith('touch2:')), 'upright: five 2-lane tiers');
   await page.tap('[data-diff="touch2:hard"]');
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
   check(await page.evaluate(() => BeatFrets.game.lanes === 2), 'upright game plays on 2 lanes');
@@ -447,7 +447,7 @@ async function touchTests(browser) {
   await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   const tilesIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join(' '));
-  check(tilesIds === 'tiles:easy tiles:medium tiles:hard', `song screen switches to Tiles tiers (${tilesIds})`);
+  check(tilesIds === 'tiles:easy tiles:medium tiles:hard tiles:insane', `song screen switches to Tiles tiers (${tilesIds})`);
   // Tiles is upright only: turned sideways, the menus become Beat Frets on 4 lanes.
   await page.setViewportSize(LAND);
   await page.waitForTimeout(500);
@@ -873,7 +873,7 @@ async function recordTests(browser) {
   check(cats.length === 8 && cats.every((c) => !c.open && c.hidden && c.tap === 'TAP TO OPEN'), `the song list starts with every category closed, saying TAP TO OPEN (${JSON.stringify(cats.map((c) => c.cat))})`);
   await page.waitForFunction(() => /CLAIMED/.test(document.querySelector('.cat[data-cat="classic"] .cat-sum').textContent), null, { timeout: 5000 }).catch(() => {});
   const sums = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#pack-list .cat')].map((c) => [c.dataset.cat, c.querySelector('.cat-sum').textContent])));
-  check(/2 OF 15 CLAIMED/.test(sums.classic) && /YOU 1/.test(sums.classic) && /ZED 1/.test(sums.classic), `a category sums up its records and who holds them (${sums.classic})`);
+  check(/2 OF 18 CLAIMED/.test(sums.classic) && /YOU 1/.test(sums.classic) && /ZED 1/.test(sums.classic), `a category sums up its records and who holds them (${sums.classic})`);
   check(/NO RECORDS YET/.test(sums.spooky), `a category with no records says so (${sums.spooky})`);
   await page.screenshot({ path: path.join(outDir, 'e2e-cats-closed.png') });
   await openCat(page, 'classic', 'click');
@@ -918,6 +918,35 @@ async function recordTests(browser) {
   check(/ZED 12,500/.test(wr.easy.text) && /-12,500/.test(wr.easy.text) && /NOT PLAYED YET/.test(wr.easy.text) && wr.easy.behind, `never played: the record's gap shows red and negative (${wr.easy.text})`);
   check(/YOU HOLD THE RECORD/.test(wr.medium.text) && wr.medium.ahead, 'holding the record shows green');
   check(/NO WORLD RECORD YET/.test(wr.hard.text), 'a tier with no world scores says so');
+
+  // INSANE is locked until a B on Hard; then it plays faster, tighter and harsher on misses.
+  const lock = await page.evaluate(() => { const b = document.querySelector('[data-diff="insane"]'); return { locked: b.classList.contains('locked'), text: b.textContent }; });
+  check(lock.locked && /LOCKED/.test(lock.text) && /B or better on Hard/.test(lock.text), 'INSANE starts locked, saying how to unlock it');
+  await page.click('[data-diff="insane"]');
+  await page.waitForTimeout(300);
+  check(await page.evaluate(() => !BeatFrets.game && /INSANE is locked/.test(document.getElementById('toast').textContent)), 'a locked INSANE does not start');
+  await page.evaluate(() => {
+    const s = BeatFrets.save;
+    s.addRun({ profileId: s.active.id, initials: s.active.initials, songKey: 'pack:pixel-overture', title: 'Pixel Overture', difficulty: 'hard', score: 5000, grade: 'C', accuracy: 70, maxCombo: 10, fullCombo: false, hits: 100, failed: false });
+    BeatFrets.loadPack('pixel-overture');
+  });
+  await screenIs(page, 'song');
+  await page.waitForTimeout(200);
+  check(await page.evaluate(() => document.querySelector('[data-diff="insane"]').classList.contains('locked')), 'a C on Hard is not enough');
+  await page.evaluate(() => {
+    const s = BeatFrets.save;
+    s.addRun({ profileId: s.active.id, initials: s.active.initials, songKey: 'pack:pixel-overture', title: 'Pixel Overture', difficulty: 'hard', score: 9000, grade: 'B', accuracy: 80, maxCombo: 10, fullCombo: false, hits: 100, failed: false });
+    BeatFrets.loadPack('pixel-overture');
+  });
+  await screenIs(page, 'song');
+  await page.waitForTimeout(200);
+  check(await page.evaluate(() => !document.querySelector('[data-diff="insane"]').classList.contains('locked')), 'a B on Hard unlocks INSANE');
+  await page.click('[data-diff="insane"]');
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
+  const ins = await page.evaluate(() => ({ win: BeatFrets.game.win.perfect, miss: BeatFrets.game.missMul, look: BeatFrets.game.lookahead }));
+  check(ins.win < 0.05 && ins.miss > 1 && ins.look < 1.5, `INSANE plays with a tighter window, harsher misses and faster notes (${JSON.stringify(ins)})`);
+  await page.evaluate(() => BeatFrets.goHome());
+  await screenIs(page, 'main');
   // Boards: the same categories, with who leads each song.
   await page.evaluate(() => BeatFrets.goHome());
   await page.click('#tabbar [data-go="boards"]');
@@ -945,7 +974,7 @@ async function recordTests(browser) {
   await screenIs(page, 'board');
   await page.waitForFunction(() => /ZED/.test(document.querySelector('[data-board-tier="easy"]').textContent), null, { timeout: 5000 }).catch(() => {});
   const tabs = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-board-tier]')].map((b) => [b.dataset.boardTier, { txt: b.textContent, on: b.classList.contains('on') }])));
-  check(Object.keys(tabs).join() === 'easy,medium,mediumplus,hard,duo' && tabs.easy.on, `the board has a tab for every difficulty, Easy lit (${Object.keys(tabs).join(' ')})`);
+  check(Object.keys(tabs).join() === 'easy,medium,mediumplus,hard,duo,insane' && tabs.easy.on, `the board has a tab for every difficulty, Easy lit (${Object.keys(tabs).join(' ')})`);
   check(/ZED/.test(tabs.easy.txt) && /YOU/.test(tabs.medium.txt) && /NO ONE YET/.test(tabs.hard.txt), `each tab says who leads it (${tabs.easy.txt} | ${tabs.medium.txt} | ${tabs.hard.txt})`);
   check(/EASY LEADERBOARD/.test(await page.textContent('#board-now')), 'a heading says which difficulty the board is for');
   await page.click('[data-board-tier="medium"]');
@@ -1120,7 +1149,7 @@ async function recordTests(browser) {
   await page.screenshot({ path: path.join(outDir, 'e2e-song.png') });
 
   // D-pad right twice (Easy → Medium → Medium+), then pick Hard, A to start.
-  check(await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join()) === 'easy,medium,mediumplus,hard,duo', 'all five tiers offered');
+  check(await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join()) === 'easy,medium,mediumplus,hard,duo,insane', 'all six tiers offered (Insane last)');
   await tap(page, 15);
   check(await page.evaluate(() => document.activeElement.dataset.diff) === 'medium', 'D-pad reaches Medium');
   await tap(page, 15);
