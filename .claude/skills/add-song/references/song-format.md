@@ -10,7 +10,7 @@ straight from it, which is why every player gets identical notes and the world l
 ```js
 {
   id: 'garage-jam',          // lowercase-hyphenated, unique, permanent (see "ids are forever")
-  theme: 'rock',             // classic (or leave out), spooky, rock, epic, space, carnival, salsa, hiphop — or a new theme
+  theme: 'rock',             // classic (or leave out), spooky, rock, epic, space, carnival, salsa, hiphop, classical — or a new theme
   tier: 'rookie',            // rookie | pro | boss
   title: 'Garage Jam',
   blurb: 'Plug in and stomp along: a simple, chunky first riff.',   // one short line, shown in the list
@@ -18,6 +18,7 @@ straight from it, which is why every player gets identical notes and the world l
   root: 64,                  // MIDI note of the key's tonic (60 = middle C, 64 = E, 62 = D, 57 = A)
   scale: 'minor',            // major | minor | harmonic (harmonic minor: spooky / boss flavour)
   leadScale: 'chromatic',    // optional: melody digits count semitones above root (carnival runs)
+  leadRoot: 57,              // optional, with chromatic: count from this note instead (a tune that dips below the tonic)
   prog: [0, 0, 3, 4],        // chord root per bar as a scale degree, cycling for the whole song
   voice: { ... },            // optional sound settings, below
   drums: { kitName: { k, s, h, o, t }, ..., fill: { ... } },
@@ -46,6 +47,10 @@ Four-bar phrases are the norm; an `outro` is often two bars.
 
 Each section: `{ bars: 8, drums: 'verse', bass: 'verse', lead: 'verse', gtr: 'verse', arp: true, crash: true, fill: true }`.
 
+- `bpm: 172` (optional) gives the section its own tempo, for a song that speeds up (Hall of the
+  Mountain King). Every section after it needs its own `bpm` too, or it falls back to the song's.
+  Fast sections add many sounds: keep an eye on the build time.
+
 - `drums`, `bass`, `lead`, `gtr` name entries in those maps; leave one out to drop that part.
 - `arp: true` adds a fast chord arpeggio (sound only: arpeggios never become notes).
 - `crash: true` hits a crash cymbal on the section's first bar.
@@ -64,7 +69,8 @@ voice: { lead: 'organ', vibrato: { rate: 6, depth: 0.012 }, echo: { steps: 3, fb
 
 - `lead`: `pulse` (default, chiptune), `square` (rock), `organ` (spooky drawbar), `brass` (epic, swells open),
   `synth` (space: two detuned saws, filter glows open), `calliope` (carnival steam whistle with a puff of air),
-  `piano` (salsa montunos: struck, decaying), `keys` (hip hop electric piano with a slow tremolo).
+  `piano` (salsa montunos: struck, decaying), `keys` (hip hop electric piano with a slow tremolo),
+  `harpsichord` (classical remix: bright and plucked).
 - `bass`: leave out for the triangle bass, or `808` (hip hop: a deep sine that drops into each note, long tail).
 - `arp`: leave out for chiptune pulse arpeggios, or `bell` for soft twinkling sine bells (space).
 - `vibrato`: `{ rate (Hz), depth (fraction of pitch) }`; organ uses 0.012–0.018, brass about 0.008.
@@ -83,6 +89,7 @@ Each theme has its own palette; match it so the theme sounds like one album:
 | carnival | major, `leadScale: 'chromatic'` | calliope with fast vibrato, oom-pah bass (`0...4...`), chromatic runs, short echo |
 | salsa | harmonic minor (i-iv-V) | `piano` montunos, clave `x..x..x...x.x...` every bar, congas, toms as timbales |
 | hiphop | minor | `keys` lead, `bass: '808'` with held notes, boom-bap kick/snare, 16th hats (trap for the boss) |
+| classical | the piece's key; `leadScale: 'chromatic'` + `leadRoot` | public-domain tunes note for note on `harpsichord`, rock drums, `gtr` power chords, timpani for the boss |
 
 ## How notes become a chart (what moves the numbers)
 

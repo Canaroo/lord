@@ -37,7 +37,7 @@ test('each way of playing has its own daily board', () => {
   assert.strictEqual(Daily.tierFor('hard', 'touch4'), 'touch4:hard');
   assert.strictEqual(Daily.tierFor('mediumplus', 'tiles'), 'tiles:hard');
   assert.strictEqual(Daily.tierFor('easy', 'keys'), 'easy');
-  assert.strictEqual(Daily.boardId('2026-10-27', 'touch4:hard'), 'daily-2026-10-27__touch4-hard');
+  assert.strictEqual(Daily.boardId('2026-10-27', 'touch4:hard', 'witching-hour'), 'daily-2026-10-27-witching-hour__touch4-hard');
 });
 
 test('streaks: the next day adds one, a missed day starts over', () => {

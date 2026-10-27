@@ -847,8 +847,8 @@ async function recordTests(browser) {
   // Song of the Day: today's keyboard board has ZED on it; yesterday ZED won the daily.
   const Daily = require('../js/daily.js');
   const pk = Daily.pick(require('../js/songs.js').SONGS);
-  const dailyToday = Daily.boardId(pk.date, Daily.tierFor(pk.base, 'keys'));
-  const dailyYesterday = Daily.boardId(Daily.addDays(pk.date, -1), 'easy');
+  const dailyToday = Daily.boardId(pk.date, Daily.tierFor(pk.base, 'keys'), pk.songId);
+  const dailyYesterday = Daily.boardId(Daily.addDays(pk.date, -1), 'easy', Daily.pick(require('../js/songs.js').SONGS, Daily.addDays(pk.date, -1)).songId);
   await page.addInitScript(([a, b]) => { window.__daily = { a, b }; }, [dailyToday, dailyYesterday]);
   await page.addInitScript(() => {
     // Easy: ZED's record. Medium: this player's own record. Hard: none.
@@ -870,7 +870,7 @@ async function recordTests(browser) {
   await screenIs(page, 'pack');
   // Categories start closed, each summing up its records.
   const cats = await page.evaluate(() => [...document.querySelectorAll('#pack-list .cat')].map((c) => ({ cat: c.dataset.cat, open: c.classList.contains('open'), hidden: c.querySelector('.cat-body').hidden, tap: c.querySelector('.cat-tap').textContent })));
-  check(cats.length === 8 && cats.every((c) => !c.open && c.hidden && c.tap === 'TAP TO OPEN'), `the song list starts with every category closed, saying TAP TO OPEN (${JSON.stringify(cats.map((c) => c.cat))})`);
+  check(cats.length === 9 && cats.every((c) => !c.open && c.hidden && c.tap === 'TAP TO OPEN'), `the song list starts with every category closed, saying TAP TO OPEN (${JSON.stringify(cats.map((c) => c.cat))})`);
   await page.waitForFunction(() => /CLAIMED/.test(document.querySelector('.cat[data-cat="classic"] .cat-sum').textContent), null, { timeout: 5000 }).catch(() => {});
   const sums = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#pack-list .cat')].map((c) => [c.dataset.cat, c.querySelector('.cat-sum').textContent])));
   check(/2 OF 18 CLAIMED/.test(sums.classic) && /YOU 1/.test(sums.classic) && /ZED 1/.test(sums.classic), `a category sums up its records and who holds them (${sums.classic})`);

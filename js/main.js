@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.39';
+  const VERSION = '1.40';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -475,7 +475,7 @@
     if (!World.available()) return;
     const seq = ++dailySeq;
     const myId = save.active ? '_' + String(save.active.id).replace(/[^a-z0-9]/gi, '').slice(0, 24) : null;
-    World.top(Daily.boardId(pk.date, tier), 50).then((rows) => {
+    World.top(Daily.boardId(pk.date, tier, pk.songId), 50).then((rows) => {
       const el = $('#daily-lead');
       if (seq !== dailySeq || !el) return;
       const fmt = (n) => Number(n).toLocaleString('en-US');
@@ -635,7 +635,9 @@
 
   // Song-list categories (each theme, bonus tracks): collapsed, one open at a time,
   // remembered per screen; the heading sums up who holds the records inside.
-  const THEMES = [['classic', 'CHIPTUNE CLASSICS'], ['spooky', 'SPOOKY'], ['rock', 'ROCK'], ['epic', 'EPIC ADVENTURE'], ['space', 'SPACE'], ['carnival', 'CARNIVAL'], ['salsa', 'SALSA'], ['hiphop', 'HIP HOP']];
+  /** A pack song's tempo for the list: '126→208' for a song that speeds up. */
+  const bpmLabel = (s) => { const top = Math.max(s.bpm, ...s.form.map((f) => f.bpm || 0)); return top > s.bpm ? `${s.bpm}→${top}` : String(s.bpm); };
+  const THEMES = [['classic', 'CHIPTUNE CLASSICS'], ['spooky', 'SPOOKY'], ['rock', 'ROCK'], ['epic', 'EPIC ADVENTURE'], ['space', 'SPACE'], ['carnival', 'CARNIVAL'], ['salsa', 'SALSA'], ['hiphop', 'HIP HOP'], ['classical', 'CLASSICAL REMIX']];
   const openCat = (where) => { try { return (storage && storage.getItem('beatfrets.cat.' + where)) || ''; } catch (e) { return ''; } };
   function setOpenCat(where, cat) { try { if (storage) storage.setItem('beatfrets.cat.' + where, cat); } catch (e) { /* not kept */ } }
 
@@ -675,7 +677,7 @@
       const songs = SongPack.SONGS.filter((s) => (s.theme || 'classic') === theme);
       if (!songs.length) return '';
       return catBlock(where, theme, heading, songs.length, songs.map((s) =>
-        `<div class="song-line"><button data-pack="${esc(s.id)}" data-key="${esc(SongPack.keyFor(s))}">${songRow(s.title, `${s.bpm} BPM · ${s.blurb}`, SongPack.keyFor(s), s.tier)}</button>` +
+        `<div class="song-line"><button data-pack="${esc(s.id)}" data-key="${esc(SongPack.keyFor(s))}">${songRow(s.title, `${bpmLabel(s)} BPM · ${s.blurb}`, SongPack.keyFor(s), s.tier)}</button>` +
         previewButton('pack:' + s.id, s.title) + '</div>').join(''));
     }).join('');
     autofocusCat($('#pack-list'));
@@ -1011,11 +1013,10 @@
   function previewStart(key, buf) {
     if (key.startsWith('pack:')) {
       const def = SongPack.SONGS.find((s) => s.id === key.slice(5));
-      const step = 60 / def.bpm / 4;
-      let bars = 0;
+      let t = 1;
       for (const sec of def.form) {
-        if (sec.lead === 'chorus') return 1 + bars * 16 * step;
-        bars += sec.bars;
+        if (sec.lead === 'chorus') return t;
+        t += sec.bars * 16 * (60 / (sec.bpm || def.bpm) / 4);
       }
     }
     return buf.duration * 0.3;
@@ -2194,7 +2195,7 @@
     if (!entry || !isDailyRun(difficulty)) { $(`#${prefix}-world-box`).hidden = true; postSeqs[prefix] = (postSeqs[prefix] || 0) + 1; return; }
     markDaily(save.active);
     const pk = dailyPick();
-    worldPanel(prefix, { id: Daily.boardId(pk.date, difficulty), meta: { ...world.meta, kind: 'daily', title: `Song of the Day ${pk.date}: ${current.title}`.slice(0, 80) } }, entry);
+    worldPanel(prefix, { id: Daily.boardId(pk.date, difficulty, pk.songId), meta: { ...world.meta, kind: 'daily', title: `Song of the Day ${pk.date}: ${current.title}`.slice(0, 80) } }, entry);
     const tag = $(`#${prefix}-world-box .daily-tag`);
     if (tag) tag.textContent = `★ SONG OF THE DAY · 🔥 ${dailyStreak()}-DAY STREAK`;
     // Offline (or no world boards): the streak still counts.
@@ -2369,7 +2370,7 @@
 
   /** The world board id for a board screen, if we can tell (imported songs need their chart). */
   function worldBoardFor(key, diff) {
-    if (boardState.daily) return Daily.boardId(boardState.daily, diff);
+    if (boardState.daily) return Daily.boardId(boardState.daily, diff, Daily.pick(SongPack.SONGS, boardState.daily).songId);
     if (boardState.worldId) return boardState.worldId;
     if (boardState.remote) return boardState.remote.boards[diff] || null;
     if (/^(pack|bonus):/.test(key)) return World.boardId(key, diff);
@@ -2819,7 +2820,7 @@
     const todayKey = Daily.today();
     worldPlayers = list.map((p) => ({
       ...p,
-      dailyWins: p.scores.filter((s) => s.leader && /^daily-\d{4}-\d\d-\d\d__/.test(s.board) && s.board.slice(6, 16) < todayKey).length,
+      dailyWins: p.scores.filter((s) => s.leader && /^daily-\d{4}-\d\d-\d\d(-[a-z0-9-]+)?__/.test(s.board) && s.board.slice(6, 16) < todayKey).length,
       scores: p.scores.map((s) => ({ ...s, info: s.board.startsWith('daily-') ? null : boardInfo(s.board) })).filter((s) => s.info),
     }))
       .map((p) => ({ ...p, trophies: p.scores.filter((s) => s.leader).length }))
@@ -3092,7 +3093,7 @@
   /** The world board for a tier of the song on screen, if it has one. */
   function boardIdFor(d) {
     const { key, remote } = boardState;
-    if (boardState.daily) return Daily.boardId(boardState.daily, d);
+    if (boardState.daily) return Daily.boardId(boardState.daily, d, Daily.pick(SongPack.SONGS, boardState.daily).songId);
     if (remote) return remote.boards[d] || null;
     return songBoardsAll(key)[d] || null;
   }

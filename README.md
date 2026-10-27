@@ -437,6 +437,7 @@ approachable even on Hard; a BOSS song is a challenge even on Easy.
 | Carnival | Big Top Parade (112) | Clown Car Chaos (138) | Ringmaster's Gallop (172) | steam calliope, oom-pah bass, chromatic runs |
 | Salsa | Café Cha-Cha (112) | Conga Line (140) | Fuego Mambo (172) | bright piano montunos, clave, congas, timbales |
 | Hip Hop | Block Party (88) | Cipher Session (130) | Mic Drop (165) | electric piano, deep 808 bass, boom-bap and trap drums |
+| Classical Remix | Ode to Joy (112) | Für Elise Rocks (138) | Hall of the Mountain King (126→208, speeds up) | public-domain classics note for note on harpsichord, over rock drums and power chords |
 
 To add a song, give it a `theme` and a `tier` (`rookie`, `pro` or `boss`); the lists show each
 theme's songs in the order they appear in `js/songs.js`. As a guide, on Easy a ROOKIE song has
@@ -466,6 +467,10 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.40**: **CLASSICAL REMIX**, a new category: Beethoven's *Ode to Joy* (ROOKIE) and *Für Elise*
+  (PRO), and Grieg's *Hall of the Mountain King* (BOSS), which speeds up from 126 to 208 BPM. A new
+  harpsichord sound; songs can now change tempo between sections. The Song of the Day board now
+  names its song, so adding songs never mixes two songs' scores on one day's board.
 - **1.39**: **INSANE**, a level above Hard on every song, unlocked by a B on that song's Hard.
 - **1.38**: **Song of the Day**: one song and difficulty for everyone each day (midnight US
   Eastern), a weekly rhythm from Easy to a Sunday BOSS, its own board for each way of playing, a

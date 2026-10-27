@@ -66,8 +66,12 @@
     return family + ':' + base; // touch4 / touch2
   }
 
-  /** The world board for a day and a tier: 'daily-2026-10-27__touch4-hard'. */
-  const boardId = (date, tier) => `daily-${date}__${String(tier).replace(/[^a-z0-9]/gi, '-')}`;
+  /**
+   * The world board for a day, its song and a tier: 'daily-2026-10-27-witching-hour__touch4-hard'.
+   * The song is in the id so an older copy of the game (which may pick another song after
+   * new songs are added) never mixes its scores in.
+   */
+  const boardId = (date, tier, songId) => `daily-${date}${songId ? '-' + songId : ''}__${String(tier).replace(/[^a-z0-9]/gi, '-')}`;
 
   /**
    * The streak after playing on `date`: `prev` is { last, count } (or null).

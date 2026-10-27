@@ -32,9 +32,10 @@ for (const song of SongPack.SONGS) {
       assert.ok(I > H * 1.04, `${i} should have more notes than ${h}: ${I} vs ${H}`);
       assert.ok(I / a1.duration <= cap, `${i} stays under ${cap}/s: ${(I / a1.duration).toFixed(2)}`);
     }
-    // Beats are evenly spaced at the song's tempo.
-    const gap = 60 / song.bpm;
-    for (let i = 1; i < a1.beats.length; i++) assert.ok(Math.abs(a1.beats[i] - a1.beats[i - 1] - gap) < 0.001);
+    // Beats are evenly spaced at the song's tempo (or a section's own, in a song that speeds up).
+    const gaps = song.form.flatMap((sec) => Array(sec.bars * 4).fill(60 / (sec.bpm || song.bpm)));
+    assert.strictEqual(a1.beats.length, gaps.length + 1);
+    for (let i = 1; i < a1.beats.length; i++) assert.ok(Math.abs(a1.beats[i] - a1.beats[i - 1] - gaps[i - 1]) < 0.001);
   });
 }
 

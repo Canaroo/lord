@@ -1011,6 +1011,153 @@
         { bars: 4, drums: 'verse', bass: 'verse', lead: 'outro', crash: true },
       ],
     },
+    // ---- Classical remix ----
+    // Famous public-domain classics, rocked up: a harpsichord carries the tune over drums
+    // and power chords. Melodies are written note for note (chromatic, from leadRoot).
+    {
+      id: 'joyful-ode',
+      theme: 'classical',
+      tier: 'rookie',
+      title: 'Ode to Joy (Remix)',
+      blurb: "Beethoven's Ninth gets a backbeat: the tune everyone knows.",
+      bpm: 112,
+      root: 62,
+      scale: 'major',
+      leadScale: 'chromatic',
+      leadRoot: 57,
+      prog: [0, 4, 0, 0],
+      voice: { lead: 'harpsichord', echo: { steps: 4, fb: 0.3, wet: 0.28 }, toms: 'timpani' },
+      drums: {
+        intro: { k: 'x.......x.......', t: '............x.x.' },
+        verse: { k: 'x.......x.x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        chorus: { k: 'x.....x.x.x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', o: '..............x.' },
+        brk: { k: 'x.......x.......', t: '....x...x...x.x.' },
+        fill: { k: 'x.......x.......', t: '........x.x.x.x.' },
+      },
+      bass: {
+        verse: '0...0...4...4.2.',
+        chorus: '0.0.0.0.4.4.4.2.',
+        brk: '0-------4-------',
+      },
+      gtr: {
+        verse: 'o-----x.o-----x.',
+        chorus: 'o---x.x.o---x.x.',
+      },
+      lead: {
+        intro: ['5-------7-------', '9-------7-------'],
+        verse: ['9---9---a---c---', 'c---a---9---7---', '5---5---7---9---', '9-----7-7-------',
+          '9---9---a---c---', 'c---a---9---7---', '5---5---7---9---', '7-----5-5-------'],
+        chorus: ['7---7---9---5---', '7---9-a-9---5---', '7---9-a-9---7---', '5---7---0-------',
+          '9---9---a---c---', 'c---a---9---7---', '5---5---7---9---', '7-----5-5-------'],
+        brk: ['5-------9-------', 'c-------9-------', '7-------4-------', '7---------------'],
+        outro: ['9---7---5-------', '5---------------'],
+      },
+      form: [
+        { bars: 4, drums: 'intro', bass: 'brk', lead: 'intro', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', gtr: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', gtr: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'verse', bass: 'verse', gtr: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'elise-rocks',
+      theme: 'classical',
+      tier: 'pro',
+      title: 'Für Elise Rocks',
+      blurb: "Beethoven's famous piano piece, plugged in and turned up.",
+      bpm: 138,
+      root: 57,
+      scale: 'harmonic',
+      leadScale: 'chromatic',
+      leadRoot: 64,
+      prog: [0, 4, 0, 4],
+      voice: { lead: 'harpsichord', echo: { steps: 3, fb: 0.3, wet: 0.25 }, toms: 'tom' },
+      drums: {
+        intro: { h: 'x.x.x.x.x.x.x.x.' },
+        verse: { k: 'x.....x.x.......', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        chorus: { k: 'x.x...x.x.x...x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', o: '..............x.' },
+        brk: { k: 'x.......x.......', t: '....x.......x.x.' },
+        fill: { k: 'x...............', s: '....x...x.x.xxxx', t: 'x.x.............' },
+      },
+      bass: {
+        verse: '0.0.0.0.4.4.4.4.',
+        chorus: '0.00.00.4.44.44.',
+        brk: '0-------4-------',
+      },
+      gtr: {
+        verse: 'x.x.x.x.o---o---',
+        chorus: 'o---x.x.o---x.x.',
+        brk: 'o---------------',
+      },
+      lead: {
+        intro: ['cbcbc7a85-------', '7-------0-------'],
+        verse: ['cbcbc7a85---0-5-', '7---0-4-7-8-----', 'cbcbc7a85---0-5-', '7---0-8-7-5-----'],
+        chorus: ['7-8-a-c---3-d-c-', 'a---1-c-a-8---0-', 'a-8-7---0-c---c-', 'cbcbc7a85-------'],
+        brk: ['5-------8-------', '7-------4-------', '5-------c-------', 'b---------------'],
+        outro: ['cbcbc7a85-------', '5---------------'],
+      },
+      form: [
+        { bars: 2, drums: 'intro', lead: 'intro' },
+        { bars: 8, drums: 'verse', bass: 'verse', gtr: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'brk', bass: 'brk', gtr: 'brk', lead: 'brk', crash: true },
+        { bars: 8, drums: 'verse', bass: 'verse', gtr: 'verse', lead: 'verse', crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 8, drums: 'chorus', bass: 'chorus', gtr: 'chorus', lead: 'chorus', arp: true, crash: true, fill: true },
+        { bars: 4, drums: 'verse', bass: 'verse', gtr: 'verse', lead: 'outro', crash: true },
+      ],
+    },
+    {
+      id: 'mountain-king',
+      theme: 'classical',
+      tier: 'boss',
+      title: 'Hall of the Mountain King',
+      blurb: "Grieg's trolls creep in, then the tempo climbs and climbs: hang on!",
+      bpm: 126,
+      root: 59,
+      scale: 'harmonic',
+      leadScale: 'chromatic',
+      leadRoot: 59,
+      prog: [0, 4, 0, 4],
+      voice: { lead: 'harpsichord', echo: { steps: 3, fb: 0.3, wet: 0.25 }, toms: 'timpani' },
+      drums: {
+        creep: { k: 'x...x...x...x...', h: 'x.x.x.x.x.x.x.x.', t: '....x.......x...' },
+        march: { k: 'x...x.x.x...x.x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+        charge: { k: 'x.x.x.x.x.x.x.x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', o: '..............x.', t: 'x.......x.......' },
+        frenzy: { k: 'xxx.x.xxx.x.x.xx', s: '....x..x....x..x', o: 'x...x...x...x...', h: '.x.x.x.x.x.x.x.x', t: 'x.......x.......' },
+        fill: { k: 'x.x.x.x.........', s: '........xxxxxxxx', t: 'xxxx............' },
+      },
+      bass: {
+        creep: '0.......4.......',
+        march: '0.0.0.0.4.4.4.4.',
+        charge: '0.0.0.0.4.4.4.4.',
+      },
+      gtr: {
+        march: 'x.x.x.x.x.x.x.x.',
+        charge: 'x.x.x.x.o---o---',
+      },
+      lead: {
+        // The theme, then the same tune up on F#, as Grieg writes it.
+        theme: ['0.2.3.5.7.3.7---', '6.2.6---5.1.5---', '0.2.3.5.7.3.7.c.', 'a.7.3.7.a-------',
+          '7.9.b.c.e.b.e---', 'd.a.d---e.b.e---', '7.9.b.c.e.b.e.c.', 'e.c.a.7.c-------'],
+        // Double time: the same tune twice as fast.
+        rush: ['02357.7.6262515.', '02357.7ca737a...', '79bceb.edade.be.', '79bceb.ec.a.7.c.'],
+        outro: ['c.c.c.c.c.c.c.c.', 'c---------------'],
+      },
+      form: [
+        { bars: 8, drums: 'creep', bass: 'creep', lead: 'theme', bpm: 126 },
+        { bars: 8, drums: 'march', bass: 'march', gtr: 'march', lead: 'theme', crash: true, fill: true, bpm: 140 },
+        { bars: 8, drums: 'march', bass: 'march', gtr: 'march', lead: 'theme', crash: true, fill: true, bpm: 156 },
+        { bars: 8, drums: 'charge', bass: 'charge', gtr: 'charge', lead: 'theme', crash: true, fill: true, bpm: 172 },
+        { bars: 8, drums: 'charge', bass: 'charge', gtr: 'charge', lead: 'rush', crash: true, fill: true, bpm: 184 },
+        { bars: 8, drums: 'frenzy', bass: 'charge', gtr: 'charge', lead: 'rush', arp: true, crash: true, fill: true, bpm: 196 },
+        { bars: 8, drums: 'frenzy', bass: 'charge', gtr: 'charge', lead: 'rush', arp: true, crash: true, fill: true, bpm: 208 },
+        { bars: 4, drums: 'frenzy', bass: 'charge', gtr: 'charge', lead: 'outro', crash: true, bpm: 208 },
+      ],
+    },
   ];
 
   // Instrument fingerprints for charting: [strength, 5-band spectrum (low → high)].
@@ -1055,13 +1202,19 @@
   /** Expand a song into timed events. Pure and deterministic. */
   function build(song) {
     validate(song);
-    const step = 60 / song.bpm / 4;
     const events = [];
+    const beats = [];
     let bar = 0;
+    // A section can set its own tempo (a song that speeds up): time restarts from where
+    // the tempo last changed, so songs at one tempo keep exactly the same timings.
+    let base = LEAD_IN, baseBar = 0, step = 60 / song.bpm / 4;
     for (const sec of song.form) {
+      const st = 60 / (sec.bpm || song.bpm) / 4;
+      if (st !== step) { base += (bar - baseBar) * 16 * step; baseBar = bar; step = st; }
       for (let b = 0; b < sec.bars; b++, bar++) {
         const chord = song.prog[bar % song.prog.length];
-        const barT = LEAD_IN + bar * 16 * step;
+        const barT = base + (bar - baseBar) * 16 * step;
+        for (let i = 0; i < 4; i++) beats.push(+(barT + i * 4 * step).toFixed(4));
         const isFill = sec.fill && b === sec.bars - 1;
         const kit = song.drums[isFill ? 'fill' : sec.drums] || {};
         if (sec.crash && b === 0) events.push({ t: barT, inst: 'crash', vel: 1 });
@@ -1096,8 +1249,9 @@
           for (let i = 0; i < 16; i++) {
             const d = parseInt(p[i], 15);
             if (Number.isNaN(d)) continue;
-            // Chromatic melodies count semitones above the root instead of scale steps.
-            const midi = song.leadScale === 'chromatic' ? song.root + d : degToMidi(song, d);
+            // Chromatic melodies count semitones above the root (or leadRoot, when the tune
+          // starts below the key's tonic) instead of scale steps.
+            const midi = song.leadScale === 'chromatic' ? (song.leadRoot || song.root) + d : degToMidi(song, d);
             events.push({ t: barT + i * step, inst: 'lead', midi, dur: holdLength(p, i) * step * 0.95, vel: 0.8 });
           }
         }
@@ -1109,14 +1263,13 @@
         }
       }
     }
-    const end = LEAD_IN + bar * 16 * step;
+    const end = base + (bar - baseBar) * 16 * step;
+    beats.push(+end.toFixed(4));
     events.push({ t: end, inst: 'crash', vel: 1 }, { t: end, inst: 'kick', vel: 1 });
     if (song.bass.verse || song.bass.chorus) {
       events.push({ t: end, inst: 'bass', midi: song.root - 12, dur: 1.2, vel: 0.9 });
     }
     events.sort((a, b) => a.t - b.t);
-    const beats = [];
-    for (let i = 0; i <= bar * 4; i++) beats.push(+(LEAD_IN + i * 4 * step).toFixed(4));
     return { song, events, beats, duration: end + 2.5 };
   }
 
@@ -1234,6 +1387,12 @@
     })();
     const epiano = (() => {
       const amps = [0, 1, 0.22, 0.06, 0.02, 0, 0, 0.05];
+      return ctx.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps));
+    })();
+    // Harpsichord (classical remix): a plucked string, bright with many overtones.
+    const harpsichord = (() => {
+      const amps = [0];
+      for (let k = 1; k <= 16; k++) amps.push((k % 2 ? 1 : 0.7) / Math.pow(k, 0.75));
       return ctx.createPeriodicWave(new Float32Array(amps.length), Float32Array.from(amps));
     })();
     // Steam calliope: a whistle, nearly pure, with a little breathy edge.
@@ -1445,17 +1604,18 @@
             g.connect(echoIn);
             break;
           }
-          if (voice.lead === 'piano' || voice.lead === 'keys') {
+          if (voice.lead === 'piano' || voice.lead === 'keys' || voice.lead === 'harpsichord') {
             // Struck notes: a quick attack, then the sound dies away as a piano's does.
+            const harp = voice.lead === 'harpsichord';
             const o = ctx.createOscillator();
-            o.setPeriodicWave(voice.lead === 'piano' ? piano : epiano);
+            o.setPeriodicWave(voice.lead === 'piano' ? piano : harp ? harpsichord : epiano);
             o.frequency.value = hz(e.midi);
             const g = ctx.createGain();
-            const peak = (voice.lead === 'piano' ? 0.42 : 0.4) * e.vel;
+            const peak = (voice.lead === 'piano' ? 0.42 : harp ? 0.3 : 0.4) * e.vel;
             const ring = Math.max(0.12, e.dur);
             g.gain.setValueAtTime(0, t);
-            g.gain.linearRampToValueAtTime(peak, t + 0.004);
-            g.gain.exponentialRampToValueAtTime(peak * (voice.lead === 'piano' ? 0.25 : 0.45), t + ring);
+            g.gain.linearRampToValueAtTime(peak, t + (harp ? 0.002 : 0.004));
+            g.gain.exponentialRampToValueAtTime(peak * (voice.lead === 'piano' ? 0.25 : harp ? 0.3 : 0.45), t + ring);
             g.gain.exponentialRampToValueAtTime(0.0001, t + ring + 0.12);
             if (voice.lead === 'keys') {
               // Electric piano: a slow, gentle tremolo.
