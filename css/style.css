@@ -1357,3 +1357,11 @@ body.touch .lane-switch.touch-only { display: flex; }
 .boss-need { display: flex; flex-direction: column; gap: 2px; font: 400 18px/1 var(--body); color: var(--muted); }
 .boss-need .done { color: var(--green); }
 :is(.diff-tabs button, .board-now-tier)[data-base="boss"] { --acc: #ff2f6d; }
+/* The boss battle's row at the end of its category on the song list. */
+:is(#pack-list) .cat-body button.boss-row { --acc: var(--boss); background: linear-gradient(90deg, color-mix(in srgb, var(--boss) 26%, #1a0820), #12061c 75%); box-shadow: inset 0 0 0 2px var(--boss), 0 4px 0 var(--ink); }
+.boss-row .tier-boss { margin-right: 8px; }
+.boss-row .boss-need { margin-top: 4px; }
+.boss-row .lock-big { font-size: 10px; color: var(--gold); white-space: nowrap; }
+.boss-row .fight { font-size: 11px; padding: 5px 8px; border-radius: 6px; background: var(--red); color: var(--ink); box-shadow: 0 2px 0 var(--ink); }
+.boss-row.locked { filter: saturate(0.5); }
+.boss-row.locked .row-main small { color: var(--gold); }

@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.41';
+  const VERSION = '1.42';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -187,6 +187,7 @@
   let current = null; // the loaded song
   let songOrigin = 'pack';
   let lastDifficulty = 'easy';
+  let focusBoss = false; // open the next song at its boss battle card
   let lastRun = null;
   let screen = null;
   const bufferCache = new Map();
@@ -318,6 +319,7 @@
       Sfx.back();
       if (songOrigin === 'import') renderImport();
       if (songOrigin === 'boards') renderBoards();
+      if (songOrigin === 'pack') refreshBossRows();
       show(songOrigin);
       return;
     }
@@ -697,9 +699,10 @@
     $('#pack-list').innerHTML = THEMES.map(([theme, heading]) => {
       const songs = SongPack.SONGS.filter((s) => (s.theme || 'classic') === theme);
       if (!songs.length) return '';
-      return catBlock(where, theme, heading, songs.length, songs.map((s) =>
+      const boss = tilesMode() ? null : songs.find((s) => Boss.battleFor(s.id));
+      return catBlock(where, theme, heading, boss ? `${songs.length} SONGS + BOSS` : songs.length, songs.map((s) =>
         `<div class="song-line"><button data-pack="${esc(s.id)}" data-key="${esc(SongPack.keyFor(s))}">${songRow(s.title, `${bpmLabel(s)} BPM · ${s.blurb}`, SongPack.keyFor(s), s.tier)}</button>` +
-        previewButton('pack:' + s.id, s.title) + '</div>').join(''));
+        previewButton('pack:' + s.id, s.title) + '</div>').join('') + (boss ? bossRow(boss) : ''));
     }).join('');
     autofocusCat($('#pack-list'));
     markRecords();
@@ -715,6 +718,31 @@
     });
   }
 
+  /**
+   * A category's boss battle, last in its list: locked (and saying what's left to do)
+   * until the player has a B or better on each of the category's three songs.
+   */
+  function bossRow(def) {
+    const battle = Boss.battleFor(def.id);
+    const prog = bossProgress(def.id);
+    const locked = !prog.every((x) => x.done);
+    const detail = locked
+      ? `Get a B or better on all three songs to unlock (${prog.filter((x) => x.done).length} of 3 done)`
+      : `${def.title} on Hard: beat the boss before the song ends!`;
+    return `<div class="song-line"><button class="boss-row${locked ? ' locked' : ''}" data-boss="${esc(def.id)}" style="--boss:${battle.color}">` +
+      `<span class="row-main"><b><span class="tier tier-boss"><svg><use href="#i-skull"/></svg>BOSS BATTLE</span>${esc(battle.name)}</b><small>${esc(detail)}</small>` +
+      (locked ? `<span class="boss-need">${prog.map((x) => `<span class="${x.done ? 'done' : ''}">${x.done ? '✓' : '🔒'} ${esc(x.title)}</span>`).join('')}</span>` : '') + '</span>' +
+      `<span class="row-side">${locked ? '<span class="lock-big">🔒 LOCKED</span>' : '<span class="fight">FIGHT</span>'}</span><svg class="chev"><use href="#i-chev"/></svg></button></div>`;
+  }
+
+  /** Back on the song list after playing: a boss battle may have just unlocked. */
+  function refreshBossRows() {
+    for (const b of $$('#pack-list [data-boss]')) {
+      const def = SongPack.SONGS.find((x) => x.id === b.dataset.boss);
+      b.closest('.song-line').outerHTML = bossRow(def);
+    }
+  }
+
   /** Focus lands on the open category's first song, or on the first heading. */
   function autofocusCat(list) {
     for (const el of $$('[data-autofocus]', list)) el.removeAttribute('data-autofocus');
@@ -726,6 +754,14 @@
   $('#pack-list').addEventListener('click', (e) => {
     const h = e.target.closest('[data-cat-toggle]');
     if (h) { toggleCat('pack', h); return; }
+    const boss = e.target.closest('[data-boss]');
+    if (boss) {
+      if (boss.classList.contains('locked')) { toast('Locked: get a B or better on all three of this category\'s songs to fight the boss.'); return; }
+      songOrigin = 'pack';
+      focusBoss = true;
+      loadPack(boss.dataset.boss);
+      return;
+    }
     const b = e.target.closest('[data-pack]');
     if (b) { songOrigin = 'pack'; loadPack(b.dataset.pack); }
   });
@@ -1315,7 +1351,11 @@
     }).join('');
     renderBossBattle(def);
     updateDeviceUI();
-    show('song', { focus: `[data-diff="${idFor(parseId(lastDifficulty).difficulty)}"]` });
+    // From the boss battle's row on the song list: straight to its card.
+    const toBoss = focusBoss && !$('#boss-battle').hidden;
+    focusBoss = false;
+    show('song', { focus: toBoss ? '#boss-battle .boss-card' : `[data-diff="${idFor(parseId(lastDifficulty).difficulty)}"]` });
+    if (toBoss) requestAnimationFrame(() => $('#boss-battle').scrollIntoView({ block: 'center' }));
     fillRecords();
   }
 

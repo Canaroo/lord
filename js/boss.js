@@ -27,17 +27,17 @@
   const HITS_TOTAL = 60;
   const FIREBALLS_TOTAL = 80;
   const POWER_PER_FIREBALL = 4; // power notes to charge one Fireball
-  const HEAL = 1.5; // health back for each power note missed
+  const HEAL = 2.5; // health back for each power note missed
   const JUDGE_DAMAGE = { perfect: 1, good: 0.75, ok: 0.5 };
 
   /**
-   * Which notes glow: about one in twelve, spread evenly through the song, in a
+   * Which notes glow: about one in twenty, spread evenly through the song, in a
    * multiple of POWER_PER_FIREBALL. Returns the set of note indices (notes sorted by time).
    */
   function powerNotes(notes) {
     const out = new Set();
     if (!notes.length) return out;
-    const want = Math.max(POWER_PER_FIREBALL, Math.round(notes.length / 12 / POWER_PER_FIREBALL) * POWER_PER_FIREBALL);
+    const want = Math.max(POWER_PER_FIREBALL, Math.round(notes.length / 20 / POWER_PER_FIREBALL) * POWER_PER_FIREBALL);
     const t0 = notes[0].t, t1 = notes[notes.length - 1].t;
     let j = 0;
     for (let k = 0; k < want; k++) {

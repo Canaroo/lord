@@ -127,6 +127,17 @@ async function bossTests(browser) {
   await page.click('#btn-mode-frets');
   await screenIs(page, 'pack');
   await openCat(page, 'spooky', 'click');
+  // The boss battle has its own row at the end of the category, locked to start.
+  const row = await page.evaluate(() => {
+    const b = document.querySelector('.cat[data-cat="spooky"] [data-boss]');
+    const rows = [...document.querySelectorAll('.cat[data-cat="spooky"] .cat-body button:not(.pv)')];
+    return b && { last: rows[rows.length - 1] === b, locked: b.classList.contains('locked'), text: b.textContent, count: document.querySelector('.cat[data-cat="spooky"] .cat-count').textContent, others: document.querySelectorAll('#pack-list [data-boss]').length };
+  });
+  check(row && row.last && row.locked && /VAMPIRE COUNT/.test(row.text) && /LOCKED/.test(row.text) && /0 of 3/.test(row.text) && /\+ BOSS/.test(row.count) && row.others === 3, `the song list shows each boss battle, locked, last in its category (${JSON.stringify(row)})`);
+  await page.click('.cat[data-cat="spooky"] [data-boss]');
+  await page.waitForTimeout(300);
+  check(await page.evaluate(() => BeatFrets.screen === 'pack' && /Locked/.test(document.getElementById('toast').textContent)), 'tapping a locked boss battle says how to unlock it');
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-row.png') });
   await page.click('[data-pack="witching-hour"]');
   await page.waitForFunction(() => BeatFrets.screen === 'song', null, { timeout: 240000 });
 
@@ -157,7 +168,14 @@ async function bossTests(browser) {
   await reopen();
   check(await page.evaluate(() => document.querySelector('#boss-battle .boss-card').classList.contains('locked') && document.querySelectorAll('#boss-battle .boss-need .done').length === 2), 'two of three songs ticked: still locked');
   await seedB(['boss']);
-  await reopen();
+  await page.click('#btn-back');
+  await screenIs(page, 'pack');
+  const unlocked = await page.evaluate(() => { const b = document.querySelector('[data-boss="witching-hour"]'); return { locked: b.classList.contains('locked'), text: b.textContent }; });
+  check(!unlocked.locked && /FIGHT/.test(unlocked.text), `with all three Bs the row unlocks on the way back to the list (${unlocked.text.replace(/\s+/g, ' ')})`);
+  await page.click('[data-boss="witching-hour"]');
+  await screenIs(page, 'song');
+  await page.waitForTimeout(200);
+  check(await page.evaluate(() => document.activeElement && document.activeElement.classList.contains('boss-card')), 'the unlocked row opens the song at its boss battle');
   const open = await page.evaluate(() => ({ locked: document.querySelector('#boss-battle .boss-card').classList.contains('locked'), text: document.querySelector('#boss-battle').textContent }));
   check(!open.locked && /FIGHT/.test(open.text) && /power notes/.test(open.text), `a B on all three unlocks the battle (${open.text.replace(/\s+/g, ' ').slice(0, 120)})`);
   await page.screenshot({ path: path.join(outDir, 'e2e-boss-card.png') });

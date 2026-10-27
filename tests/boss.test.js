@@ -25,7 +25,7 @@ test('sprites are 16 pixels wide and every colour is in the palette', () => {
   }
 });
 
-test('power notes: about one in twelve, spread through the song, whole Fireballs, never two at once', () => {
+test('power notes: rare (about one in twenty), spread through the song, whole Fireballs, never two at once', () => {
   for (const id of Object.keys(Boss.BATTLES)) {
     const def = SongPack.SONGS.find((s) => s.id === id);
     const analysis = SongPack.toAnalysis(SongPack.build(def));
@@ -33,7 +33,7 @@ test('power notes: about one in twelve, spread through the song, whole Fireballs
       const notes = ChartGen.generateId(analysis, tier).notes;
       const power = Boss.powerNotes(notes);
       assert.strictEqual(power.size % Boss.POWER_PER_FIREBALL, 0, `${id} ${tier}: ${power.size}`);
-      assert.ok(power.size >= notes.length / 16 && power.size <= notes.length / 9, `${id} ${tier}: ${power.size} of ${notes.length}`);
+      assert.ok(power.size >= notes.length / 26 && power.size <= notes.length / 15, `${id} ${tier}: ${power.size} of ${notes.length}`);
       const times = [...power].map((i) => notes[i].t).sort((a, b) => a - b);
       assert.strictEqual(new Set(times).size, times.length, 'one power note per moment');
       // Spread out: no big stretch of the song without any.

@@ -91,12 +91,13 @@ The BOSS songs of three categories have a **BOSS BATTLE** under their difficulti
 Hour* (Spooky) against **the Vampire Count**, *Amp Overload* (Rock) against **the Amp Titan** and
 *Dragon's Lair* (Epic Adventure) against **the Dragon**.
 
-- **Unlock it** with a B or better on each of the category's three songs (ROOKIE, PRO and BOSS),
-  on any difficulty and any way of playing. The card ticks them off as you go.
+- **On the song list** the battle has its own row at the end of its category, marked 🔒 LOCKED
+  until you have a B or better on each of the category's three songs (ROOKIE, PRO and BOSS), on any
+  difficulty and any way of playing. The row and the card tick the songs off as you go.
 - **The fight** uses the song's Hard notes, on keys or a phone (sideways or upright; not Tiles).
   The boss stands across the stage with a health bar. Every note you hit chips at it (PERFECT
   most, OK least).
-- **Power notes** have flames on top, about one note in twelve. Each one fills a quarter of the
+- **Power notes** have flames on top. They're rare, about one note in twenty, so watch for them. Each one fills a quarter of the
   **Fireball** meter (FB, where the Overdrive meter usually is). When it's full, press the
   Overdrive key (Space) or swipe up to launch a Fireball for a big hit. A full meter doesn't
   charge any further, so launch it soon. Miss a power note and the boss heals a little.
@@ -106,7 +107,8 @@ Hour* (Spooky) against **the Vampire Count**, *Amp Overload* (Rock) against **th
 - **Leaderboards:** each battle has its own boards (a **BOSS BATTLE** tab on the song's boards),
   and only wins go on them. A boss board you lead counts as a trophy on your license.
 - **Tuning** (`js/boss.js`): the boss has 100 health. Hitting every note deals 60 of it and
-  launching every Fireball deals 80, so a win takes a solid run with most Fireballs launched.
+  launching every Fireball deals 80, and each power note missed heals it 2.5, so a win takes a
+  solid run with most Fireballs launched.
 
 ## Song of the Day
 
@@ -490,6 +492,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.42**: Each boss battle has its own row at the end of its category on the song list,
+  visibly locked (with a tick for each song done) until you get a B or better on all three songs.
+  Power notes are rarer (about one in twenty) and a missed one heals the boss more.
 - **1.41**: **Boss battles** on the BOSS songs of Spooky, Rock and Epic Adventure: fight the Vampire
   Count, the Amp Titan and the Dragon. Glowing power notes charge a Fireball (in place of
   Overdrive); only a defeated boss goes on the leaderboards.
