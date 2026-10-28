@@ -338,6 +338,17 @@ posting would change something: your first score on that board, or a new best. E
 one entry per board, and it can only go up, so a bad run never replaces a good one. If you'd
 rather not be asked, turn on **Options → Post new bests automatically**.
 
+**No connection? Nothing is lost.** Every run is always saved on the device. If a score can't
+reach the world board (no signal, or the post fails), the results say so and the score waits on
+the device, with everything needed to post it later. The home screen shows **N SCORES WAITING TO
+POST** until they're sent. When the connection comes back (or the game is opened with scores
+waiting), a **SCORES TO POST** pop-up lists each one (player, score, grade, song, difficulty and
+date) with **POST** (and **POST ALL**). **✕**, tapped twice, skips one; it stays in the device's
+own records either way. Only the best waiting score per player per board is kept, since a world
+board only keeps a player's best. If the world already has a better score from that player, the
+waiting one is cleared. A Song of the Day score can only go on its day's board that day; after
+that only its copy for the song's own board waits.
+
 Tiles scores have no fixed ceiling (the song loops, and each lap's tiles are worth more), so the
 world board's anti-cheat limit for Tiles grows with the number of laps played.
 
@@ -492,6 +503,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.43**: **No score is lost offline.** A score that can't reach the world board is kept on the
+  device. When the connection is back, a *SCORES TO POST* pop-up offers to post each one (or all),
+  and the home screen counts what's still waiting.
 - **1.42**: Each boss battle has its own row at the end of its category on the song list,
   visibly locked (with a tick for each song done) until you get a B or better on all three songs.
   Power notes are rarer (about one in twenty) and a missed one heals the boss more.

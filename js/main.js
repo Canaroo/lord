@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.42';
+  const VERSION = '1.43';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -246,6 +246,7 @@
   function activeRoot() {
     if (!$('#keep-pop').hidden) return $('#keep-pop');
     if (!$('#inbox').hidden) return $('#inbox');
+    if (!$('#outbox').hidden) return $('#outbox');
     if (!$('#name-pop').hidden) return $('#name-pop');
     if (!$('#vs').hidden) return $('#vs');
     if (!$('#outcome').hidden) return $('#outcome');
@@ -303,6 +304,7 @@
   function goBack() {
     if (!$('#keep-pop').hidden) { if (askKeep.cancel) askKeep.cancel(); return; }
     if (!$('#inbox').hidden) { closeInbox(); return; }
+    if (!$('#outbox').hidden) { closeOutbox(); return; }
     if (!$('#name-pop').hidden) { if (askSongName.cancel) askSongName.cancel(); return; }
     if (!$('#vs').hidden) { closeVersus(true); return; }
     if (!$('#outcome').hidden) { $('#outcome').hidden = true; return; }
@@ -540,6 +542,8 @@
     renderDaily();
     const p = save.active;
     $('#main-player').textContent = p ? p.initials : '---';
+    updateOutboxUI();
+    setTimeout(maybePromptOutbox, 400);
     setTimeout(checkInbox, 600);
   }
 
@@ -2329,6 +2333,12 @@
     const fmt = (n) => Number(n).toLocaleString('en-US');
     let posting = null;
     let peeked = null;
+    // No connection: the score waits on this device, to be posted when it's back.
+    const keep = () => {
+      save.queuePost({ board: world.id, meta: world.meta, profileId: p.id, initials: p.initials, entry });
+      updateOutboxUI();
+    };
+    const SAVED_MSG = "No connection to the world board. Your score is saved here: we'll offer to post it when you're back online.";
     ctl.post = () => {
       if (posting) return posting;
       btn.disabled = true;
@@ -2346,6 +2356,8 @@
       })().then((r) => {
         recordCache.delete(world.id);
         World.forgetPlayers();
+        save.settlePost(p.id, world.id, r.best);
+        updateOutboxUI();
         if (live()) {
           btn.hidden = true;
           line.textContent = `POSTED! WORLD RANK #${r.rank}`;
@@ -2358,8 +2370,9 @@
         if (live()) {
           btn.disabled = false;
           btn.hidden = false;
-          if (!e.cancelled) { console.warn(e); line.textContent = "Couldn't reach the world board. Try again?"; }
+          if (!e.cancelled) { console.warn(e); line.textContent = SAVED_MSG + ' Or try again now:'; }
         }
+        if (!e.cancelled) keep();
         throw e;
       });
       return posting;
@@ -2368,6 +2381,7 @@
     line.textContent = 'Checking the world board…';
     ctl.peek = World.peek({ id: world.id, profileId: p.id, score: entry.score }).then((r) => {
       peeked = r;
+      if (!r.better) save.settlePost(p.id, world.id, r.best);
       if (!live()) return r;
       if (!r.better) { line.textContent = `Your world best is still ${fmt(r.best)} (#${r.rank}).`; return r; }
       if (settings.autoPost) { ctl.post().catch(() => {}); return r; }
@@ -2378,7 +2392,8 @@
       return r;
     }).catch((e) => {
       console.warn(e);
-      if (live()) line.textContent = "Couldn't reach the world board. Your score is saved on this device.";
+      keep();
+      if (live()) line.textContent = SAVED_MSG;
       return null;
     });
     return ctl;
@@ -2472,6 +2487,133 @@
   });
   $('#btn-inbox-close').addEventListener('click', closeInbox);
   $('#btn-inbox-ok').addEventListener('click', closeInbox);
+
+  // ---- scores waiting to be posted (saved while offline) ---------------------------------------------
+
+  /**
+   * Scores that couldn't reach the world boards wait on this device (save.outbox).
+   * When the phone is back online the player is asked to post them, one by one or
+   * all at once; the home screen shows how many are waiting until they're done.
+   */
+  // A Song of the Day board only takes scores on its day: older ones are dropped
+  // (the same run waits for the song's own board as well).
+  const outboxLive = () => {
+    const today = Daily.today();
+    for (const x of save.outbox.slice()) {
+      const m = /^daily-(\d{4}-\d\d-\d\d)/.exec(x.board);
+      if (m && m[1] < today) save.dropPost(x.id);
+    }
+    return save.outbox.filter((x) => save.profiles.some((p) => p.id === x.profileId));
+  };
+  const outboxState = new Map(); // id → { state: 'posting' | 'done' | 'failed', text }
+
+  function updateOutboxUI() {
+    const n = World.available() ? outboxLive().length : 0;
+    const card = $('#outbox-card');
+    card.hidden = !n;
+    if (n) {
+      card.innerHTML = `<svg class="ico"><use href="#i-upload"/></svg><span class="row-main"><b>${n} SCORE${n === 1 ? '' : 'S'} WAITING TO POST</b>` +
+        `<small>Saved on this ${Input.touch ? 'phone' : 'device'} while the world boards couldn't be reached.</small></span><span class="rematch-tag">POST</span>`;
+    }
+    if (!$('#outbox').hidden) renderOutbox();
+  }
+
+  function renderOutbox() {
+    const items = outboxLive();
+    const fmt = (n) => Number(n).toLocaleString('en-US');
+    const name = (x) => { const p = save.profiles.find((q) => q.id === x.profileId); return p ? p.initials : x.initials; };
+    const label = (x) => (x.meta.kind === 'daily' ? '★ SONG OF THE DAY · ' : '') + LABEL(x.meta.difficulty || '');
+    $('#outbox-list').innerHTML = items.length ? items.map((x) => {
+      const st = outboxState.get(x.id) || {};
+      return `<div class="ob-row${st.state ? ' ' + st.state : ''}" data-ob="${esc(x.id)}">
+        <span class="row-main"><b>${esc(name(x))} · ${fmt(x.entry.score)} <span class="ob-grade">${esc(x.entry.grade || '')}</span></b>
+        <small>${esc(String(x.meta.title || '').replace(/^Song of the Day [\d-]+: /, ''))} · ${esc(label(x))} · ${esc(fmtDate(x.entry.date || x.queued))}</small>
+        ${st.text ? `<small class="ob-state">${esc(st.text)}</small>` : ''}</span>
+        <span class="ob-acts"><button class="btn small primary" data-ob-post="${esc(x.id)}"${st.state === 'posting' ? ' disabled' : ''}>POST</button>` +
+        `<button class="btn small" data-ob-drop="${esc(x.id)}" aria-label="Don't post this score">✕</button></span>
+      </div>`;
+    }).join('') : '<p class="hint">All caught up: every score is on the world boards.</p>';
+    $('#btn-outbox-all').hidden = items.length < 2;
+    $('#outbox-msg').textContent = items.length ? (navigator.onLine === false ? "This device still looks offline. They'll keep until you're connected." : '') : '';
+  }
+
+  function openOutbox() {
+    if (!World.available()) return;
+    outboxPrompted = true;
+    renderOutbox();
+    $('#outbox').hidden = false;
+    requestAnimationFrame(() => { const b = $('#outbox [data-ob-post]') || $('#btn-outbox-later'); if (b) b.focus(); });
+  }
+  function closeOutbox() {
+    $('#outbox').hidden = true;
+    for (const [id, st] of outboxState) if (st.state !== 'posting') outboxState.delete(id);
+    updateOutboxUI();
+  }
+
+  /** Post one waiting score. Resolves true when it's settled (posted, or the world already has better). */
+  async function postWaiting(id) {
+    const x = save.outbox.find((y) => y.id === id);
+    if (!x || (outboxState.get(id) || {}).state === 'posting') return false;
+    outboxState.set(id, { state: 'posting', text: 'Posting…' });
+    renderOutbox();
+    try {
+      const r = await World.submit({ id: x.board, meta: x.meta, profileId: x.profileId, entry: x.entry });
+      save.settlePost(x.profileId, x.board, r.best);
+      recordCache.delete(x.board);
+      World.forgetPlayers();
+      outboxState.delete(id);
+      toast(r.improved ? `Posted ${Number(x.entry.score).toLocaleString('en-US')}: world rank #${r.rank}.` : `Your world best there is already higher (${Number(r.best).toLocaleString('en-US')}, #${r.rank}).`);
+      Sfx.select();
+      updateOutboxUI();
+      return true;
+    } catch (e) {
+      console.warn(e);
+      outboxState.set(id, { state: 'failed', text: "Still can't reach the world board. It stays saved here." });
+      renderOutbox();
+      return false;
+    }
+  }
+
+  // Asked once per return of the connection (and once when the game opens with scores waiting).
+  let outboxPrompted = false;
+  const menuScreen = () => !game && ['main', 'pack', 'import', 'boards', 'song', 'results', 'tiles-results', 'options', 'license'].includes(screen);
+  function maybePromptOutbox() {
+    if (outboxPrompted || !World.available() || navigator.onLine === false || !outboxLive().length) return;
+    if (!menuScreen() || !$('#inbox').hidden || !$('#vs').hidden || !$('#outcome').hidden || !$('#name-pop').hidden || !$('#keep-pop').hidden || !$('#outbox').hidden) return;
+    openOutbox();
+  }
+  window.addEventListener('online', () => { outboxPrompted = false; updateOutboxUI(); setTimeout(maybePromptOutbox, 800); });
+  window.addEventListener('offline', () => updateOutboxUI());
+
+  $('#outbox-card').addEventListener('click', openOutbox);
+  $('#outbox-list').addEventListener('click', (e) => {
+    const post = e.target.closest('[data-ob-post]');
+    if (post) { postWaiting(post.dataset.obPost); return; }
+    const drop = e.target.closest('[data-ob-drop]');
+    if (drop) {
+      const row = drop.closest('.ob-row');
+      if (!row.classList.contains('confirm')) {
+        // Ask once: the score itself stays in this device's records either way.
+        row.classList.add('confirm');
+        outboxState.set(drop.dataset.obDrop, { state: 'confirm', text: "Tap ✕ again to not post this one. It stays in this device's records." });
+        const st = $('.ob-state', row) || row.querySelector('.row-main').appendChild(Object.assign(document.createElement('small'), { className: 'ob-state' }));
+        st.textContent = outboxState.get(drop.dataset.obDrop).text;
+        return;
+      }
+      outboxState.delete(drop.dataset.obDrop);
+      save.dropPost(drop.dataset.obDrop);
+      updateOutboxUI();
+    }
+  });
+  $('#btn-outbox-all').addEventListener('click', async () => {
+    const btn = $('#btn-outbox-all');
+    btn.disabled = true;
+    for (const x of outboxLive().slice()) await postWaiting(x.id);
+    btn.disabled = false;
+    if (!outboxLive().length) closeOutbox();
+  });
+  $('#btn-outbox-later').addEventListener('click', closeOutbox);
+  $('#btn-outbox-close').addEventListener('click', closeOutbox);
 
   /** The world board id for a board screen, if we can tell (imported songs need their chart). */
   function worldBoardFor(key, diff) {

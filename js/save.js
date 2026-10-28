@@ -40,7 +40,7 @@
   };
 
   function emptySave() {
-    return { version: VERSION, profiles: [], activeProfile: null, settings: { ...DEFAULT_SETTINGS }, runs: [], rivals: [], library: [], paces: {} };
+    return { version: VERSION, profiles: [], activeProfile: null, settings: { ...DEFAULT_SETTINGS }, runs: [], rivals: [], library: [], paces: {}, outbox: [] };
   }
 
   function uid() {
@@ -216,6 +216,7 @@
       }
       data.settings = { ...DEFAULT_SETTINGS, ...data.settings };
       data.paces = data.paces || {};
+      data.outbox = data.outbox || [];
       return data;
     }
 
@@ -264,7 +265,39 @@
       this.data.profiles = this.data.profiles.filter((p) => p.id !== id);
       this.data.runs = this.data.runs.filter((r) => r.profileId !== id);
       for (const k of Object.keys(this.data.paces)) if (k.startsWith(id + '|')) delete this.data.paces[k];
+      this.data.outbox = this.data.outbox.filter((x) => x.profileId !== id);
       if (this.data.activeProfile === id) this.data.activeProfile = this.data.profiles[0] ? this.data.profiles[0].id : null;
+      this.save();
+    }
+
+    // ---- world posts waiting for a connection ----
+    //
+    // A score that couldn't reach the world board (offline, or the post failed) waits
+    // here, with everything needed to post it later: { id, board, meta, profileId,
+    // initials, entry, queued }. One per player per board: the best one, since a world
+    // board only ever keeps a player's best.
+
+    get outbox() { return this.data.outbox; }
+
+    /** Keep a score to post later. Returns false if a better one for that board is already waiting. */
+    queuePost({ board, meta, profileId, initials, entry }) {
+      const same = this.data.outbox.find((x) => x.board === board && x.profileId === profileId);
+      if (same && same.entry.score >= entry.score) return false;
+      this.data.outbox = this.data.outbox.filter((x) => x !== same);
+      this.data.outbox.push({ id: uid(), board, meta, profileId, initials, entry, queued: new Date().toISOString() });
+      this.save();
+      return true;
+    }
+
+    /** The world board now has this player's score of `best` (or better): drop what it covers. */
+    settlePost(profileId, board, best = Infinity) {
+      const before = this.data.outbox.length;
+      this.data.outbox = this.data.outbox.filter((x) => !(x.board === board && x.profileId === profileId && x.entry.score <= best));
+      if (this.data.outbox.length !== before) this.save();
+    }
+
+    dropPost(id) {
+      this.data.outbox = this.data.outbox.filter((x) => x.id !== id);
       this.save();
     }
 

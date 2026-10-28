@@ -135,3 +135,28 @@ test('settings carry over from the first version', () => {
   assert.strictEqual(s.settings.calibrationMs, 35);
   assert.strictEqual(s.settings.crt, true);
 });
+
+test('scores that could not be posted wait on the device, the best per player per board', () => {
+  const storage = new MemoryStorage();
+  const s = new SaveData.Store(storage);
+  const a = s.createProfile('AAA');
+  const b = s.createProfile('BBB');
+  const item = (profileId, board, score) => ({ board, meta: { title: 'Song', difficulty: 'hard', notes: 100 }, profileId, initials: 'AAA', entry: { initials: 'AAA', score, grade: 'A', accuracy: 90 } });
+  assert.ok(s.queuePost(item(a.id, 'pack-x__hard', 5000)));
+  assert.ok(!s.queuePost(item(a.id, 'pack-x__hard', 4000)), 'a lower score for the same board is not kept');
+  assert.ok(s.queuePost(item(a.id, 'pack-x__hard', 6000)), 'a higher one replaces it');
+  s.queuePost(item(a.id, 'pack-x__easy', 3000));
+  s.queuePost(item(b.id, 'pack-x__hard', 2000));
+  assert.deepStrictEqual(s.outbox.map((x) => [x.board, x.entry.score]), [['pack-x__hard', 6000], ['pack-x__easy', 3000], ['pack-x__hard', 2000]]);
+  // Kept across restarts.
+  const again = new SaveData.Store(storage);
+  assert.strictEqual(again.outbox.length, 3);
+  // Posted (or the world already has better): settled. A score above the world best stays.
+  again.settlePost(a.id, 'pack-x__hard', 5500);
+  assert.strictEqual(again.outbox.length, 3, '6000 is still better than the 5500 on the world board');
+  again.settlePost(a.id, 'pack-x__hard', 6000);
+  assert.deepStrictEqual(again.outbox.map((x) => x.board + ':' + x.profileId), ['pack-x__easy:' + a.id, 'pack-x__hard:' + b.id]);
+  again.dropPost(again.outbox[0].id);
+  again.deleteProfile(b.id);
+  assert.strictEqual(again.outbox.length, 0, "a deleted player's waiting scores go with them");
+});

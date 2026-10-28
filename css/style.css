@@ -1365,3 +1365,30 @@ body.touch .lane-switch.touch-only { display: flex; }
 .boss-row .fight { font-size: 11px; padding: 5px 8px; border-radius: 6px; background: var(--red); color: var(--ink); box-shadow: 0 2px 0 var(--ink); }
 .boss-row.locked { filter: saturate(0.5); }
 .boss-row.locked .row-main small { color: var(--gold); }
+
+/* ---- scores waiting to be posted (saved while offline) ------------------------------------------- */
+
+.outbox-card {
+  display: flex; align-items: center; gap: 12px; width: 100%; flex: none; margin-bottom: 12px;
+  padding: 10px 14px; text-align: left; color: var(--text);
+  border: 3px solid var(--ink); border-radius: 12px;
+  background: linear-gradient(90deg, rgba(248, 216, 48, 0.18), var(--panel) 70%);
+  box-shadow: inset 0 0 0 2px var(--gold), 0 4px 0 var(--ink);
+}
+.outbox-card .ico { width: 26px; height: 26px; fill: var(--gold); flex: none; }
+.outbox-card .row-main { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.outbox-card b { font-size: 11px; color: var(--gold); }
+.outbox-card small { font: 400 18px/1.05 var(--body); color: var(--muted); }
+.outbox-card .rematch-tag { flex: none; padding: 5px 8px; border-radius: 6px; background: var(--gold); color: var(--ink); font-size: 11px; box-shadow: 0 2px 0 var(--ink); }
+#outbox { z-index: 52; }
+.outbox-win { box-shadow: inset 0 0 0 2px var(--gold), 0 8px 0 rgba(0, 0, 0, 0.5), 0 0 40px rgba(248, 216, 48, 0.3); }
+.outbox-win .vs-title { color: var(--gold); }
+.ob-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 4px; text-align: left; }
+.ob-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 2px solid var(--line); border-radius: 9px; background: var(--cab-2); }
+.ob-row .row-main { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.ob-row b { font-size: 11px; color: var(--text); }
+.ob-row .ob-grade { color: var(--gold); }
+.ob-row small { font: 400 17px/1.05 var(--body); color: var(--muted); }
+.ob-row .ob-state { color: var(--cyan); }
+.ob-row.failed .ob-state, .ob-row.confirm .ob-state { color: var(--red); }
+.ob-acts { display: flex; gap: 6px; flex: none; }

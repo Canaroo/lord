@@ -744,6 +744,63 @@ const LANE_BOT = () => {
   loop();
 };
 
+// No connection: a score that can't reach the world board waits on the device, and
+// is offered for posting once the connection is back.
+async function outboxTests(browser) {
+  const { synthSong } = require('./synth.js');
+  const song = synthSong({ bpm: 120, sr: 22050, sections: [['khs', 5]] });
+  const { page, errors, context } = await newPage(browser);
+  await page.addInitScript(MEMORY_WORLD);
+  // The stand-in world fails like the real one does without a connection.
+  await page.addInitScript(() => {
+    const b = window.BeatFretsWorldBackend;
+    for (const k of Object.keys(b)) {
+      if (typeof b[k] !== 'function') continue;
+      const f = b[k];
+      b[k] = function (...a) { return navigator.onLine ? f.apply(this, a) : Promise.reject(new Error('Failed to fetch')); };
+    }
+  });
+  await page.goto(url);
+  await screenIs(page, 'title');
+  await page.evaluate(() => { BeatFrets.save.createProfile('OFF'); document.querySelector('#btn-start').click(); });
+  await screenIs(page, 'main');
+  await page.evaluate(async (b) => {
+    const bytes = Uint8Array.from(atob(b), (c) => c.charCodeAt(0));
+    await BeatFrets.importFile(new File([bytes], 'Offline Song.wav', { type: 'audio/wav' }));
+  }, wavBase64(song.samples, 22050));
+  await screenIs(page, 'song');
+  await page.evaluate(() => BeatFrets.play('medium', {}));
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
+  await context.setOffline(true);
+  await page.evaluate(LANE_BOT);
+  await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 60000 });
+  await page.waitForFunction(() => /saved here/.test(document.getElementById('res-world').textContent), null, { timeout: 8000 }).catch(() => {});
+  const res = await page.evaluate(() => ({ line: document.getElementById('res-world').textContent, waiting: BeatFrets.save.outbox.length, runs: BeatFrets.save.data.runs.length, world: window.__world.scores.size }));
+  check(/saved here/.test(res.line) && res.waiting === 1 && res.runs === 1 && res.world === 0, `offline, the score is kept on the device to post later (${JSON.stringify(res)})`);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(outDir, 'e2e-offline-results.png') });
+  await page.evaluate(() => BeatFrets.goHome());
+  await screenIs(page, 'main');
+  await page.waitForTimeout(800);
+  const home = await page.evaluate(() => ({ card: !document.getElementById('outbox-card').hidden && document.getElementById('outbox-card').textContent, pop: !document.getElementById('outbox').hidden }));
+  check(home.card && /1 SCORE WAITING TO POST/.test(home.card) && !home.pop, `home shows the score waiting, without asking while still offline (${JSON.stringify(home)})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-outbox-card.png') });
+
+  // Back online: asked to post it.
+  await context.setOffline(false);
+  await page.waitForSelector('#outbox', { state: 'visible', timeout: 5000 }).catch(() => {});
+  const pop = await page.evaluate(() => ({ open: !document.getElementById('outbox').hidden, rows: document.querySelectorAll('#outbox [data-ob]').length, text: document.getElementById('outbox-list').textContent }));
+  check(pop.open && pop.rows === 1 && /OFF/.test(pop.text) && /Offline Song/i.test(pop.text), `back online, the player is asked to post what's waiting (${JSON.stringify(pop).slice(0, 160)})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-outbox.png') });
+  await page.click('#outbox [data-ob-post]');
+  await page.waitForFunction(() => !BeatFrets.save.outbox.length, null, { timeout: 8000 }).catch(() => {});
+  const done = await page.evaluate(() => ({ world: [...window.__world.scores.values()].map((x) => x.initials + ':' + x.score), waiting: BeatFrets.save.outbox.length, card: document.getElementById('outbox-card').hidden, list: document.getElementById('outbox-list').textContent }));
+  check(done.world.length === 1 && /^OFF:\d+/.test(done.world[0]) && done.waiting === 0 && done.card && /All caught up/.test(done.list), `POST puts it on the world board and clears it from the list (${JSON.stringify(done)})`);
+  await page.click('#btn-outbox-later');
+  check(errors.filter((e) => !/Failed to fetch|ERR_INTERNET_DISCONNECTED/.test(e)).length === 0, 'no errors posting saved scores ' + errors.join(' | '));
+  await context.close();
+}
+
 async function worldTests(browser) {
   const { synthSong } = require('./synth.js');
   const World = require('../js/world.js');
@@ -1239,6 +1296,7 @@ async function recordTests(browser) {
   }
   if (process.env.E2E_ONLY === 'world') {
     await worldTests(browser);
+    await outboxTests(browser);
     await browser.close();
     server.close();
     if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }
@@ -1547,6 +1605,7 @@ async function recordTests(browser) {
 
   await touchTests(browser);
   await worldTests(browser);
+  await outboxTests(browser);
   await recordTests(browser);
   await bossTests(browser);
 
