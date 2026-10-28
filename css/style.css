@@ -691,7 +691,8 @@ body.nav button:focus, body:not(.touch) button:focus-visible, body:not(.touch) .
 
 .song-head { text-align: center; margin-bottom: 6px; }
 .song-head .hint { margin-inline: auto; }
-.diffs { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 12px 0 10px; }
+.diffs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 12px 0 10px; }
+@media (max-width: 760px) { .diffs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .diff-col { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .diff {
   --acc: var(--green);
@@ -715,7 +716,7 @@ body.nav button:focus, body:not(.touch) button:focus-visible, body:not(.touch) .
 .diff strong { font-weight: 700; font-size: 18px; margin-top: 4px; color: var(--text); text-shadow: 2px 2px 0 var(--ink); }
 .diff .what { font: 400 18px/1 var(--body); color: var(--cyan); }
 .diff .stats { font: 400 18px/1.1 var(--body); color: var(--muted); }
-.diff-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+.diff-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; width: 100%; }
 .diff .play-tag { flex: none; padding: 5px 8px; border-radius: 6px; background: var(--acc); color: var(--ink); font-size: 11px; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 0 var(--ink); }
 .diff .play-tag svg { width: 12px; height: 12px; fill: currentColor; }
 .keys { display: flex; gap: 4px; flex-wrap: wrap; }

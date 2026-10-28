@@ -504,6 +504,8 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.45**: The four difficulty cards sit side by side in one row on a computer (two by two on a
+  narrow window).
 - **1.44**: **Four clear tiers: Easy, Medium, Hard and Insane** on every song and every way of
   playing. Medium+ and Duo are retired (their old scores stay saved, hidden). Sunday's Song of the
   Day is now a BOSS song on Hard. Every other chart is note-for-note the same, so its leaderboards
