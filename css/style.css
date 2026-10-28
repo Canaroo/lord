@@ -711,9 +711,7 @@ body.nav button:focus, body:not(.touch) button:focus-visible, body:not(.touch) .
 .diff:hover { box-shadow: inset 0 6px 0 var(--acc), inset 0 0 0 2px var(--line-hi), 0 5px 0 #0e0724, 0 5px 0 3px var(--ink); }
 .diff[data-diff$="easy"] { --acc: var(--green); }
 .diff[data-diff$="medium"] { --acc: var(--blue); }
-.diff[data-diff$="mediumplus"] { --acc: var(--gold); }
 .diff[data-diff$="hard"] { --acc: var(--red); }
-.diff[data-diff$="duo"] { --acc: var(--magenta); }
 .diff strong { font-weight: 700; font-size: 18px; margin-top: 4px; color: var(--text); text-shadow: 2px 2px 0 var(--ink); }
 .diff .what { font: 400 18px/1 var(--body); color: var(--cyan); }
 .diff .stats { font: 400 18px/1.1 var(--body); color: var(--muted); }
@@ -1229,9 +1227,7 @@ body.touch .lane-switch.touch-only { display: flex; }
 .diff-tabs button.on b, .diff-tabs button.on .tab-lead { color: var(--ink); }
 :is(.diff-tabs button, .board-now-tier)[data-base="easy"] { --acc: var(--green); }
 :is(.diff-tabs button, .board-now-tier)[data-base="medium"] { --acc: var(--blue); }
-:is(.diff-tabs button, .board-now-tier)[data-base="mediumplus"] { --acc: var(--gold); }
 :is(.diff-tabs button, .board-now-tier)[data-base="hard"] { --acc: var(--red); }
-:is(.diff-tabs button, .board-now-tier)[data-base="duo"] { --acc: var(--magenta); }
 .board-now { margin: 6px 0 10px; text-align: center; font: 400 11px var(--pixel); color: var(--text); letter-spacing: 0.04em; }
 .board-now-tier { color: var(--acc); }
 #board-tabs .diff-tabs { flex-basis: 100%; }

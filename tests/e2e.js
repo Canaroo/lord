@@ -5,7 +5,7 @@
 // Drives the whole game with a simulated Xbox controller: initials, menus,
 // a full song played on controller buttons (with overdrive), saving the score,
 // sharing it, a friend opening the challenge link in a separate browser, a
-// deliberately failed song, Medium, Medium+ and Duo, long notes (hold,
+// deliberately failed song, Medium, long notes (hold,
 // let go, re-grab), bonus tracks, and (optionally) importing an MP3.
 'use strict';
 const path = require('path');
@@ -147,7 +147,7 @@ async function bossTests(browser) {
     return c && { locked: c.classList.contains('locked'), need: c.querySelectorAll('.boss-need span').length, diff: c.dataset.diff, text: c.textContent };
   });
   check(locked && locked.locked && locked.need === 3 && locked.diff === 'boss' && /VAMPIRE COUNT/.test(locked.text), `the BOSS song has a locked boss battle listing the three songs to beat (${JSON.stringify(locked)})`);
-  check(await page.evaluate(() => document.querySelectorAll('#diffs [data-diff]').length === 6), 'the six usual difficulties are still there');
+  check(await page.evaluate(() => document.querySelectorAll('#diffs [data-diff]').length === 4), 'the four usual difficulties are still there');
   await page.click('#boss-battle .boss-card');
   await page.waitForTimeout(300);
   check(await page.evaluate(() => BeatFrets.screen === 'song' && !BeatFrets.game), 'a locked boss battle does not start');
@@ -351,7 +351,7 @@ async function touchTests(browser) {
   await page.tap('[data-pack="pixel-overture"]');
   await screenIs(page, 'song');
   const landIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
-  check(landIds.join() === 'touch4:easy,touch4:medium,touch4:mediumplus,touch4:hard,touch4:insane', 'sideways: five touch tiers (' + landIds.join(' ') + ')');
+  check(landIds.join() === 'touch4:easy,touch4:medium,touch4:hard,touch4:insane', 'sideways: four touch tiers (' + landIds.join(' ') + ')');
   check(await page.evaluate(() => document.querySelector('#lane-switch [data-lanes="landscape"]').classList.contains('on') && document.getElementById('lane-hint').hidden), 'the song screen shows SIDEWAYS · 4 LANES lit');
   const fits = await page.evaluate(() => [...document.querySelectorAll('.diff .play-tag')].every((t) => { const r = t.getBoundingClientRect(); return r.bottom <= innerHeight && r.height > 0; }));
   await page.screenshot({ path: path.join(outDir, 'e2e-touch-song.png') });
@@ -442,7 +442,7 @@ async function touchTests(browser) {
   check(!(await page.isVisible('#rotate')) && await page.evaluate(() => BeatFrets.stage.layout === 'touch2' && document.getElementById('lane-hint').hidden), 'turned upright: the 2-lane layout is used and the hint goes');
   await screenIs(page, 'song');
   const portIds = await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff));
-  check(portIds.length === 5 && portIds.every((d) => d.startsWith('touch2:')), 'upright: five 2-lane tiers');
+  check(portIds.length === 4 && portIds.every((d) => d.startsWith('touch2:')), 'upright: four 2-lane tiers');
   await page.tap('[data-diff="touch2:hard"]');
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 30000 });
   check(await page.evaluate(() => BeatFrets.game.lanes === 2), 'upright game plays on 2 lanes');
@@ -1060,7 +1060,7 @@ async function recordTests(browser) {
   check(cats.length === 9 && cats.every((c) => !c.open && c.hidden && c.tap === 'TAP TO OPEN'), `the song list starts with every category closed, saying TAP TO OPEN (${JSON.stringify(cats.map((c) => c.cat))})`);
   await page.waitForFunction(() => /CLAIMED/.test(document.querySelector('.cat[data-cat="classic"] .cat-sum').textContent), null, { timeout: 5000 }).catch(() => {});
   const sums = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#pack-list .cat')].map((c) => [c.dataset.cat, c.querySelector('.cat-sum').textContent])));
-  check(/2 OF 18 CLAIMED/.test(sums.classic) && /YOU 1/.test(sums.classic) && /ZED 1/.test(sums.classic), `a category sums up its records and who holds them (${sums.classic})`);
+  check(/2 OF 12 CLAIMED/.test(sums.classic) && /YOU 1/.test(sums.classic) && /ZED 1/.test(sums.classic), `a category sums up its records and who holds them (${sums.classic})`);
   check(/NO RECORDS YET/.test(sums.spooky), `a category with no records says so (${sums.spooky})`);
   await page.screenshot({ path: path.join(outDir, 'e2e-cats-closed.png') });
   await openCat(page, 'classic', 'click');
@@ -1161,7 +1161,7 @@ async function recordTests(browser) {
   await screenIs(page, 'board');
   await page.waitForFunction(() => /ZED/.test(document.querySelector('[data-board-tier="easy"]').textContent), null, { timeout: 5000 }).catch(() => {});
   const tabs = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-board-tier]')].map((b) => [b.dataset.boardTier, { txt: b.textContent, on: b.classList.contains('on') }])));
-  check(Object.keys(tabs).join() === 'easy,medium,mediumplus,hard,duo,insane' && tabs.easy.on, `the board has a tab for every difficulty, Easy lit (${Object.keys(tabs).join(' ')})`);
+  check(Object.keys(tabs).join() === 'easy,medium,hard,insane' && tabs.easy.on, `the board has a tab for every difficulty, Easy lit (${Object.keys(tabs).join(' ')})`);
   check(/ZED/.test(tabs.easy.txt) && /YOU/.test(tabs.medium.txt) && /NO ONE YET/.test(tabs.hard.txt), `each tab says who leads it (${tabs.easy.txt} | ${tabs.medium.txt} | ${tabs.hard.txt})`);
   check(/EASY LEADERBOARD/.test(await page.textContent('#board-now')), 'a heading says which difficulty the board is for');
   await page.click('[data-board-tier="medium"]');
@@ -1344,13 +1344,12 @@ async function recordTests(browser) {
   check((await page.textContent('[data-keys="5"]')).replace(/\s/g, '') === 'LTLBARBRT', 'lane labels show controller buttons');
   await page.screenshot({ path: path.join(outDir, 'e2e-song.png') });
 
-  // D-pad right twice (Easy → Medium → Medium+), then pick Hard, A to start.
-  check(await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join()) === 'easy,medium,mediumplus,hard,duo,insane', 'all six tiers offered (Insane last)');
+  // D-pad right twice (Easy → Medium → Hard), A to start.
+  check(await page.evaluate(() => [...document.querySelectorAll('[data-diff]')].map((b) => b.dataset.diff).join()) === 'easy,medium,hard,insane', 'four tiers offered: Easy, Medium, Hard, Insane');
   await tap(page, 15);
   check(await page.evaluate(() => document.activeElement.dataset.diff) === 'medium', 'D-pad reaches Medium');
   await tap(page, 15);
-  check(await page.evaluate(() => document.activeElement.dataset.diff) === 'mediumplus', 'D-pad moves the menu cursor to Medium+');
-  await page.focus('[data-diff="hard"]');
+  check(await page.evaluate(() => document.activeElement.dataset.diff) === 'hard', 'D-pad moves the menu cursor to Hard');
   await tap(page, 0);
   await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
   await page.evaluate(BOT, [6, 4, 0, 5, 7]);
@@ -1436,37 +1435,7 @@ async function recordTests(browser) {
   await page.click('#btn-quit');
   await screenIs(page, 'song');
 
-  // Duo: two keys (LB/RB, or F/J), Hard-level density; play it on the keyboard.
-  check((await page.textContent('[data-keys="2"]')).replace(/\s/g, '') === 'LBRB', 'Duo shows two controller lanes');
   await page.keyboard.press('ArrowDown'); // back to keyboard labels
-  await page.evaluate(() => BeatFrets.play('duo'));
-  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running);
-  await page.evaluate(() => {
-    const g = BeatFrets.game;
-    const keys = ['f', 'j'];
-    let i = 0;
-    const loop = () => {
-      if (!g.running) return;
-      const t = g.now();
-      while (i < g.notes.length && g.notes[i].t <= t) {
-        const key = keys[g.notes[i].lane];
-        window.dispatchEvent(new KeyboardEvent('keydown', { key }));
-        setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { key })), Math.max(40, g.notes[i].len * 1000 + 30));
-        i++;
-      }
-      requestAnimationFrame(loop);
-    };
-    loop();
-  });
-  await page.waitForTimeout(12000);
-  await page.screenshot({ path: path.join(outDir, 'e2e-duo.png') });
-  const duo = await page.evaluate(() => ({ lanes: BeatFrets.game.lanes, counts: BeatFrets.game.counts, labels: Input.laneLabels(2).join('') }));
-  console.log('     duo', JSON.stringify(duo));
-  const dj = duo.counts.perfect + duo.counts.good + duo.counts.ok + duo.counts.miss;
-  check(duo.lanes === 2 && duo.labels === 'FJ' && dj > 30 && duo.counts.perfect / dj > 0.9, 'Duo plays on F and J');
-  await page.keyboard.press('Escape');
-  await page.click('#btn-quit');
-  await screenIs(page, 'song');
 
   // Long notes, exactly: one 2-second note. Hold it, let go (the rock meter drains
   // and no points), press again (points resume), and the streak survives.

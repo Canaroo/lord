@@ -9,7 +9,7 @@ for (const song of SongPack.SONGS) {
   test(`${song.title}: deterministic, playable charts`, () => {
     const a1 = SongPack.toAnalysis(SongPack.build(song));
     const a2 = SongPack.toAnalysis(SongPack.build(song));
-    const RANGE = { easy: [1, 3.5], medium: [1.8, 5.5], mediumplus: [2.8, 7], hard: [3, 8], duo: [2.8, 7.5], insane: [3.5, 8.6] };
+    const RANGE = { easy: [1, 3.5], medium: [1.8, 5.5], hard: [3, 8], insane: [3.5, 8.6] };
     const total = {};
     for (const d of Object.keys(ChartGen.DIFFICULTIES)) {
       const c1 = ChartGen.generate(a1, d);
@@ -23,9 +23,7 @@ for (const song of SongPack.SONGS) {
       c1.notes.forEach((n) => counts[n.lane]++);
       for (const c of counts) assert.ok(c / c1.notes.length > 0.04, `lane share too low: ${counts}`);
     }
-    assert.ok(total.easy < total.medium && total.medium < total.mediumplus && total.mediumplus <= total.hard, `difficulty should step up: ${JSON.stringify(total)}`);
-    assert.ok(total.mediumplus >= 0.75 * total.hard, `Medium+ should be close to Hard: ${JSON.stringify(total)}`);
-    assert.ok(total.duo >= 0.75 * total.hard, `Duo should be close to Hard's density: ${JSON.stringify(total)}`);
+    assert.ok(total.easy < total.medium && total.medium < total.hard && total.hard < total.insane, `difficulty should step up: ${JSON.stringify(total)}`);
     // Insane is a step up from Hard, on keys and on both phone layouts, but stays playable.
     for (const [h, i, cap] of [['hard', 'insane', 8.6], ['touch4:hard', 'touch4:insane', 8.1], ['touch2:hard', 'touch2:insane', 7.1]]) {
       const H = ChartGen.generateId(a1, h).notes.length, I = ChartGen.generateId(a1, i).notes.length;
@@ -60,24 +58,6 @@ test('long notes: none on Easy, never overlap a note in their lane, respect conc
         assert.ok(overlapping.length < cfg.holds.concurrent, `${song.id} ${d}: too many long notes at once`);
       }
     }
-  }
-});
-
-test('Duo alternates quick notes between its two keys', () => {
-  for (const song of SongPack.SONGS) {
-    const c = ChartGen.generate(SongPack.toAnalysis(SongPack.build(song)), 'duo');
-    assert.strictEqual(c.lanes, 2);
-    // Notes played while the other key holds a long note repeat on purpose.
-    const underHold = (n) => c.notes.some((h) => h.len && h.lane !== n.lane && n.t > h.t && n.t <= h.t + h.len);
-    const singles = c.notes.filter((n, i, arr) => !arr.some((m) => m !== n && m.t === n.t) && !underHold(n));
-    let quick = 0, alternating = 0;
-    for (let i = 1; i < singles.length; i++) {
-      if (singles[i].t - singles[i - 1].t < 0.3) {
-        quick++;
-        if (singles[i].lane !== singles[i - 1].lane) alternating++;
-      }
-    }
-    assert.ok(quick > 20 && alternating / quick > 0.85, `${song.id}: ${alternating}/${quick} quick notes alternate`);
   }
 });
 

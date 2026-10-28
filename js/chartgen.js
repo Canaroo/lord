@@ -39,17 +39,6 @@
       chordThreshold: Infinity,
       holds: { share: 0.12, concurrent: 1, maxLen: 2.5 },
     },
-    mediumplus: {
-      label: 'Medium+',
-      lanes: 4,
-      // Close to Hard's density and speed, still on four keys and no chords.
-      thresholds: [0.08, 0.16, 0.36],
-      minGap: 0.105,
-      maxRun: 4,
-      jackGap: 0.2,
-      chordThreshold: Infinity,
-      holds: { share: 0.15, concurrent: 1, maxLen: 2.5 },
-    },
     hard: {
       label: 'Hard',
       lanes: 5,
@@ -59,17 +48,6 @@
       jackGap: 0.2,
       chordThreshold: 0.8,
       holds: { share: 0.15, concurrent: 2, maxLen: 3 },
-    },
-    duo: {
-      label: 'Duo',
-      lanes: 2,
-      // Hard's density on two keys: quick notes alternate left and right.
-      thresholds: [0.08, 0.16, 0.32],
-      minGap: 0.1,
-      maxRun: 2,
-      jackGap: 0.3,
-      chordThreshold: 0.9,
-      holds: { share: 0.12, concurrent: 1, maxLen: 1.2 },
     },
     insane: {
       label: 'Insane',
@@ -144,7 +122,7 @@
 
   /**
    * @param {{duration:number,beats:number[],onsets:{t:number,s:number,b:number[],d?:number}[]}} analysis
-   * @param {'easy'|'medium'|'mediumplus'|'hard'|'duo'} difficulty
+   * @param {'easy'|'medium'|'hard'|'insane'} difficulty
    * @param {{lanes?:number, touch?:boolean}} [opts]  touch: a phone layout (2 or 4 lanes)
    *   played with two thumbs, so charts follow hand rules: chords only across
    *   hands, quick notes switch hands, and a long note keeps its hand busy.
@@ -287,12 +265,8 @@
 
   /** A tier adapted for touch: same density, 2 or 4 lanes, thumb-friendly rules. */
   function touchConfig(base, lanes) {
-    // On thumbs Medium+ and Hard would otherwise play alike (no 5th key), so
-    // Medium+ is eased a little to keep a clear step up to Hard.
-    const eased = base === DIFFICULTIES.mediumplus ? { thresholds: [0.1, 0.24, 0.6], minGap: 0.105 } : {};
     return {
       ...base,
-      ...eased,
       lanes,
       handGap: lanes === 2 ? 0.3 : 0.22,
       maxRun: lanes === 2 ? 2 : base.maxRun,
@@ -303,8 +277,9 @@
     };
   }
 
-  // Touch tiers (Duo is left out: upright Hard already is two-lane Hard).
-  const TOUCH_TIERS = ['easy', 'medium', 'mediumplus', 'hard', 'insane'];
+  // Every way of playing has the same four tiers. (Medium+ and Duo were retired in
+  // 1.44; their old scores stay saved but aren't shown.)
+  const TOUCH_TIERS = ['easy', 'medium', 'hard', 'insane'];
 
   /** Chart ids: 'hard' (keys) or 'touch4:hard' / 'touch2:hard' (phone sideways / upright). */
   function parseId(id) {

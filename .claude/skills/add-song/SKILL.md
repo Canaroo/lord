@@ -63,7 +63,7 @@ npm test
 node .claude/skills/add-song/scripts/render-check.js --preview <scratchpad>/previews <song-id>
 ```
 
-`npm test` checks every song's charts (density, lanes, long notes, Duo, touch). `render-check.js`
+`npm test` checks every song's charts (density, lanes, long notes, Insane, touch). `render-check.js`
 synthesises the song in a real browser, the way a phone does on first play, reports length,
 loudness and build time, and saves an MP3 to listen to. Rendering takes 10–60 s per song, so pass
 several ids in one call. The pack's songs sit around rms 0.12–0.17 with peaks under 1; a song far
@@ -90,7 +90,7 @@ previews and the explanation so they can listen and ask for changes afterwards.
 Send the MP3 preview(s) with SendUserFile, then tell the user in chat:
 
 - What you made: title, theme, tier, tempo, key, sound, and one sentence on the musical idea.
-- A table with notes per second on Easy, Medium, Medium+ and Hard (alongside the theme's other
+- A table with notes per second on Easy, Medium, Hard and Insane (alongside the theme's other
   songs when it helps show the tier step).
 - Length, first-play build time, the tests you ran, and the version it went out in.
 - For retunes, the before → after numbers and the leaderboard note.

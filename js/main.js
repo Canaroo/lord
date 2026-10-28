@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.43';
+  const VERSION = '1.44';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -21,7 +21,7 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
   const fmtDate = (iso) => (iso ? iso.slice(0, 10) : '');
-  const DIFFS = Object.keys(ChartGen.DIFFICULTIES); // easy, medium, mediumplus, hard, duo
+  const DIFFS = Object.keys(ChartGen.DIFFICULTIES); // easy, medium, hard, insane
   /** 'hard', 'touch4:hard', 'touch2:hard', or a Tiles mode tier 'tiles:hard'. */
   const parseId = (id) => {
     const m = /^tiles:(\w+)$/.exec(id);
@@ -38,7 +38,9 @@
     const p = parseId(id);
     return BASE_LABEL(p.difficulty) + (p.tiles ? ' · TILES' : p.touch ? ` · TOUCH ${p.lanes}` : '');
   };
-  const SHORT_BASE = { easy: 'E', medium: 'M', mediumplus: 'M+', hard: 'H', duo: 'DUO', insane: 'INS', boss: 'BOSS' };
+  const SHORT_BASE = { easy: 'E', medium: 'M', hard: 'H', insane: 'INS', boss: 'BOSS' };
+  /** Medium+ and Duo were retired in 1.44: their old scores stay saved, but they're not offered or shown. */
+  const RETIRED = (id) => /(^|:)(mediumplus|duo)$/.test(String(id));
   const SHORT = new Proxy({}, { get: (_, id) => { const p = parseId(String(id)); return (p.tiles ? 'T' : '') + (SHORT_BASE[p.difficulty] || id) + (p.touch ? p.lanes : ''); } });
   const FAMILIES = { keys: 'KEYS', touch4: 'SIDEWAYS', touch2: 'UPRIGHT', tiles: 'TILES' };
   const familyOf = (id) => { const p = parseId(id); return p.tiles ? 'tiles' : p.touch ? 'touch' + p.lanes : 'keys'; };
@@ -114,20 +116,17 @@
   function idFor(base) {
     if (tilesMode()) return 'tiles:' + (base === 'easy' ? 'easy' : base === 'medium' ? 'medium' : base === 'insane' ? 'insane' : 'hard');
     const m = layoutMode();
-    return m === 'keys' ? base : m + ':' + (base === 'duo' ? 'hard' : base);
+    return m === 'keys' ? base : m + ':' + base;
   }
   const WHAT = {
     easy: 'Strong beats only',
     medium: 'Off-beats and long notes',
-    mediumplus: 'Near-Hard speed on 4 keys',
     hard: 'Everything, with chords',
-    duo: 'Hard speed on 2 keys',
     insane: 'Faster, tighter, chords everywhere',
   };
   const WHAT_TOUCH = {
     easy: 'Strong beats only',
     medium: 'Off-beats and long notes',
-    mediumplus: 'Faster runs',
     hard: 'Everything, with two-thumb chords',
     insane: 'Faster, tighter, chords everywhere',
   };
@@ -137,7 +136,7 @@
     hard: 'Every tile, with doubles',
     insane: 'Fastest, every tile',
   };
-  const LOOKAHEAD = { easy: 2.0, medium: 1.75, mediumplus: 1.55, hard: 1.5, duo: 1.5, insane: 1.25 };
+  const LOOKAHEAD = { easy: 2.0, medium: 1.75, hard: 1.5, insane: 1.25 };
 
   /**
    * INSANE unlocks per song and way of playing, for the player: a B or better on
@@ -1925,8 +1924,8 @@
 
   let resultsAnim = null; // finishes the count-up early when set
 
-  const NEXT_TIER = { easy: 'medium', medium: 'mediumplus', mediumplus: 'hard' };
-  const PREV_TIER = { medium: 'easy', mediumplus: 'medium', hard: 'mediumplus', duo: 'mediumplus' };
+  const NEXT_TIER = { easy: 'medium', medium: 'hard' };
+  const PREV_TIER = { medium: 'easy', hard: 'medium', insane: 'hard' };
 
   function starsHtml(n, gold) {
     return `<b>${'★'.repeat(n)}</b>${'★'.repeat(5 - n)}${gold ? '' : ''}`;
@@ -2044,8 +2043,8 @@
       suggest = PREV_TIER[base] ? `Tough one. Try ${tierLabel(PREV_TIER[base])}, or turn on No-fail in Options.` : 'Tough one. Turn on No-fail in Options to play it through.';
     } else if ((res.grade === 'S' || res.stars >= 4) && NEXT_TIER[base]) {
       suggest = `Ready for ${tierLabel(NEXT_TIER[base])}?`;
-    } else if (res.grade === 'S' && difficulty === 'hard') {
-      suggest = 'Try Duo: Hard speed on two keys.';
+    } else if (/^[SAB]/.test(res.grade) && base === 'hard' && !res.practice) {
+      suggest = 'INSANE is unlocked for this song: faster, tighter, chords everywhere.';
     }
     $('#res-suggest').textContent = suggest;
 
@@ -2199,6 +2198,7 @@
   let challenge = null;
 
   function openChallenge(shared) {
+    if (RETIRED(shared.difficulty)) { toast('That challenge was on Medium+ or Duo, which are no longer in the game.'); return; }
     challenge = shared;
     $('#ch-head').textContent = `${shared.initials} scored ${shared.score.toLocaleString('en-US')} on ${shared.title}`;
     $('#ch-detail').textContent = `${LABEL(shared.difficulty)} · grade ${shared.grade} · ${shared.accuracy.toFixed(1)}% · ${shared.maxCombo} streak${shared.fullCombo ? ' · FULL COMBO' : ''}${shared.date ? ' · ' + shared.date : ''}`;
@@ -2263,6 +2263,7 @@
   async function openWorldChallenge(sh, back = 'main') {
     const meta = await World.board(sh.world);
     if (!meta) throw new Error("That score isn't on the world board any more.");
+    if (RETIRED(meta.difficulty)) throw new Error('That score was on Medium+ or Duo, which are no longer in the game.');
     const remote = meta.kind === 'mp3' ? { key: meta.songKey, title: meta.title, fp: meta.fp || null, boards: { [meta.difficulty]: sh.world } } : null;
     await openBoard(meta.songKey || sh.songKey, meta.title || sh.title, meta.difficulty, back, 'world', remote);
     const row = worldRows.find((r) => (sh.sid && r.id === sh.sid) || r.initials === sh.initials) || { initials: sh.initials, score: sh.score };

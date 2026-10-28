@@ -10,7 +10,7 @@
 'use strict';
 (function (root) {
   const KEYS = ['a', 's', 'd', 'f', 'g'];
-  // Keyboard lanes by lane count. Duo (2 lanes) uses one finger per hand.
+  // Keyboard lanes by lane count.
   const KEY_LAYOUTS = { 2: ['f', 'j'], 3: ['a', 's', 'd'], 4: ['a', 's', 'd', 'f'], 5: KEYS };
   const keysFor = (lanes) => KEY_LAYOUTS[lanes] || KEYS;
   // Standard Gamepad mapping indices.

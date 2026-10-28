@@ -29,7 +29,7 @@
   const weekday = (date) => new Date(dayNumber(date) * DAY).getUTCDay();
 
   // The week builds up: easy early on, harder toward the weekend, a BOSS song on Sunday.
-  const RHYTHM = ['mediumplus', 'easy', 'easy', 'medium', 'medium', 'hard', 'hard'];
+  const RHYTHM = ['hard', 'easy', 'easy', 'medium', 'medium', 'hard', 'hard'];
 
   /** A fixed shuffle of a list (same order on every device), so songs don't repeat until all have come up. */
   function shuffled(list, seed) {
@@ -45,7 +45,7 @@
 
   /**
    * The pick for a date: { date, songId, base } where base is the difficulty
-   * ('easy' | 'medium' | 'mediumplus' | 'hard'). `songs` is the song pack
+   * ('easy' | 'medium' | 'hard'). `songs` is the song pack
    * (objects with id and tier). Weekdays cycle through the ROOKIE and PRO songs,
    * Sundays through the BOSS songs.
    */
@@ -59,9 +59,9 @@
     return { date, songId: order[((index % order.length) + order.length) % order.length], base: RHYTHM[wd] };
   }
 
-  /** The daily difficulty for a way of playing: Tiles has no Medium+, so it plays Hard. */
+  /** The daily difficulty for a way of playing. */
   function tierFor(base, family) {
-    if (family === 'tiles') return 'tiles:' + (base === 'mediumplus' ? 'hard' : base);
+    if (family === 'tiles') return 'tiles:' + base;
     if (family === 'keys') return base;
     return family + ':' + base; // touch4 / touch2
   }

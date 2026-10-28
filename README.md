@@ -11,9 +11,11 @@ touchscreen.
 | --- | --- | --- |
 | **Easy** | 3 | Strong beats only. |
 | **Medium** | 4 | Beats plus some off-beats, and long notes. |
-| **Medium+** | 4 | Nearly Hard's note count and speed, still on four keys and without chords. |
 | **Hard** | 5 | Off-beats, fast runs, two-button chords. |
-| **Duo** | 2 | Hard's speed and density on two keys: quick notes alternate left-right. |
+| **Insane** | 5 | Unlocked by a B on Hard: faster, a tighter timing window, chords everywhere. |
+
+Every song has the same four tiers, on keys and on a phone either way up. (Medium+ and Duo were
+retired in 1.44. Old scores on them stay saved but aren't shown.)
 
 **Long notes** (Medium and up) have a tail: keep the key held until it ends. Hitting the
 start counts like any note, and holding earns points. Let go and the rock meter drains every
@@ -24,9 +26,8 @@ streak isn't broken.
 
 | | Keyboard | Xbox | PlayStation | Switch Pro |
 | --- | --- | --- | --- | --- |
-| Hard lanes | `A` `S` `D` `F` `G` | LT LB A RB RT | L2 L1 ✕ R1 R2 | ZL L B R ZR |
-| Medium / Medium+ lanes | `A` `S` `D` `F` | LB A RB RT | L1 ✕ R1 R2 | L B R ZR |
-| Duo lanes | `F` `J` | LB RB | L1 R1 | L R |
+| Hard / Insane lanes | `A` `S` `D` `F` `G` | LT LB A RB RT | L2 L1 ✕ R1 R2 | ZL L B R ZR |
+| Medium lanes | `A` `S` `D` `F` | LB A RB RT | L1 ✕ R1 R2 | L B R ZR |
 | Easy lanes | `A` `S` `D` | LB A RB | L1 ✕ R1 | L B R |
 | Overdrive | `Space` | Y | △ | X |
 | Restart (hold 1 s) | `R` | View | Share | − |
@@ -117,7 +118,7 @@ it changes at **midnight US Eastern time**. It sits in a gold card at the top of
 song, the difficulty for the way you're playing, who leads today's board, and your 🔥 streak.
 
 - **The week builds up:** Monday and Tuesday on Easy, Wednesday and Thursday on Medium, Friday and
-  Saturday on Hard, and on Sunday a BOSS song on Medium+ (Tiles plays Hard). Weekdays cycle through
+  Saturday on Hard, and on Sunday a BOSS song on Hard. Weekdays cycle through
   the ROOKIE and PRO songs and Sundays through the BOSS songs, so every song comes up before any repeats.
 - **One board per way of playing:** Keys, Sideways, Upright and Tiles each have their own board for
   the day, so thumbs never compete with keyboards. Tap **PLAY** (or **TILES**) on the card to start,
@@ -148,7 +149,7 @@ The menus look like an early-90s arcade cabinet, and every screen fills the disp
 - **Leaderboards** open on the **World** board (when it's switched on), with chips for how the
   song was played (Keys, Sideways, Upright, Tiles). Scores are cards
   with gold, silver and bronze medals, and your own best is pinned under the list. Every
-  difficulty has its own tab, all in view and colour-coded (EASY, MEDIUM, MEDIUM+, HARD), each
+  difficulty has its own tab, all in view and colour-coded (EASY, MEDIUM, HARD, INSANE), each
   saying who leads it or *NO ONE YET*; a heading says which board you're on (*EASY LEADERBOARD ·
   SIDEWAYS*).
 - **Boards → PLAYERS** lists everyone who has posted a world score, most trophies (#1 spots)
@@ -194,8 +195,8 @@ press a key or a controller button.
   lanes for how you're holding it now) or **BACK TO THE SONG**.
 
 - **Sideways: 4 lanes.** Tap the frets along the bottom with your fingers or thumbs.
-- **Upright: 2 lanes**, one per thumb, like Duo.
-- **Tiers:** Easy, Medium, Medium+ and Hard, in either direction. Touch charts are built for
+- **Upright: 2 lanes**, one per thumb.
+- **Tiers:** Easy, Medium, Hard and Insane, in either direction. Touch charts are built for
   thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
   holds a long note, the other hand plays everything else. The timing window is slightly wider
   than on keys, since a thumb can brush the glass.
@@ -439,8 +440,8 @@ Imported songs are analysed in the browser (`js/analyzer.js`):
 Then `js/chartgen.js` builds the chart. It snaps onsets to a beat/8th/16th-note grid, keeps
 the strong ones (beats first), enforces a minimum gap between notes (300 ms on Easy, 100 ms on
 Hard), and picks lanes by frequency: kick and bass on the left, hi-hats and cymbals on the
-right. It then spreads notes so no single fret hogs the chart. On Duo, notes closer than
-0.3 s alternate keys.
+right. It then spreads notes so no single fret hogs the chart. Upright (2 lanes), notes closer
+than 0.3 s alternate thumbs.
 
 **Long notes** come from how long each sound rings. The analyzer measures, per frequency band,
 how long the level stays up after a hit. Drums die away in a fraction of a second, while held
@@ -503,6 +504,10 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.44**: **Four clear tiers: Easy, Medium, Hard and Insane** on every song and every way of
+  playing. Medium+ and Duo are retired (their old scores stay saved, hidden). Sunday's Song of the
+  Day is now a BOSS song on Hard. Every other chart is note-for-note the same, so its leaderboards
+  carry on.
 - **1.43**: **No score is lost offline.** A score that can't reach the world board is kept on the
   device. When the connection is back, a *SCORES TO POST* pop-up offers to post each one (or all),
   and the home screen counts what's still waiting.

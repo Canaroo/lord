@@ -106,18 +106,18 @@ So, to change how busy a song is to play:
 | busier everywhere | more hits on off-beats (`h` hats every step, `k` doubles like `x.x.`), a busier bass |
 | busier on Easy only | stronger hits on new positions (kicks and snares count most, hats least) |
 | calmer | fewer hats, kicks on the beat only, lead notes held (`-`) instead of repeated |
-| a clearer step from Medium to Medium+ | Medium caps quick runs; long runs of sixteenths in the lead or hats widen the gap |
+| a clearer step from Medium to Hard | Medium caps quick runs; long runs of sixteenths in the lead or hats widen the gap |
 | use every lane | widen the lead's range (use low degrees and `a`–`e`), avoid one-note riffs |
 
 ## Limits the tests enforce (`tests/songs.test.js`)
 
 Notes per second must sit inside these ranges on every song:
 
-| Easy | Medium | Medium+ | Hard | Duo |
-| --- | --- | --- | --- | --- |
-| 1 – 3.5 | 1.8 – 5.5 | 2.8 – 7 | 3 – 8 | 2.8 – 7.5 |
+| Easy | Medium | Hard | Insane |
+| --- | --- | --- | --- |
+| 1 – 3.5 | 1.8 – 5.5 | 3 – 8 | 3.5 – 8.6 |
 
-And: Easy < Medium < Medium+ ≤ Hard (in note count); Medium+ and Duo at least 75% of Hard; every
+And: Easy < Medium < Hard < Insane (in note count); every
 lane gets more than 4% of the notes; Easy has no long notes, every other difficulty has some.
 `scripts/song-stats.js` checks all of this in a second, before the slower `npm test`.
 

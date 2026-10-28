@@ -15,7 +15,7 @@ const SongPack = require(path.join(root, 'js/songs.js'));
 const ChartGen = require(path.join(root, 'js/chartgen.js'));
 
 // Same limits as tests/songs.test.js (keep in step if those change).
-const RANGE = { easy: [1, 3.5], medium: [1.8, 5.5], mediumplus: [2.8, 7], hard: [3, 8], duo: [2.8, 7.5], insane: [3.5, 8.6] };
+const RANGE = { easy: [1, 3.5], medium: [1.8, 5.5], hard: [3, 8], insane: [3.5, 8.6] };
 // Where each tier usually sits on Easy (notes a second), from the songs already in the pack.
 const TIER_EASY = { rookie: [1.2, 2.0], pro: [1.8, 2.6], boss: [2.4, 3.5] };
 const ORDER = { rookie: 0, pro: 1, boss: 2 };
@@ -39,9 +39,7 @@ for (const song of SongPack.SONGS) {
     c.notes.forEach((n) => counts[n.lane]++);
     if (counts.some((x) => x / c.notes.length <= 0.04)) problems.push(`${d}: a lane is almost unused (${counts})`);
   }
-  if (!(total.easy < total.medium && total.medium < total.mediumplus && total.mediumplus <= total.hard)) problems.push(`difficulties don't step up: ${JSON.stringify(total)}`);
-  if (total.mediumplus < 0.75 * total.hard) problems.push('Medium+ is less than 75% of Hard');
-  if (total.duo < 0.75 * total.hard) problems.push('Duo is less than 75% of Hard');
+  if (!(total.easy < total.medium && total.medium < total.hard && total.hard < total.insane)) problems.push(`difficulties don't step up: ${JSON.stringify(total)}`);
   if (!ORDER.hasOwnProperty(song.tier)) problems.push(`tier must be rookie, pro or boss (got ${song.tier})`);
   const guide = TIER_EASY[song.tier];
   const note = guide && (nps.easy < guide[0] || nps.easy > guide[1]) ? `Easy ${nps.easy.toFixed(2)}/s is unusual for ${song.tier.toUpperCase()} (usually ${guide[0]}–${guide[1]})` : '';
@@ -51,10 +49,10 @@ for (const song of SongPack.SONGS) {
 
 const show = rows.filter((r) => !only.length || only.includes(r.song.id));
 const pad = (s, n) => String(s).padEnd(n);
-console.log(pad('song', 22) + pad('theme', 9) + pad('tier', 8) + pad('bpm', 5) + pad('secs', 6) + 'easy  med   med+  hard  duo');
+console.log(pad('song', 22) + pad('theme', 9) + pad('tier', 8) + pad('bpm', 5) + pad('secs', 6) + 'easy  med   hard  insane');
 for (const r of show) {
   const s = r.song;
-  const n = r.nps ? ['easy', 'medium', 'mediumplus', 'hard', 'duo'].map((d) => r.nps[d].toFixed(2).padEnd(6)).join('') : '';
+  const n = r.nps ? ['easy', 'medium', 'hard', 'insane'].map((d) => r.nps[d].toFixed(2).padEnd(6)).join('') : '';
   console.log(pad(s.id, 22) + pad(s.theme || 'classic', 9) + pad(s.tier || '?', 8) + pad(s.bpm, 5) + pad(r.secs ? r.secs.toFixed(0) : '', 6) + n);
   for (const p of r.problems) console.log('   FAIL ' + p);
   if (r.note) console.log('   note ' + r.note);
