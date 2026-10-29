@@ -322,6 +322,11 @@ async function bossTests(browser) {
   await screenIs(page, 'license');
   const shelf = await page.evaluate(() => ({ all: document.querySelectorAll('.boss-trophy').length, beaten: [...document.querySelectorAll('.boss-trophy.beaten')].map((b) => b.textContent), lead: document.querySelectorAll('.boss-trophy.lead').length, label: [...document.querySelectorAll('#license .label')].map((l) => l.textContent).join('|'), stat: document.querySelector('.lic-stats').textContent }));
   check(shelf.all === 9 && shelf.beaten.length === 1 && /VAMPIRE COUNT/.test(shelf.beaten[0]) && shelf.lead === 1 && /BOSS TROPHIES \(1 OF 9\)/.test(shelf.label) && /1\/9\s*BOSSES/.test(shelf.stat), `the license shows a boss trophy for each boss beaten (${JSON.stringify(shelf)})`);
+  const chips = await page.evaluate(() => [...document.querySelectorAll('.lic-row .cat-chip')].map((c) => c.textContent + ':' + getComputedStyle(c).color));
+  check(chips.length >= 1 && /^SPOOKY:/.test(chips[0]) && !/rgb\(154, 164, 200\)/.test(chips[0]), `each license row says which category its song is from, in its colour (${chips.join(' ')})`);
+  await page.evaluate(() => document.querySelector('.lic-list').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: path.join(outDir, 'e2e-license-cats.png') });
   await page.evaluate(() => document.querySelector('.boss-shelf').scrollIntoView({ block: 'center' }));
   await page.waitForTimeout(800);
   await page.screenshot({ path: path.join(outDir, 'e2e-boss-license.png') });

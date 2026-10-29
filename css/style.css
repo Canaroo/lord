@@ -557,18 +557,18 @@ body.nav button:focus, body:not(.touch) button:focus-visible, body:not(.touch) .
 
 /* Categories: a heading card per theme that opens to show its songs. Each theme has its colour. */
 .cat { --acc: var(--cyan); display: flex; flex-direction: column; gap: 10px; }
-.cat.theme-classic { --acc: var(--cyan); }
-.cat.theme-spooky { --acc: #b878f8; }
-.cat.theme-rock { --acc: var(--red); }
-.cat.theme-epic { --acc: var(--gold); }
-.cat.theme-space { --acc: #5a8cff; }
-.cat.theme-carnival { --acc: #f88820; }
-.cat.theme-salsa { --acc: #9be22e; }
-.cat.theme-hiphop { --acc: #ff4f9a; }
-.cat.theme-classical { --acc: #e8d8a8; }
-.cat.theme-bonus { --acc: var(--magenta); }
-.cat.theme-yours { --acc: var(--magenta); }
-.cat.theme-players { --acc: #9aa4c8; }
+:is(.cat, .cat-chip).theme-classic { --acc: var(--cyan); }
+:is(.cat, .cat-chip).theme-spooky { --acc: #b878f8; }
+:is(.cat, .cat-chip).theme-rock { --acc: var(--red); }
+:is(.cat, .cat-chip).theme-epic { --acc: var(--gold); }
+:is(.cat, .cat-chip).theme-space { --acc: #5a8cff; }
+:is(.cat, .cat-chip).theme-carnival { --acc: #f88820; }
+:is(.cat, .cat-chip).theme-salsa { --acc: #9be22e; }
+:is(.cat, .cat-chip).theme-hiphop { --acc: #ff4f9a; }
+:is(.cat, .cat-chip).theme-classical { --acc: #e8d8a8; }
+:is(.cat, .cat-chip).theme-bonus { --acc: var(--magenta); }
+:is(.cat, .cat-chip).theme-yours { --acc: var(--magenta); }
+:is(.cat, .cat-chip).theme-players { --acc: #9aa4c8; }
 :is(#pack-list, #bonus-section, #boards-list) :is(.cat-head, .cat-body button) { --acc: inherit; }
 #pack-list .cat-head, #bonus-section .cat-head, #boards-list .cat-head {
   display: flex;
@@ -1447,3 +1447,6 @@ body.no-tiles:not(.touch) .lines-group { display: none; }
 .boss-trophy.lead { box-shadow: 0 0 0 2px var(--gold); }
 .boss-trophy.lead small { color: var(--gold); }
 .boss-trophy:disabled { cursor: default; opacity: 0.85; }
+
+/* A song's category on a license row (in that category's colour). */
+.cat-chip { --acc: #9aa4c8; display: inline-block; align-self: flex-start; padding: 3px 7px; border: 2px solid var(--acc); border-radius: 5px; color: var(--acc); font: 400 8px/1 var(--pixel); letter-spacing: 0.04em; background: color-mix(in srgb, var(--acc) 14%, transparent); }

@@ -198,6 +198,8 @@ The menus look like an early-90s arcade cabinet, and every screen fills the disp
   first. Tap a player for their **player license**: an arcade-style card with their trophies,
   scores posted, full combos and best grade, then every trophy they hold (song, difficulty and
   how it was played: Keys, Sideways, Upright or Tiles) and their other high scores with their rank.
+  Each row is tagged with the song's category, in that category's colour (SPOOKY, CLASSICAL REMIX,
+  BONUS TRACKS, PLAYERS' MUSIC for imported songs), and the rows are grouped in song-list order.
   Each has a **⚔ CHALLENGE** button that opens the versus pop-up against them, just like on a
   song's board (scores played on a keyboard can only be challenged from a computer, and phone
   scores from a phone). Tap a song to open its board.
@@ -546,6 +548,8 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.53**: License rows say which category each song is from (a tag in the category's colour:
+  SPOOKY, CLASSICAL REMIX, BONUS TRACKS, PLAYERS' MUSIC...), grouped in song-list order.
 - **1.52**: **Bragging rights.** A beaten boss shows ✓ DEFEATED and REMATCH, with your best
   score and who holds its record; Boards lists every boss battle's board; and licenses collect a
   boss trophy for each boss beaten.

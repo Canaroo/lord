@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.52';
+  const VERSION = '1.53';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -711,6 +711,9 @@
   /** A pack song's tempo for the list: '126→208' for a song that speeds up. */
   const bpmLabel = (s) => { const top = Math.max(s.bpm, ...s.form.map((f) => f.bpm || 0)); return top > s.bpm ? `${s.bpm}→${top}` : String(s.bpm); };
   const THEMES = [['classic', 'CHIPTUNE CLASSICS'], ['spooky', 'SPOOKY'], ['rock', 'ROCK'], ['epic', 'EPIC ADVENTURE'], ['space', 'SPACE'], ['carnival', 'CARNIVAL'], ['salsa', 'SALSA'], ['hiphop', 'HIP HOP'], ['classical', 'CLASSICAL REMIX']];
+  // Every category's name, by key: the themes, bonus tracks, and songs players imported.
+  const CAT_NAME = { ...Object.fromEntries(THEMES), bonus: 'BONUS TRACKS', players: 'PLAYERS\' MUSIC' };
+  const CAT_KEYS = [...THEMES.map(([k]) => k), 'bonus', 'players'];
   const openCat = (where) => { try { return (storage && storage.getItem('beatfrets.cat.' + where)) || ''; } catch (e) { return ''; } };
   function setOpenCat(where, cat) { try { if (storage) storage.setItem('beatfrets.cat.' + where, cat); } catch (e) { /* not kept */ } }
 
@@ -3133,16 +3136,16 @@
     if (!diff) return null;
     if (head.startsWith('pack-')) {
       const def = SongPack.SONGS.find((s) => s.id === head.slice(5));
-      return def ? { key: SongPack.keyFor(def), title: def.title, tier: def.tier, diff } : null;
+      return def ? { key: SongPack.keyFor(def), title: def.title, tier: def.tier, diff, cat: def.theme || 'classic' } : null;
     }
     if (head.startsWith('bonus-')) {
       const def = (bonusIndex || []).find((s) => s.id === head.slice(6));
-      return { key: BonusPack.keyFor(head.slice(6)), title: def ? def.title : 'Bonus track', diff };
+      return { key: BonusPack.keyFor(head.slice(6)), title: def ? def.title : 'Bonus track', diff, cat: 'bonus' };
     }
     const g = remoteIndex.get(boardId);
-    if (g) return { key: g.key, title: g.title, diff, remote: { key: g.key, title: g.title, fp: g.fp, boards: g.boards } };
+    if (g) return { key: g.key, title: g.title, diff, cat: 'players', remote: { key: g.key, title: g.title, fp: g.fp, boards: g.boards } };
     const run = save.data.runs.slice().reverse().find((r) => r.world === boardId);
-    return run ? { key: run.songKey, title: save.songTitle(run.songKey) || run.title, diff } : null;
+    return run ? { key: run.songKey, title: save.songTitle(run.songKey) || run.title, diff, cat: 'players' } : null;
   }
   const playLabel = (d) => `${BASE_LABEL(parseId(d).difficulty)} · ${FAMILIES[familyOf(d)]}`;
 
@@ -3208,8 +3211,11 @@
     const p = worldPlayers.find((x) => x.sid === licenseSid);
     if (!p) { $('#license').innerHTML = '<p class="hint">That player isn\'t on the world boards any more.</p>'; return; }
     const fmt = (n) => Number(n).toLocaleString('en-US');
-    const trophies = p.scores.filter((s) => s.leader);
-    const others = p.scores.filter((s) => !s.leader);
+    // Grouped by category, in the song list's order (then bonus tracks and players' music).
+    const catOrder = (s) => { const i = CAT_KEYS.indexOf(s.info.cat); return i < 0 ? CAT_KEYS.length : i; };
+    const byCat = (a, b) => catOrder(a) - catOrder(b) || String(a.info.title).localeCompare(String(b.info.title));
+    const trophies = p.scores.filter((s) => s.leader).sort(byCat);
+    const others = p.scores.filter((s) => !s.leader).sort(byCat);
     const grades = ['S', 'A', 'B', 'C', 'D'];
     const best = grades.find((g) => p.scores.some((s) => String(s.grade).startsWith(g))) || '–';
     const since = p.scores.map((s) => s.date).filter(Boolean).sort()[0];
@@ -3225,7 +3231,7 @@
     const row = (s, i) => {
       const d = s.info.diff;
       return `<div class="lic-row${s.leader ? ' lead' : ''}">` +
-        `<button class="lic-song" data-lic-board="${i}"><b>${tierBadge(s.info.tier)}${esc(String(s.info.title).toUpperCase().slice(0, 34))}</b>` +
+        `<button class="lic-song" data-lic-board="${i}"><span class="cat-chip theme-${esc(s.info.cat || 'players')}">${esc(CAT_NAME[s.info.cat] || CAT_NAME.players)}</span><b>${tierBadge(s.info.tier)}${esc(String(s.info.title).toUpperCase().slice(0, 34))}</b>` +
         `<span class="lic-how"><span class="board-now-tier" data-base="${parseId(d).difficulty}">${BASE_LABEL(parseId(d).difficulty)}</span> · ${FAMILIES[familyOf(d)]}</span>` +
         `<span class="lic-score">${s.leader ? '<svg><use href="#i-crown"/></svg>' : `#${s.rank} of ${s.players} · `}${fmt(s.score)}${s.fullCombo ? ' · FC' : ''}</span></button>` +
         (p.mine ? '' : canChallenge(d) === true
