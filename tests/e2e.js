@@ -197,10 +197,43 @@ async function bossTests(browser) {
   });
   check(setup.boss === 'THE VAMPIRE COUNT' && setup.power >= 8 && setup.notes === setup.hard, `the battle plays the Hard chart with power notes (${JSON.stringify(setup)})`);
   await page.evaluate(BOSS_BOT, false);
-  await page.waitForTimeout(20000);
-  const mid = await page.evaluate(() => { const g = BeatFrets.game; return { hp: g.boss.hp, fb: g.boss.fb, od: g.od, mult: g.multiplier, ready: g._view(g.now()).hud.odReady }; });
+  // The boss's attacks: each one announced, then on the highway for a few seconds.
+  const plan = await page.evaluate(() => BeatFrets.game.attacks.map((a) => ({ kind: a.kind, t0: a.t0, t1: a.t1 })));
+  check(['blackout', 'trap', 'surge', 'scramble'].every((k) => plan.some((a) => a.kind === k)), `the boss uses all four attacks (${plan.map((a) => a.kind + '@' + Math.round(a.t0)).join(' ')})`);
+  const during = async (kind) => {
+    const a = plan.find((x) => x.kind === kind);
+    // The warning comes just before.
+    await page.waitForFunction((t) => !BeatFrets.game || BeatFrets.game.now() > t, a.t0 - 0.8, { timeout: 120000 });
+    const banner = await page.evaluate(() => BeatFrets.game.banners.map((b) => b.text).join('|'));
+    await page.waitForFunction((t) => !BeatFrets.game || BeatFrets.game.now() > t, a.t0 + 1.2, { timeout: 120000 });
+    await page.screenshot({ path: path.join(outDir, `e2e-boss-${kind}.png`) });
+    return page.evaluate((bn) => { const g = BeatFrets.game; const v = g._view(g.now()); return { kind: v.hazard && v.hazard.kind, look: v.lookahead, base: g.lookahead, banner: bn, shift: BeatFrets.stage.laneShift }; }, banner);
+  };
+  const black = await during('blackout');
+  check(black.kind === 'blackout' && /BATS BLOT OUT/.test(black.banner), `a blackout, announced by the Count (${JSON.stringify(black)})`);
+  // A trap note: pressing it hurts and heals the boss.
+  const trapAt = plan.find((x) => x.kind === 'trap');
+  await page.waitForFunction((t) => BeatFrets.game.now() > t, trapAt.t0 + 0.3, { timeout: 60000 });
+  const trapHit = await page.evaluate(async () => {
+    const g = BeatFrets.game;
+    const tr = g.traps.find((x) => x.t > g.now() + 0.3);
+    if (!tr) return null;
+    await new Promise((r) => setTimeout(r, (tr.t - g.now()) * 1000));
+    const hp = g.boss.hp, rock = g.rock;
+    g.lane(tr.lane, true, performance.now());
+    g.lane(tr.lane, false, performance.now());
+    return { hit: tr.hit, healed: +(g.boss.hp - hp).toFixed(2), rock: +(rock - g.rock).toFixed(3), j: g.judgement.kind, combo: g.combo };
+  });
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-trap.png') });
+  check(trapHit && trapHit.hit && trapHit.healed > 2 && trapHit.rock > 0.1 && trapHit.j === 'trap' && trapHit.combo === 0, `hitting a trap note hurts, breaks the streak and heals the boss (${JSON.stringify(trapHit)})`);
+  const surge = await during('surge');
+  check(surge.kind === 'surge' && surge.look < surge.base * 0.75, `a speed surge brings the notes in faster (${JSON.stringify(surge)})`);
+  const scr = await during('scramble');
+  check(scr.kind === 'scramble' && scr.shift && scr.shift.some((x) => Math.abs(x) > 1.5), `a lane scramble swaps two lanes on screen (${JSON.stringify(scr)})`);
+  const mid = await page.evaluate(() => { const g = BeatFrets.game; return { hp: g.boss.hp, fb: g.boss.fb, od: g.od, mult: g.multiplier, ready: g._view(g.now()).hud.odReady, missMul: g.missMul }; });
   await page.screenshot({ path: path.join(outDir, 'e2e-boss-play.png') });
-  check(mid.hp < 100 && mid.hp > 50 && mid.od === 0 && mid.mult <= 4, `hits chip at the boss; no Overdrive in a boss battle (${JSON.stringify(mid)})`);
+  check(mid.missMul === 2, 'misses cost twice the rock meter in a boss battle');
+  check(mid.hp < 100 && mid.hp > 20 && mid.od === 0 && mid.mult <= 4, `hits chip at the boss; no Overdrive in a boss battle (${JSON.stringify(mid)})`);
   check(mid.fb === 1 && mid.ready, 'power notes charge the Fireball meter');
   await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 150000 });
   await page.waitForTimeout(2500);

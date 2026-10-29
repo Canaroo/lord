@@ -105,18 +105,37 @@ Hour* (Spooky) against **the Vampire Count**, *Amp Overload* (Rock) against **th
 - **The fight** uses the song's Hard notes, on keys or a phone (sideways or upright; not Tiles).
   The boss stands across the stage with a health bar. Every note you hit chips at it (PERFECT
   most, OK least).
-- **Power notes** have flames on top. They're rare, about one note in twenty, so watch for them. Each one fills a quarter of the
-  **Fireball** meter (FB, where the Overdrive meter usually is). When it's full, press the
-  Overdrive key (Space) or swipe up to launch a Fireball for a big hit. A full meter doesn't
-  charge any further, so launch it soon. Miss a power note and the boss heals a little.
+- **Power notes** have flames on top. They're rare, about one note in twenty, so watch for them.
+  Each one fills a quarter of the **Fireball** meter (FB, where the Overdrive meter usually is).
+  When it's full, press the Overdrive key (Space) or swipe up to launch a Fireball for a big hit.
+  A full meter doesn't charge any further, so launch it soon.
+- **Misses are punished:** every miss costs **twice** the usual rock meter and heals the boss a
+  little; a missed power note heals it a lot more.
+- **The boss fights back.** About every 13 seconds (from 10 seconds in) it attacks for a few
+  seconds, announced by a red banner just before. Each boss has its own names and leads with its
+  favourite, but all three use all four attacks:
+  - **Blackout** (the Count's bats, the Titan's stage smoke, the Dragon's smoke): the far end of
+    the highway goes dark, so notes appear late.
+  - **Trap notes** (cursed, feedback or fire notes): dark notes with a red skull that you must
+    **not** hit. Hitting one is *OUCH!*: it breaks your streak, costs rock meter and heals the boss.
+    They never sit near a real note in the same lane.
+  - **Speed surge** (the Count speeding up time, the Titan's shockwave, the Dragon's roar): the
+    notes rush in faster, with speed streaks beside the highway.
+  - **Lane scramble** (a hex, an amp scramble, a tail swipe): two lanes swap places on screen.
+    Each key stays with its colour, so you have to read the colours. On a phone you tap wherever
+    the note is, so a swap wouldn't change anything; phones get another surge instead. Upright
+    (two lanes, no room for traps) a blackout replaces the trap notes.
+  The attacks are worked out from the song's notes, so everyone faces the same fight and the
+  leaderboards stay fair. They stop once the boss is beaten.
 - **Win or lose:** beat the boss before the song ends and the run counts, with **BOSS DEFEATED!**.
   If the boss is still standing at the end, **BOSS WINS: TRY AGAIN**. The run is a loss and isn't
   posted anywhere, even if you played the whole song.
 - **Leaderboards:** each battle has its own boards (a **BOSS BATTLE** tab on the song's boards),
   and only wins go on them. A boss board you lead counts as a trophy on your license.
-- **Tuning** (`js/boss.js`): the boss has 100 health. Hitting every note deals 60 of it and
-  launching every Fireball deals 80, and each power note missed heals it 2.5, so a win takes a
-  solid run with most Fireballs launched.
+- **Tuning** (`js/boss.js`): the boss has 100 health. Hitting every note deals 70 of it and
+  launching every Fireball deals 90. Each miss heals it 0.25 (a power note 2.75), and a trap note
+  3. A run that hits 90% of the notes and launches its Fireballs wins narrowly; one that hits 80%
+  doesn't.
 
 ## Song of the Day
 
@@ -511,6 +530,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.47**: **Boss battles fight back.** Misses cost twice the rock meter and heal the boss. Every
+  13 seconds or so the boss attacks: blackouts, skull trap notes you mustn't hit, speed surges and
+  (on keys) swapped lanes.
 - **1.46**: **Tiles is switched off** (its code stays; see *Tiles mode*), so the game is all Beat
   Frets. A boss battle now unlocks with a B or better on Easy, Medium and Hard of all three of the
   category's songs.

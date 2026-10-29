@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.46';
+  const VERSION = '1.47';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -1387,7 +1387,7 @@
         <span class="boss-main">
           <span class="boss-top"><strong>☠ BOSS BATTLE</strong>${locked ? '<span class="play-tag lock-tag">🔒 LOCKED</span>' : '<span class="play-tag">FIGHT <svg><use href="#i-play"/></svg></span>'}</span>
           <span class="boss-name">${esc(battle.name)}</span>
-          <span class="what">${locked ? `Get a B or better on Easy, Medium and Hard of all three songs to unlock (${bossCount(prog)} of 9 done):` : 'Hard notes. Hit the glowing notes to charge a Fireball, then ' + (layoutMode() === 'keys' ? `press ${esc(Input.glyph('overdrive'))}` : 'swipe up') + ' to launch it. Beat the boss before the song ends!'}</span>
+          <span class="what">${locked ? `Get a B or better on Easy, Medium and Hard of all three songs to unlock (${bossCount(prog)} of 9 done):` : 'Hard notes, and the boss fights back: blackouts, skull trap notes (don\'t hit them!), speed surges' + (layoutMode() === 'keys' ? ' and swapped lanes' : '') + '. Misses hurt twice as much and heal it. Hit the glowing notes to charge a Fireball, then ' + (layoutMode() === 'keys' ? `press ${esc(Input.glyph('overdrive'))}` : 'swipe up') + ' to launch it. Beat the boss before the song ends!'}</span>
           ${locked ? bossNeedHtml(prog) : `<span class="stats">${c.notes.length} notes · ${Math.floor(Boss.powerNotes(c.notes).size)} power notes</span>`}
           ${cardStars(id)}
           <span class="wr" data-wr="${id}"></span>
@@ -1641,6 +1641,7 @@
       best: !playOpts.chart && save.active ? save.pace(save.active.id, current.key, difficulty) : null,
       rival: playOpts.target ? { initials: playOpts.target.initials, score: playOpts.target.score, timeline: playOpts.target.timeline || null } : null,
       boss: battle,
+      touch: !!tier.touch,
       intro: { title: current.title.toUpperCase().slice(0, 40), sub: (playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : battle ? 'BOSS BATTLE: ' + battle.name : LABEL(difficulty)) + (settings.noFail ? ' · NO-FAIL PRACTICE' : '') },
       onEnd: (res) => {
         game = null;

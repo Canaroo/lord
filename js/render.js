@@ -243,13 +243,15 @@
       const halfW = LAYOUT === 'touch4' ? Math.min(W * 0.36, 150)
         : LAYOUT === 'touch2' ? Math.min(W * 0.42, 96)
         : { 2: 44, 3: 60, 4: 72 }[lanes] || 82;
+      // A boss's lane scramble: some lanes drawn shifted (in lanes) from where they belong.
+      const shift = this.laneShift && this.laneShift.length === lanes ? this.laneShift : null;
       return {
         cx: W / 2,
         halfW,
         laneW: (2 * halfW) / lanes,
         scale: (z) => 1 / (1 + PERSPECTIVE * z),
         yAt(z) { return HORIZON + (HIT_Y - HORIZON) * this.scale(z); },
-        laneX(lane) { return (lane - (lanes - 1) / 2) * this.laneW; },
+        laneX(lane) { return (lane + (shift ? shift[lane] : 0) - (lanes - 1) / 2) * this.laneW; },
       };
     }
 
@@ -263,6 +265,15 @@
       const nowMs = performance.now();
       const dt = Math.min(0.05, (nowMs - this.lastMs) / 1000);
       this.lastMs = nowMs;
+      const hz = v.hazard;
+      this.laneShift = null;
+      if (hz && hz.kind === 'scramble') {
+        const [a, b] = hz.lanes;
+        const k = hz.k * hz.k * (3 - 2 * hz.k);
+        this.laneShift = new Array(v.lanes).fill(0);
+        this.laneShift[a] = (b - a) * k;
+        this.laneShift[b] = (a - b) * k;
+      }
       const geo = this.geometry(v.lanes);
       const bi = beatIndexAt(v.beats, v.t);
       const b0 = bi >= 0 ? v.beats[bi] : 0;
@@ -284,6 +295,9 @@
       if (v.hud && LAYOUT !== 'keys') this.drawTrackHud(v, geo, nowMs);
       this.drawFrets(v, geo);
       this.drawNotes(v, geo);
+      if (v.traps) this.drawTraps(v, geo);
+      if (hz && hz.kind === 'blackout') this.drawBlackout(v, geo, hz, nowMs);
+      if (hz && hz.kind === 'surge') this.drawSurge(v, geo, hz, nowMs);
       this.drawFlames(v, geo, nowMs, energy);
       if (v.fingers) this.drawGrabs(v, geo, nowMs);
       this.drawParticles(dt);
@@ -983,8 +997,8 @@
       const jd = v.judgement;
       if (jd && nowMs - jd.at < 450) {
         const k = (nowMs - jd.at) / 450;
-        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS' }[jd.kind];
-        const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red }[jd.kind];
+        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS', trap: 'OUCH!' }[jd.kind];
+        const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red, trap: PAL.red }[jd.kind];
         const jy = my + 4 - (k < 0.15 ? (0.15 - k) * 30 : 0);
         const rx = sideX(1, jy + 10);
         const big = LAYOUT === 'touch4';
@@ -1136,8 +1150,8 @@
       const j = touch ? null : v.judgement;
       if (j && nowMs - j.at < 450) {
         const k = (nowMs - j.at) / 450;
-        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS' }[j.kind];
-        const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red }[j.kind];
+        const label = { perfect: 'PERFECT!', good: 'GOOD', ok: 'OK', miss: 'MISS', trap: 'OUCH!' }[j.kind];
+        const color = { perfect: PAL.cyan, good: PAL.green, ok: PAL.gold, miss: PAL.red, over: PAL.red, trap: PAL.red }[j.kind];
         // Keys: in the sky above the highway (between the score and streak boxes), so it
         // never covers incoming notes.
         const jy = LAYOUT === 'touch2' ? HIT_Y - 106 : LAYOUT === 'touch4' ? HIT_Y - 86 : 12;
@@ -1380,6 +1394,74 @@
       this.rect(bx, by, bw * this.shownHp, 4, PAL.white);
       this.rect(bx, by, bw * b.hp, 4, b.hp < 0.25 ? PAL.red : b.hp < 0.6 ? PAL.orange : PAL.gold);
       if (big && b.lastDmg) this.text('-' + b.lastDmg, fx, y + h / 2 - 4 - (nowMs - b.bigHitAt) / 30, PAL.gold, 8, 'center');
+    }
+
+    /** A boss's trap note: a dark gem with a red skull. Hitting it hurts. */
+    drawTraps(v, geo) {
+      const SKULL = ['.###.', '#####', '#.#.#', '#####', '.#.#.'];
+      for (const n of v.traps) {
+        if (n.hit) continue;
+        const z = (n.t - v.t) / v.lookahead;
+        if (z > 1.15 || z < -0.2) continue;
+        const s = geo.scale(Math.max(0, z));
+        const x = geo.cx + geo.laneX(n.lane) * s;
+        const y = geo.yAt(z);
+        const rx = Math.max(2, geo.laneW * 0.36 * s);
+        const ry = Math.max(1.5, rx * 0.62);
+        this.g.globalAlpha = z > 0.95 ? Math.max(0, (1.15 - z) / 0.2) : z < 0 ? Math.max(0, 1 + z * 5) : 1;
+        this.ellipse(x, y + 1, rx + 2, ry + 2, PAL.red);
+        this.ellipse(x, y + 1, rx + 1, ry + 1, PAL.ink);
+        this.ellipse(x, y, rx, ry, '#2a0a24');
+        const u = Math.max(1, Math.round(rx / 4));
+        SKULL.forEach((row, r) => { for (let c = 0; c < 5; c++) if (row[c] === '#') this.rect(x - 2.5 * u + c * u, y - 2.5 * u + r * u, u, u, PAL.red); });
+        this.g.globalAlpha = 1;
+      }
+    }
+
+    /** Blackout: darkness (or smoke) swallows the far end of the highway; notes appear late. */
+    drawBlackout(v, geo, hz, nowMs) {
+      const cutY = Math.round(geo.yAt(0.36));
+      const top = Math.max(0, HORIZON - 12);
+      const tint = { count: [12, 4, 22], titan: [40, 40, 52], dragon: [28, 16, 12] }[hz.boss] || [10, 8, 20];
+      const g = this.g;
+      // Over the highway only (and a little either side), never over the HUD beside it.
+      for (let y = top; y < cutY + 10; y++) {
+        const edge = y > cutY ? 1 - (y - cutY) / 10 : 1;
+        const half = geo.halfW * Math.max(0, (y - HORIZON) / (HIT_Y - HORIZON)) + 10 + Math.max(0, HORIZON - y);
+        g.fillStyle = `rgba(${tint[0]},${tint[1]},${tint[2]},${(0.97 * edge * hz.k).toFixed(3)})`;
+        g.fillRect(Math.round(geo.cx - half), y, Math.round(half * 2), 1);
+      }
+      // Wisps: bats for the Count, drifting smoke for the others.
+      const r = seeded(31);
+      for (let i = 0; i < 14; i++) {
+        const sy = top + r() * (cutY - top);
+        const half = geo.halfW * Math.max(0, (sy - HORIZON) / (HIT_Y - HORIZON)) + 6;
+        const sx = geo.cx - half + ((r() * 2 * half + nowMs * (0.02 + r() * 0.03)) % (2 * half));
+        g.globalAlpha = 0.5 * hz.k;
+        if (hz.boss === 'count') {
+          const flap = Math.floor(nowMs / 120 + i) % 2;
+          this.rect(sx - 3, sy - flap, 2, 1, '#5a2080');
+          this.rect(sx + 2, sy - flap, 2, 1, '#5a2080');
+          this.rect(sx - 1, sy, 3, 2, '#3a1050');
+        } else this.ellipse(sx, sy, 8 + r() * 10, 3 + r() * 3, hz.boss === 'dragon' ? '#4a2a18' : '#6a6a7a');
+        g.globalAlpha = 1;
+      }
+    }
+
+    /** Speed surge: streaks rush down beside the highway. */
+    drawSurge(v, geo, hz, nowMs) {
+      const r = seeded(17);
+      const span = HIT_Y - HORIZON;
+      this.g.globalAlpha = 0.6 * hz.k;
+      for (let i = 0; i < 18; i++) {
+        const side = i % 2 ? 1 : -1;
+        const k = (r() + nowMs / 260) % 1; // 0 far → 1 near
+        const y = HORIZON + span * k * k;
+        const sc = (y - HORIZON) / span;
+        const x = geo.cx + side * (geo.halfW * sc + 6 + r() * 30 * sc);
+        this.rect(x, y, 1, 3 + 10 * sc, i % 3 ? PAL.red : PAL.white);
+      }
+      this.g.globalAlpha = 1;
     }
 
     /** Fireballs fly from the strike line up to the boss, with a trail of sparks. */

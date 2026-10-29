@@ -201,6 +201,8 @@
       burst(0.9, 400, 0.35, 'lowpass');
       seq([[60, 0.1], [64, 0.1], [67, 0.1], [72, 0.1], [76, 0.1], [79, 0.1], [84, 0.4]], { duty: 0.25, vol: 0.22, gap: 0.01 });
     },
+    // The boss attacks: a low, menacing two-note warning with a rumble.
+    bossAttack: () => { burst(0.5, 220, 0.3, 'lowpass'); seq([[47, 0.12], [46, 0.3]], { duty: 0.5, vol: 0.24, gap: 0.03 }); },
     bossLaugh: () => seq([[55, 0.1], [53, 0.1], [55, 0.1], [53, 0.1], [50, 0.1], [48, 0.45]], { duty: 0.5, vol: 0.22, gap: 0.04 }),
   };
 

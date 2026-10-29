@@ -50,9 +50,46 @@ test('the fight: a near-perfect run wins, hitting notes without Fireballs never 
   const tune = Boss.tuning(notes, power);
   const fireballs = Math.floor(power.size / Boss.POWER_PER_FIREBALL);
   assert.ok(notes.length * tune.hit + fireballs * tune.fireball > tune.hp * 1.3, 'room to spare at the top');
-  assert.ok(notes.length * tune.hit < tune.hp * 0.7, 'Fireballs are needed');
+  assert.ok(notes.length * tune.hit < tune.hp, 'Fireballs are needed');
   // A B-ish run: 90% of notes hit at GOOD, 90% of power notes, the rest missed.
   const hit = 0.9;
-  const dmg = notes.length * hit * tune.hit * Boss.JUDGE_DAMAGE.good + Math.floor(power.size * hit / Boss.POWER_PER_FIREBALL) * tune.fireball - power.size * (1 - hit) * tune.heal;
+  const dmg = notes.length * hit * tune.hit * Boss.JUDGE_DAMAGE.good + Math.floor(power.size * hit / Boss.POWER_PER_FIREBALL) * tune.fireball
+    - power.size * (1 - hit) * tune.heal - notes.length * (1 - hit) * tune.missHeal;
   assert.ok(dmg >= tune.hp, `a solid run wins (${dmg.toFixed(1)})`);
+  // A shakier run (80% of notes, at GOOD) doesn't.
+  const weak = 0.8;
+  const dmg2 = notes.length * weak * tune.hit * Boss.JUDGE_DAMAGE.good + Math.floor(power.size * weak / Boss.POWER_PER_FIREBALL) * tune.fireball
+    - power.size * (1 - weak) * tune.heal - notes.length * (1 - weak) * tune.missHeal;
+  assert.ok(dmg2 < tune.hp, `a shaky run loses (${dmg2.toFixed(1)})`);
+  assert.strictEqual(tune.missMul, 2, 'misses cost twice the rock meter');
+});
+
+test('the boss attacks: all four hazards, spaced out, the same every time, over before the end', () => {
+  for (const [id, battle] of Object.entries(Boss.BATTLES)) {
+    const def = SongPack.SONGS.find((s) => s.id === id);
+    const analysis = SongPack.toAnalysis(SongPack.build(def));
+    for (const tier of ['hard', 'touch4:hard', 'touch2:hard']) {
+      const notes = ChartGen.generateId(analysis, tier).notes;
+      const touch = tier !== 'hard';
+      const lanes = tier === 'hard' ? 5 : +tier[5];
+      const list = Boss.attacks(notes, battle.id, { touch, lanes });
+      assert.deepStrictEqual(Boss.attacks(notes, battle.id, { touch, lanes }), list, 'deterministic');
+      assert.ok(list.length >= 5, `${id} ${tier}: ${list.length} attacks`);
+      const kinds = new Set(list.map((a) => a.kind));
+      for (const k of lanes === 2 ? ['blackout', 'surge'] : touch ? ['blackout', 'trap', 'surge'] : ['blackout', 'trap', 'surge', 'scramble']) assert.ok(kinds.has(k), `${id} ${tier} has ${k}`);
+      if (lanes === 2) assert.ok(!kinds.has('trap'), 'no trap notes on two lanes');
+      if (touch) assert.ok(!kinds.has('scramble'), 'no lane scramble on a phone');
+      for (let i = 1; i < list.length; i++) assert.ok(list[i].t0 - list[i - 1].t1 >= 5, 'a breather between attacks');
+      assert.ok(list[0].t0 >= notes[0].t + 8, 'a calm start');
+      assert.ok(list[list.length - 1].t1 <= notes[notes.length - 1].t - 3, 'over before the end');
+      // Trap notes only come during trap attacks, never near a real note in their lane.
+      const traps = Boss.traps(notes, list, lanes, 60 / def.bpm);
+      if (lanes > 2) assert.ok(traps.length >= 8, `${id} ${tier}: ${traps.length} traps`);
+      for (const tr of traps) {
+        assert.ok(list.some((a) => a.kind === 'trap' && tr.t >= a.t0 && tr.t < a.t1));
+        assert.ok(tr.lane >= 0 && tr.lane < lanes);
+        assert.ok(!notes.some((n) => n.lane === tr.lane && Math.abs(n.t - tr.t) < 0.25), `${id} ${tier}: trap at ${tr.t} is clear of real notes`);
+      }
+    }
+  }
 });

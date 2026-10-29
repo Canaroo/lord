@@ -20,15 +20,94 @@
     'dragons-lair': { id: 'dragon', theme: 'epic', name: 'THE DRAGON', color: '#f8d830' },
   };
 
-  // Tuning. The boss has 100 health. Hitting every note (all PERFECT) deals 60 of it
-  // between them, and launching every Fireball the power notes charge deals 80, so a
-  // win takes a solid run with most Fireballs launched (roughly a B or better).
+  // Tuning. The boss has 100 health. Hitting every note (all PERFECT) deals 70 of it
+  // between them, and launching every Fireball the power notes charge deals 90. But
+  // every miss heals it a little (and costs twice the usual rock meter), a missed power
+  // note heals it more, and so does hitting a trap note: a win takes a strong run.
   const HP = 100;
-  const HITS_TOTAL = 60;
-  const FIREBALLS_TOTAL = 80;
+  const HITS_TOTAL = 70;
+  const FIREBALLS_TOTAL = 90;
   const POWER_PER_FIREBALL = 4; // power notes to charge one Fireball
   const HEAL = 2.5; // health back for each power note missed
+  const MISS_HEAL = 0.25; // and for any miss
+  const MISS_MUL = 2; // misses cost twice the usual rock meter
+  const TRAP_HEAL = 3; // hitting a trap note
+  const TRAP_ROCK = 0.12; // ...and what it costs the rock meter
   const JUDGE_DAMAGE = { perfect: 1, good: 0.75, ok: 0.5 };
+
+  // ---- attacks: the boss's hazards ------------------------------------------------------
+  //
+  // Every so often the boss attacks for a few seconds (warned a moment before):
+  //   blackout  — darkness or smoke hides the far end of the highway: notes appear late
+  //   trap      — cursed notes you must NOT hit join the highway
+  //   surge     — the notes rush in faster
+  //   scramble  — two lanes swap places on screen (keys stay with their colour). On a
+  //               phone you tap where the notes are, so a swap wouldn't change anything:
+  //               phones get a second surge instead, and upright (two busy lanes, no
+  //               room for traps) a blackout in place of traps.
+  // The schedule comes from the chart alone, so everyone on a leaderboard faces the same fight.
+  const ATTACK_LEN = { blackout: 5, trap: 6, surge: 4, scramble: 6 };
+  const CLEAR = 0.25; // seconds between a trap note and any real note in its lane
+  const ATTACK_GAP = 13; // seconds from one attack's start to the next
+  const WARN = 1.5; // seconds of warning
+  // Each boss leads with its favourite.
+  const ORDER = {
+    count: ['blackout', 'trap', 'surge', 'scramble'],
+    titan: ['surge', 'scramble', 'trap', 'blackout'],
+    dragon: ['trap', 'blackout', 'scramble', 'surge'],
+  };
+  const ATTACK_NAMES = {
+    count: { blackout: ['BATS BLOT OUT THE LIGHT!', 'NOTES APPEAR LATE'], trap: ['CURSED NOTES!', "DON'T HIT THE SKULLS"], surge: ['THE COUNT SPEEDS UP TIME!', 'NOTES RUSH IN'], scramble: ['A HEX ON YOUR FRETS!', 'TWO LANES SWAPPED'] },
+    titan: { blackout: ['STAGE SMOKE!', 'NOTES APPEAR LATE'], trap: ['FEEDBACK NOTES!', "DON'T HIT THE SKULLS"], surge: ['SHOCKWAVE!', 'NOTES RUSH IN'], scramble: ['AMP SCRAMBLE!', 'TWO LANES SWAPPED'] },
+    dragon: { blackout: ['A CLOUD OF SMOKE!', 'NOTES APPEAR LATE'], trap: ['FIRE NOTES!', "DON'T HIT THE SKULLS"], surge: ["DRAGON'S ROAR!", 'NOTES RUSH IN'], scramble: ['TAIL SWIPE!', 'TWO LANES SWAPPED'] },
+  };
+
+  /**
+   * The boss's attacks for a chart: [{ kind, t0, t1 }] (seconds), starting about ten
+   * seconds in, one every ATTACK_GAP seconds, all over before the last notes.
+   * `touch`: phones swap the scramble for a surge. With only two lanes (a phone held
+   * upright) there's no free lane for trap notes, so traps become a blackout.
+   */
+  function attacks(notes, bossId, { touch = false, lanes = 5 } = {}) {
+    if (!notes.length) return [];
+    const order = ORDER[bossId] || ORDER.count;
+    const first = notes[0].t, last = notes[notes.length - 1].t;
+    const out = [];
+    for (let k = 0, t = first + 10; ; k++, t += ATTACK_GAP) {
+      let kind = order[k % order.length];
+      if (touch && kind === 'scramble') kind = 'surge';
+      if (lanes <= 2 && kind === 'trap') kind = 'blackout';
+      const t1 = t + ATTACK_LEN[kind];
+      if (t1 > last - 3) break;
+      out.push({ kind, t0: +t.toFixed(3), t1: +t1.toFixed(3) });
+    }
+    return out;
+  }
+
+  /**
+   * Trap notes for the trap attacks: one on about every beat of the attack, in a lane
+   * with no real note close by (so a press for a real note never lands on a trap).
+   */
+  function traps(notes, attackList, lanes, beat = 0.5) {
+    const out = [];
+    for (const a of attackList) {
+      if (a.kind !== 'trap') continue;
+      let k = 0;
+      const step = beat >= 0.45 ? beat : beat * 2; // about one every half second or more
+      for (let t = a.t0 + step / 2; t < a.t1; t += step, k++) {
+        // A press for a real note always takes the real note first (it's nearer), so a
+        // quarter of a second clear is enough.
+        const near = notes.filter((n) => Math.abs(n.t - t) < CLEAR || (n.len && t > n.t - CLEAR && t < n.t + n.len + CLEAR));
+        const free = [];
+        for (let l = 0; l < lanes; l++) if (!near.some((n) => n.lane === l)) free.push(l);
+        if (free.length) out.push({ t: +t.toFixed(4), lane: free[(k * 3) % free.length], trap: true, hit: false });
+      }
+    }
+    return out;
+  }
+
+  /** The two lanes a scramble swaps: the second and the second-to-last. */
+  const scrambleLanes = (lanes) => (lanes >= 4 ? [1, lanes - 2] : [0, lanes - 1]);
 
   /**
    * Which notes glow: about one in twenty, spread evenly through the song, in a
@@ -60,6 +139,10 @@
       fireball: FIREBALLS_TOTAL / fireballs,
       charge: 1 / POWER_PER_FIREBALL,
       heal: HEAL,
+      missHeal: MISS_HEAL,
+      missMul: MISS_MUL,
+      trapHeal: TRAP_HEAL,
+      trapRock: TRAP_ROCK,
     };
   }
 
@@ -139,5 +222,8 @@
     },
   };
 
-  return { BATTLES, SPRITES, HP, POWER_PER_FIREBALL, JUDGE_DAMAGE, powerNotes, tuning, battleFor: (songId) => BATTLES[songId] || null };
+  return {
+    BATTLES, SPRITES, HP, POWER_PER_FIREBALL, JUDGE_DAMAGE, ATTACK_NAMES, WARN,
+    powerNotes, tuning, attacks, traps, scrambleLanes, battleFor: (songId) => BATTLES[songId] || null,
+  };
 });

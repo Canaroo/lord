@@ -142,7 +142,15 @@
         const power = Boss.powerNotes(this.notes);
         for (const i of power) this.notes[i].power = true;
         const tune = Boss.tuning(this.notes, power);
-        this.boss = { ...o.boss, tune, hp: tune.hp, fb: 0, fbAnnounced: false, hitAt: 0, healAt: 0, fireballs: [], downAt: 0, launched: 0 };
+        this.boss = { ...o.boss, tune, hp: tune.hp, fb: 0, fbAnnounced: false, hitAt: 0, healAt: 0, fireballs: [], downAt: 0, launched: 0, trapsHit: 0 };
+        // Misses hurt twice as much in a boss battle.
+        this.missMul = Math.max(this.missMul, tune.missMul);
+        // The boss's attacks, and the trap notes its trap attacks bring.
+        const touch = !!o.touch;
+        this.attacks = Boss.attacks(this.notes, o.boss.id, { touch, lanes: this.lanes }).map((a) => ({ ...a, warned: false }));
+        const gaps = this.beats.slice(1).map((b, i) => b - this.beats[i]).sort((a, b) => a - b);
+        this.traps = Boss.traps(this.notes, this.attacks, this.lanes, gaps[gaps.length >> 1] || 0.5);
+        this.scrambled = Boss.scrambleLanes(this.lanes);
       }
       this.endingAt = 0; // the boss laughs for a moment before the results
       this._frame = this._frame.bind(this);
@@ -260,7 +268,7 @@
         timingSamples: this.offsets.length,
         graph: this.graph.map((b) => ({ acc: b.max ? b.earned / b.max : null, miss: b.miss })),
         timeline: this.timeline.slice(),
-        boss: this.boss ? { id: this.boss.id, name: this.boss.name, defeated: this.boss.hp <= 0, hp: Math.ceil(this.boss.hp), bossWon } : null,
+        boss: this.boss ? { id: this.boss.id, name: this.boss.name, defeated: this.boss.hp <= 0, hp: Math.ceil(this.boss.hp), bossWon, trapsHit: this.boss.trapsHit } : null,
       };
     }
 
@@ -383,7 +391,42 @@
         if (d <= this.win.ok && d < bestD) { best = n; bestD = d; }
       }
       // A press with no note nearby does nothing: stray presses never cost you.
-      if (best) this._hit(best, bestD, t);
+      if (best) { this._hit(best, bestD, t); return; }
+      // ...except on a boss's trap note.
+      if (this.traps && this.bossAlive) {
+        const trap = this.traps.find((x) => !x.hit && x.lane === lane && Math.abs(x.t - t) <= this.win.ok);
+        if (trap) this._hitTrap(trap);
+      }
+    }
+
+    /** A trap note was hit: it hurts the rock meter, breaks the streak and heals the boss. */
+    _hitTrap(trap) {
+      const b = this.boss;
+      trap.hit = true;
+      b.trapsHit++;
+      b.hp = Math.min(b.tune.hp, b.hp + b.tune.trapHeal);
+      b.healAt = performance.now();
+      this.combo = 0;
+      this.judgement = { kind: 'trap', at: performance.now() };
+      const was = this.rock;
+      this.rock = Math.max(0, this.rock - b.tune.trapRock);
+      Sfx.miss();
+      Sfx.bossHeal();
+      this._buzz([40, 30, 40]);
+      this.stage.kick(3);
+      const pos = this.stage.fretPos(this.lanes, trap.lane);
+      this.stage.burst(pos.x, pos.y - 4, '#f84848', 12, 90);
+      if (was >= 0.25 && this.rock < 0.25) Sfx.rockDanger();
+      if (this.rock <= 0 && !this.noFail) this._fail();
+    }
+
+    /** The boss's attack under way at song time t (only while it's still standing), and how far in (0–1 ramps). */
+    _attackAt(t) {
+      if (!this.attacks || !this.bossAlive) return null;
+      const a = this.attacks.find((x) => t >= x.t0 && t < x.t1);
+      if (!a) return null;
+      const ramp = 0.4;
+      return { ...a, k: Math.max(0, Math.min(1, (t - a.t0) / ramp, (a.t1 - t) / ramp)) };
     }
 
     _graph(t, earned) {
@@ -463,11 +506,10 @@
 
     _miss(note) {
       this.counts.miss++;
-      if (note && note.power && this.bossAlive) {
-        // A dropped power note: the boss gets some health back.
-        this.boss.hp = Math.min(this.boss.tune.hp, this.boss.hp + this.boss.tune.heal);
-        this.boss.healAt = performance.now();
-        Sfx.bossHeal();
+      if (note && this.bossAlive) {
+        // Every miss lets the boss heal a little; a dropped power note, a lot more.
+        this.boss.hp = Math.min(this.boss.tune.hp, this.boss.hp + this.boss.tune.missHeal + (note.power ? this.boss.tune.heal : 0));
+        if (note.power) { this.boss.healAt = performance.now(); Sfx.bossHeal(); }
       }
       if (note) this._graph(note.t, 0);
       if (this.combo >= 10) {
@@ -591,6 +633,15 @@
       else { this._banner(`${this.rival.initials} TAKES THE LEAD`, '#f84848'); Sfx.loseLead(); }
     }
 
+    _surge(t) { const a = this._attackAt(t); return a && a.kind === 'surge' ? a.k : 0; }
+
+    /** What Stage needs to draw an attack: how dark, which lanes are swapped and how far. */
+    _hazardView(t) {
+      const a = this._attackAt(t);
+      if (!a) return null;
+      return { kind: a.kind, k: a.k, lanes: this.scrambled, boss: this.boss.id, until: a.t1 - t };
+    }
+
     // ---- loop ------------------------------------------------------------------------
 
     _frame() {
@@ -603,6 +654,17 @@
           const from = Math.max(this.lastT, this.highT);
           this._updateHolds(from, t);
           if (this.boss) this._landFireballs();
+          if (this.attacks && this.bossAlive) {
+            // The boss's attacks are announced just before they start.
+            for (const a of this.attacks) {
+              if (a.warned || t < a.t0 - Boss.WARN) continue;
+              a.warned = true;
+              const [title, sub] = (Boss.ATTACK_NAMES[this.boss.id] || Boss.ATTACK_NAMES.count)[a.kind];
+              this._banner(title, '#f84848', sub);
+              Sfx.bossAttack();
+              this.boss.attackAt = performance.now();
+            }
+          }
           if (this.odActive) {
             this.od = Math.max(0, this.od - OD_DRAIN * (t - from));
             if (this.od === 0) { this.odActive = false; this.odReadyAnnounced = false; Sfx.setOverdrive(false); }
@@ -663,7 +725,8 @@
         holdTip: this.stage.layout !== 'keys' && this.holdsStarted <= 3,
         slideTip: this.slidesStarted <= 3,
         nextIdx: this.nextIdx,
-        lookahead: this.lookahead,
+        // A speed surge: the notes rush in (less time on screen).
+        lookahead: this.lookahead * (1 - 0.38 * this._surge(t)),
         held: this.held,
         labels: Input.laneLabels(this.lanes),
         rock: this.rock,
@@ -678,8 +741,10 @@
         countdown,
         failed: this.failed,
         restart: this.restartProgress,
+        hazard: this._hazardView(t),
+        traps: this.traps || null,
         boss: this.boss ? {
-          id: this.boss.id, name: this.boss.name, color: this.boss.color,
+          id: this.boss.id, name: this.boss.name, color: this.boss.color, attackAt: this.boss.attackAt || 0,
           hp: this.boss.hp / this.boss.tune.hp, hitAt: this.boss.hitAt, healAt: this.boss.healAt, bigHitAt: this.boss.bigHitAt || 0,
           lastDmg: this.boss.lastDmg || 0, downAt: this.boss.downAt, fireballs: this.boss.fireballs, flight: FIREBALL_FLIGHT, laughAt: this.endingAt,
         } : null,
