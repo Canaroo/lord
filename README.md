@@ -141,7 +141,15 @@ Every category's ELITE song has a **BOSS BATTLE** under its difficulties:
   If the boss is still standing at the end, **BOSS WINS: TRY AGAIN**. The run is a loss and isn't
   posted anywhere, even if you played the whole song.
 - **Leaderboards:** each battle has its own boards (a **BOSS BATTLE** tab on the song's boards),
-  and only wins go on them. A boss board you lead counts as a trophy on your license.
+  and only wins go on them. On **Boards**, every category ends with its boss battle's row, saying
+  who holds its record for the way of playing picked at the top. A boss board you lead counts as
+  a trophy on your license.
+- **Beaten:** once you've beaten a boss, its row and card say **✓ DEFEATED** with your best score,
+  and FIGHT becomes **REMATCH**: play it again any time to raise your score. Each boss battle's row
+  also says who holds its record (*YOU HOLD THE RECORD · 221,259*).
+- **Boss trophies:** every player license has a shelf of the nine bosses: in colour for each one
+  beaten (with the best score, or a crown for the record), a dark silhouette until then. Its
+  stats line counts **BOSSES 3/9**. Tap a beaten boss to open its leaderboard.
 - **Tuning** (`js/boss.js`): the boss has 100 health, shown as ten ticks. Every song has 36
   power notes, enough for **9 Fireballs**, and each Fireball takes **10** (one tick), whatever
   the song's length. Hitting every note deals 50 between them. Each miss heals it 0.2, a missed
@@ -538,6 +546,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.52**: **Bragging rights.** A beaten boss shows ✓ DEFEATED and REMATCH, with your best
+  score and who holds its record; Boards lists every boss battle's board; and licenses collect a
+  boss trophy for each boss beaten.
 - **1.51**: **Fairer, longer boss fights.** Every Fireball now takes 10% (a tick) of the boss and
   every song charges 9, so even the one-minute Classics boss takes a real fight (before, its 3
   Fireballs took 30% each). Notes deal 50 in all. A boss battle's results show the boss's health

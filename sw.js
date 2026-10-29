@@ -12,7 +12,7 @@
 // an update loads as one matching set: a page from the new version never picks up
 // an old file from the cache, or the other way round. Keep these in step with
 // VERSION in js/main.js and the ?v= in index.html (npm test checks).
-const V = '1.51';
+const V = '1.52';
 const CACHE = 'beat-frets-' + V;
 const SHELL = [
   './',
