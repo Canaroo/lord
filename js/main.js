@@ -175,6 +175,39 @@
   const bossNeedHtml = (prog) => `<span class="boss-need">${prog.map((x) => `<span class="${x.done ? 'done' : ''}">` +
     `<b>${esc(x.title)}</b><span class="lv">${BOSS_LEVELS.map((lv) => `<i class="${x.levels[lv] ? 'ok' : ''}" title="${x.levels[lv] ? 'Done' : 'Needs a B'}">${x.levels[lv] ? '✓' : '🔒'}${{ easy: 'E', medium: 'M', hard: 'H' }[lv]}</i>`).join('')}</span></span>`).join('')}</span>`;
   const bossCount = (prog) => prog.reduce((n, x) => n + x.count, 0);
+
+  /** The active player's best win over a boss (any way of playing), or null if not beaten yet. */
+  function bossBeaten(songId, profileId = save.active && save.active.id) {
+    if (!profileId) return null;
+    const key = 'pack:' + songId;
+    let best = null;
+    for (const r of save.data.runs) {
+      if (r.profileId === profileId && r.songKey === key && parseId(r.difficulty).difficulty === 'boss' && !r.failed && !r.practice && (!best || r.score > best.score)) best = r;
+    }
+    return best;
+  }
+  const bossIdFor = (fam) => (fam === 'keys' ? 'boss' : fam + ':boss');
+
+  /**
+   * Who holds a boss battle's record, for the way of playing `fam`: filled into each
+   * [data-boss-lead] in `root` (the world record, or this device's when offline).
+   */
+  function fillBossLeaders(root, fam) {
+    const d = bossIdFor(fam);
+    for (const el of $$('[data-boss-lead]', root)) {
+      const key = 'pack:' + el.dataset.bossLead;
+      const show = (r, world) => {
+        if (!el.isConnected) return;
+        const mine = r && (world ? r.mine : save.active && !r.rival && r.profileId === save.active.id);
+        el.classList.toggle('mine', !!mine);
+        el.innerHTML = !r ? `<span class="bl-none">NO ONE HAS ${world ? 'POSTED A WIN' : 'BEATEN IT HERE'} YET</span>`
+          : `<svg><use href="#i-crown"/></svg>${mine ? 'YOU HOLD THE RECORD' : esc(String(r.initials || '???').toUpperCase()) + ' HOLDS THE RECORD'} · ${Number(r.score).toLocaleString('en-US')}`;
+      };
+      const local = () => show(save.leaderboard(key, d, 1)[0] || null, false);
+      if (!World.available()) { local(); continue; }
+      worldRecordOr(World.boardId(key, d)).then((r) => show(r, true)).catch(local);
+    }
+  }
   const bossLocked = (id) => parseId(id).difficulty === 'boss' && !(current && current.kind === 'pack' && bossProgress(current.packId).every((x) => x.done));
   const UNLOCK_HINT = (id) => (parseId(id).tiles ? 'Clear lap 1 on Hard at 75%+ to unlock' : 'Get a B or better on Hard to unlock');
 
@@ -722,6 +755,7 @@
         previewButton('pack:' + s.id, s.title) + '</div>').join('') + (boss ? bossRow(boss) : ''));
     }).join('');
     autofocusCat($('#pack-list'));
+    fillBossLeaders($('#pack-list'), layoutMode());
     markRecords();
     fillCatSummaries($('#pack-list'));
     fetchBonusIndex().then((list) => {
@@ -743,13 +777,15 @@
     const battle = Boss.battleFor(def.id);
     const prog = bossProgress(def.id);
     const locked = !prog.every((x) => x.done);
+    const beaten = !locked && bossBeaten(def.id);
     const detail = locked
       ? `Get a B or better on Easy, Medium and Hard of all three songs to unlock (${bossCount(prog)} of 9 done)`
-      : `${def.title} on Hard: beat the boss before the song ends!`;
-    return `<div class="song-line"><button class="boss-row${locked ? ' locked' : ''}" data-boss="${esc(def.id)}" style="--boss:${battle.color}">` +
-      `<span class="row-main"><b><span class="tier tier-battle"><svg><use href="#i-skull"/></svg>BOSS BATTLE</span>${esc(battle.name)}</b><small>${esc(detail)}</small>` +
-      (locked ? bossNeedHtml(prog) : '') + '</span>' +
-      `<span class="row-side">${locked ? '<span class="lock-big">🔒<span class="lock-word"> LOCKED</span></span>' : '<span class="fight">FIGHT</span>'}</span><svg class="chev"><use href="#i-chev"/></svg></button></div>`;
+      : beaten ? `Defeated! Your best: ${Number(beaten.score).toLocaleString('en-US')}. Rematch any time for a better score.`
+        : `${def.title} on Hard: beat the boss before the song ends!`;
+    return `<div class="song-line"><button class="boss-row${locked ? ' locked' : ''}${beaten ? ' beaten' : ''}" data-boss="${esc(def.id)}" style="--boss:${battle.color}">` +
+      `<span class="row-main"><b><span class="tier tier-battle"><svg><use href="#i-skull"/></svg>BOSS BATTLE</span>${esc(battle.name)}${beaten ? '<span class="defeated-tag">✓ DEFEATED</span>' : ''}</b><small>${esc(detail)}</small>` +
+      (locked ? bossNeedHtml(prog) : `<span class="boss-lead" data-boss-lead="${esc(def.id)}"></span>`) + '</span>' +
+      `<span class="row-side">${locked ? '<span class="lock-big">🔒<span class="lock-word"> LOCKED</span></span>' : `<span class="fight">${beaten ? 'REMATCH' : 'FIGHT'}</span>`}</span><svg class="chev"><use href="#i-chev"/></svg></button></div>`;
   }
 
   /** Back on the song list after playing: a boss battle may have just unlocked. */
@@ -758,6 +794,7 @@
       const def = SongPack.SONGS.find((x) => x.id === b.dataset.boss);
       b.closest('.song-line').outerHTML = bossRow(def);
     }
+    fillBossLeaders($('#pack-list'), layoutMode());
   }
 
   /** Focus lands on the open category's first song, or on the first heading. */
@@ -1386,11 +1423,13 @@
     const locked = bossLocked(id);
     const prog = bossProgress(def.id);
     const c = chartFor(id);
-    box.innerHTML = `<button class="boss-card${locked ? ' locked' : ''}" data-diff="${id}" style="--boss:${battle.color}">
+    const beaten = !locked && bossBeaten(def.id);
+    box.innerHTML = `<button class="boss-card${locked ? ' locked' : ''}${beaten ? ' beaten' : ''}" data-diff="${id}" style="--boss:${battle.color}">
         <canvas class="boss-art" width="16" height="20" aria-hidden="true"></canvas>
         <span class="boss-main">
-          <span class="boss-top"><strong>☠ BOSS BATTLE</strong>${locked ? '<span class="play-tag lock-tag">🔒 LOCKED</span>' : '<span class="play-tag">FIGHT <svg><use href="#i-play"/></svg></span>'}</span>
-          <span class="boss-name">${esc(battle.name)}</span>
+          <span class="boss-top"><strong>☠ BOSS BATTLE</strong>${locked ? '<span class="play-tag lock-tag">🔒 LOCKED</span>' : `<span class="play-tag">${beaten ? 'REMATCH' : 'FIGHT'} <svg><use href="#i-play"/></svg></span>`}</span>
+          <span class="boss-name">${esc(battle.name)}${beaten ? '<span class="defeated-tag">✓ DEFEATED</span>' : ''}</span>
+          ${beaten ? `<span class="beaten-note">You've beaten this boss! Your best: ${Number(beaten.score).toLocaleString('en-US')}. Rematch any time for a better score.</span>` : ''}
           <span class="what">${locked ? `Get a B or better on Easy, Medium and Hard of all three songs to unlock (${bossCount(prog)} of 9 done):` : 'Hard notes, and the boss fights back: blackouts, skull trap notes (don\'t hit them!), speed surges' + (layoutMode() === 'keys' ? ' and swapped lanes' : '') + '. Misses hurt twice as much and heal it. Hit the glowing notes to charge a Fireball, then ' + (layoutMode() === 'keys' ? `press ${esc(Input.glyph('overdrive'))}` : 'swipe up') + ' to launch it. Beat the boss before the song ends!'}</span>
           ${locked ? bossNeedHtml(prog) : `<span class="stats">${c.notes.length} notes · ${Math.floor(Boss.powerNotes(c.notes).size)} power notes</span>`}
           ${cardStars(id)}
@@ -3057,9 +3096,17 @@
       .map((s) => ({ key: s.key, title: save.songTitle(s.key) || s.title }));
     const row = (b) => `<button data-board-key="${esc(b.key)}" data-key="${esc(b.key)}" data-title="${esc(b.title)}">` +
       `<svg class="ico"><use href="#i-trophy"/></svg><span class="row-main"><b>${tierBadge(b.tier)}${esc(b.title.toUpperCase().slice(0, 40))}</b><span class="leaders"></span></span><svg class="chev"><use href="#i-chev"/></svg></button>`;
+    // A category's boss battle has its own board, for the way of playing picked above.
+    const bossBoardRow = (s) => {
+      const b = Boss.battleFor(s.id);
+      return `<button class="boss-board-row" data-boss-board="${esc(s.id)}" style="--boss:${b.color}"><svg class="ico"><use href="#i-skull"/></svg>` +
+        `<span class="row-main"><b><span class="tier tier-battle">BOSS BATTLE</span>${esc(b.name)}</b>${bossBeaten(s.id) ? '<span class="defeated-tag">✓ YOU BEAT IT</span>' : ''}<span class="boss-lead" data-boss-lead="${esc(s.id)}"></span></span><svg class="chev"><use href="#i-chev"/></svg></button>`;
+    };
     const themes = THEMES.map(([theme, heading]) => {
       const songs = SongPack.SONGS.filter((s) => (s.theme || 'classic') === theme);
-      return songs.length ? catBlock(where, theme, heading, songs.length, songs.map((s) => row({ key: SongPack.keyFor(s), title: s.title, tier: s.tier })).join('')) : '';
+      const boss = songs.find((s) => Boss.battleFor(s.id));
+      return songs.length ? catBlock(where, theme, heading, boss ? `${songs.length} SONGS + BOSS` : songs.length,
+        songs.map((s) => row({ key: SongPack.keyFor(s), title: s.title, tier: s.tier })).join('') + (boss ? bossBoardRow(boss) : '')) : '';
     }).join('');
     $('#boards-pick').innerHTML = boardsPicker();
     $('#boards-list').innerHTML = themes +
@@ -3068,6 +3115,7 @@
       (World.available() ? catBlock(where, 'players', 'PLAYERS\' MUSIC', '…', '<div id="remote-songs"><p class="hint">Loading songs other players posted…</p></div>', { summary: false }) : '');
     autofocusCat($('#boards-list'));
     fillCatSummaries($('#boards-list'), [tier]);
+    fillBossLeaders($('#boards-list'), boardsPick.fam === 'tiles' ? 'keys' : boardsPick.fam);
     fillPickCounts([...SongPack.SONGS.map((x) => SongPack.keyFor(x)), ...bonus.map((x) => x.key), ...played.map((x) => x.key)]);
     if (World.available()) renderRemoteSongs();
   }
@@ -3165,6 +3213,15 @@
     const grades = ['S', 'A', 'B', 'C', 'D'];
     const best = grades.find((g) => p.scores.some((s) => String(s.grade).startsWith(g))) || '–';
     const since = p.scores.map((s) => s.date).filter(Boolean).sort()[0];
+    // Boss trophies: every boss this player has beaten (a posted win on any of its boards;
+    // on your own license, a win kept on this device counts too).
+    const bosses = Object.entries(Boss.BATTLES).map(([id, b]) => {
+      const wins = p.scores.filter((s) => s.board.startsWith('pack-' + id + '__') && /boss$/.test(s.board));
+      const local = p.mine && save.data.profiles.some((q) => q.initials === p.initials && bossBeaten(id, q.id));
+      const best = wins.slice().sort((x, y) => y.score - x.score)[0];
+      return { id, b, beaten: !!(wins.length || local), lead: wins.some((s) => s.leader), best, at: best ? p.scores.indexOf(best) : -1 };
+    });
+    const beatenCount = bosses.filter((x) => x.beaten).length;
     const row = (s, i) => {
       const d = s.info.diff;
       return `<div class="lic-row${s.leader ? ' lead' : ''}">` +
@@ -3186,13 +3243,24 @@
       </div>
       <div class="lic-stats">
         <span><b>${trophies.length}</b>TROPHIES</span><span><b>${p.scores.length}</b>SCORES</span>
-        <span><b>${p.dailyWins || 0}</b>DAILY WINS</span><span><b>${best}</b>BEST GRADE</span>
+        <span><b>${p.dailyWins || 0}</b>DAILY WINS</span><span><b>${beatenCount}/${bosses.length}</b>BOSSES</span><span><b>${best}</b>BEST GRADE</span>
       </div>
     </div>` +
+      `<p class="label">BOSS TROPHIES (${beatenCount} OF ${bosses.length})</p>` +
+      `<div class="boss-shelf">${bosses.map((x) => `<button class="boss-trophy${x.beaten ? ' beaten' : ''}${x.lead ? ' lead' : ''}" ${x.at >= 0 ? `data-lic-board="${x.at}"` : 'disabled'} style="--boss:${x.b.color}" title="${esc(x.b.name)}">` +
+        `<canvas class="boss-art" width="16" height="${Boss.SPRITES[x.b.id].rows.length}" data-sprite="${x.b.id}" aria-hidden="true"></canvas>` +
+        `<b>${esc(x.b.name.replace(/^THE /, ''))}</b><small>${x.beaten ? (x.lead ? '<svg><use href="#i-crown"/></svg>RECORD' : x.best ? Number(x.best.score).toLocaleString('en-US') : 'DEFEATED') : 'NOT YET'}</small></button>`).join('')}</div>` +
       `<p class="label">${trophies.length ? `TROPHIES HELD (${trophies.length})` : 'NO TROPHIES YET'}</p>` +
       (trophies.length ? `<div class="lic-list">${trophies.map((s) => row(s, p.scores.indexOf(s))).join('')}</div>`
         : `<p class="hint">${esc(p.initials)} hasn't taken a #1 spot yet. Their posted high scores are below.</p>`) +
       (others.length ? `<p class="label">HIGH SCORES (${others.length})</p><div class="lic-list">${others.map((s) => row(s, p.scores.indexOf(s))).join('')}</div>` : '');
+    // The bosses' portraits: in colour once beaten, a dark silhouette until then.
+    for (const cv of $$('#license canvas[data-sprite]')) {
+      const art = Boss.SPRITES[cv.dataset.sprite];
+      const lit = cv.closest('.boss-trophy').classList.contains('beaten');
+      const g = cv.getContext('2d');
+      art.rows.forEach((row, y) => [...row].forEach((k, x) => { if (k !== '.') { g.fillStyle = lit ? art.palette[k] : '#2a2440'; g.fillRect(x, y, 1, 1); } }));
+    }
   }
 
   $('#license').addEventListener('click', async (e) => {
@@ -3286,6 +3354,12 @@
     if (rb) {
       const g = remoteSongs[+rb.dataset.remote];
       if (g) openBoard(g.key, g.title, remoteTier(g.boards), 'boards', 'world', { key: g.key, title: g.title, fp: g.fp, boards: g.boards });
+      return;
+    }
+    const bb = e.target.closest('[data-boss-board]');
+    if (bb) {
+      const def = SongPack.SONGS.find((x) => x.id === bb.dataset.bossBoard);
+      openBoard(SongPack.keyFor(def), def.title, bossIdFor(boardsPick.fam === 'tiles' ? 'keys' : boardsPick.fam), 'boards');
       return;
     }
     const b = e.target.closest('[data-board-key]');

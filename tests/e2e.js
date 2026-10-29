@@ -273,11 +273,58 @@ async function bossTests(browser) {
   await page.screenshot({ path: path.join(outDir, 'e2e-boss-won-card.png') });
   await page.waitForFunction(() => /#1|WORLD/.test(document.getElementById('res-world').textContent), null, { timeout: 8000 }).catch(() => {});
   check(await page.evaluate(() => !document.getElementById('res-world-box').hidden), 'a boss win can go on the world board');
+  await page.click('#res-post');
+  await page.waitForFunction(() => /POSTED/.test(document.getElementById('res-world').textContent), null, { timeout: 8000 }).catch(() => {});
+  check(/POSTED! WORLD RANK #1/.test(await page.textContent('#res-world')), 'the win is posted to the boss battle\'s world board');
   // Its board has a BOSS BATTLE tab.
   await page.click('#btn-res-board');
   await screenIs(page, 'board');
   const tabs = await page.evaluate(() => [...document.querySelectorAll('#board-tabs [data-board-tier]')].map((b) => b.dataset.boardTier + (b.classList.contains('on') ? '*' : '')).join());
   check(/boss\*/.test(tabs), `the song's boards include the boss battle, lit (${tabs})`);
+
+  // Beaten: the song list marks it DEFEATED with a REMATCH, and says who holds the record.
+  await page.evaluate(() => BeatFrets.goHome());
+  await screenIs(page, 'main');
+  await page.click('#btn-mode-frets');
+  await screenIs(page, 'pack');
+  await openCat(page, 'spooky', 'click');
+  await page.waitForFunction(() => /RECORD/.test(document.querySelector('[data-boss="witching-hour"] .boss-lead').textContent), null, { timeout: 5000 }).catch(() => {});
+  const beatRow = await page.evaluate(() => { const b = document.querySelector('[data-boss="witching-hour"]'); return { beaten: b.classList.contains('beaten'), text: b.textContent.replace(/\s+/g, ' '), lead: b.querySelector('.boss-lead').textContent }; });
+  check(beatRow.beaten && /DEFEATED/.test(beatRow.text) && /REMATCH/.test(beatRow.text) && /Your best/.test(beatRow.text) && /YOU HOLD THE RECORD/.test(beatRow.lead), `a beaten boss: DEFEATED, REMATCH, your best, and the record holder (${beatRow.text.slice(0, 160)})`);
+  const otherRow = await page.evaluate(() => document.querySelector('[data-boss="amp-overload"]') && document.querySelector('[data-boss="amp-overload"]').classList.contains('locked'));
+  check(otherRow, 'other bosses stay as they were');
+  await page.evaluate(() => document.querySelector('[data-boss="witching-hour"]').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-beaten-row.png') });
+  await page.click('[data-boss="witching-hour"]');
+  await screenIs(page, 'song');
+  check(await page.evaluate(() => { const c = document.querySelector('#boss-battle .boss-card'); return c.classList.contains('beaten') && /REMATCH/.test(c.textContent) && /DEFEATED/.test(c.textContent); }), 'the song screen card says DEFEATED, with REMATCH');
+
+  // Boards: each category lists its boss battle with the record holder.
+  await page.evaluate(() => BeatFrets.goHome());
+  await screenIs(page, 'main');
+  await page.click('#tabbar [data-go="boards"]');
+  await screenIs(page, 'boards');
+  await openCat(page, 'spooky', 'click');
+  await page.waitForFunction(() => /RECORD/.test((document.querySelector('[data-boss-board="witching-hour"] .boss-lead') || {}).textContent || ''), null, { timeout: 5000 }).catch(() => {});
+  const bRow = await page.evaluate(() => { const b = document.querySelector('[data-boss-board="witching-hour"]'); return b && b.textContent.replace(/\s+/g, ' '); });
+  check(bRow && /VAMPIRE COUNT/.test(bRow) && /YOU HOLD THE RECORD/.test(bRow), `Boards lists the boss battle and who holds its record (${bRow})`);
+  await page.click('[data-boss-board="witching-hour"]');
+  await screenIs(page, 'board');
+  check(/BOSS BATTLE LEADERBOARD/.test(await page.textContent('#board-now')), 'it opens the boss battle\'s leaderboard');
+  await page.click('#btn-back');
+  await screenIs(page, 'boards');
+
+  // The license: a shelf of boss trophies, lit for each boss beaten.
+  await page.click('[data-boards-view="players"]');
+  await page.waitForSelector('#players-list [data-license]', { timeout: 8000 });
+  await page.click('#players-list [data-license]');
+  await screenIs(page, 'license');
+  const shelf = await page.evaluate(() => ({ all: document.querySelectorAll('.boss-trophy').length, beaten: [...document.querySelectorAll('.boss-trophy.beaten')].map((b) => b.textContent), lead: document.querySelectorAll('.boss-trophy.lead').length, label: [...document.querySelectorAll('#license .label')].map((l) => l.textContent).join('|'), stat: document.querySelector('.lic-stats').textContent }));
+  check(shelf.all === 9 && shelf.beaten.length === 1 && /VAMPIRE COUNT/.test(shelf.beaten[0]) && shelf.lead === 1 && /BOSS TROPHIES \(1 OF 9\)/.test(shelf.label) && /1\/9\s*BOSSES/.test(shelf.stat), `the license shows a boss trophy for each boss beaten (${JSON.stringify(shelf)})`);
+  await page.evaluate(() => document.querySelector('.boss-shelf').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-license.png') });
   check(errors.length === 0, 'no errors in the boss battle ' + errors.join(' | '));
 }
 
