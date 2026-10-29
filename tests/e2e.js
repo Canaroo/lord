@@ -561,6 +561,19 @@ async function touchTests(browser) {
   await page.waitForFunction(() => BeatFrets.game.odReadyAnnounced, null, { timeout: 5000 });
   await page.waitForTimeout(1800);
   await page.screenshot({ path: path.join(outDir, 'e2e-touch-port-od.png') });
+  // Upright, a thumb that's been resting on a fret flicks up a short way, a little to the side:
+  // that still fires overdrive.
+  const flick = await page.evaluate(async () => {
+    const g = BeatFrets.game, cv = document.getElementById('stage');
+    const c = BeatFrets.stage.laneCenterClient(g.lanes, 0);
+    const ev = (type, x, y) => cv.dispatchEvent(new PointerEvent(type, { pointerId: 951, pointerType: 'touch', clientX: x, clientY: y, bubbles: true }));
+    ev('pointerdown', c.x, c.y);
+    for (let k = 0; k < 8; k++) { await new Promise((r) => setTimeout(r, 80)); ev('pointermove', c.x + (k % 2), c.y); } // resting
+    for (let k = 1; k <= 4; k++) { await new Promise((r) => setTimeout(r, 16)); ev('pointermove', c.x + k * 5, c.y - k * 8); }
+    ev('pointerup', c.x + 20, c.y - 32);
+    return g.odActive;
+  });
+  check(flick, 'upright, a short flick from a thumb resting on a fret fires overdrive');
 
   // Turning the phone mid-song pauses until it's turned back.
   await page.setViewportSize(LAND);

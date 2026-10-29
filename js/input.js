@@ -180,8 +180,12 @@
     touchPoints = new Map(); // pointerId → { lane, x, y }, for drawing where thumbs are
     const pressedBy = (lane) => [...fingers.values()].filter((l) => l === lane).length;
     // A quick flick upward with any finger fires overdrive, so thumbs never leave the frets.
-    const SWIPE_MS = 350;
-    const swipes = new Map(); // pointerId → { x, y, t, fired }
+    // It's measured over the last SWIPE_MS of movement (not from when the finger landed),
+    // so a thumb already resting on a fret or holding a long note can flick at any moment.
+    // The distance comes from the screen's short side, so a flick is the same size
+    // sideways and upright (upright, the screen's height used to ask for twice as far).
+    const SWIPE_MS = 300;
+    const swipes = new Map(); // pointerId → { x, y, t, fired }: where the flick is measured from
     canvas.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse' || !gameplay) return;
       e.preventDefault();
@@ -202,10 +206,12 @@
       if (tp) { tp.x = e.clientX; tp.y = e.clientY; }
       const sw = swipes.get(e.pointerId);
       if (!sw || sw.fired || !gameplay) return;
+      // Start over from here if the finger has been still (or slow) too long, or moved down.
+      if (e.timeStamp - sw.t > SWIPE_MS || e.clientY > sw.y) { sw.x = e.clientX; sw.y = e.clientY; sw.t = e.timeStamp; return; }
       const up = sw.y - e.clientY;
-      const dist = Math.max(28, window.innerHeight * 0.06);
-      if (e.timeStamp - sw.t > SWIPE_MS) { swipes.delete(e.pointerId); return; }
-      if (up > dist && up > Math.abs(e.clientX - sw.x) * 1.5) {
+      const dist = Math.min(40, Math.max(22, Math.min(window.innerWidth, window.innerHeight) * 0.065));
+      // Mostly upward (a thumb's flick often leans sideways).
+      if (up > dist && up > Math.abs(e.clientX - sw.x)) {
         sw.fired = true;
         emit('action', 'overdrive');
       }

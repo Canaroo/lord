@@ -282,7 +282,9 @@ press a key or a controller button.
   above the highway, rolling up as you play, with your stars and personal-best pace under it.
 - **Overdrive:** when it's ready, a chime plays, *SWIPE UP!* sweeps across the highway, big
   arrows climb up both sides of the highway, and the frets and track glow cyan until you use it. **Flick any finger up** off the frets to fire it.
-  Your thumbs never have to leave the bottom of the screen. **Pause:** the **II** button, or the
+  Your thumbs never have to leave the bottom of the screen. A flick is a short, quick move up (about
+  a fingertip's height, within a third of a second, leaning sideways is fine), the same size held
+  sideways or upright, and it works from a thumb that's been resting on a fret or holding a long note. **Pause:** the **II** button, or the
   phone's **Back** button.
 - **Menus:** every menu has a **BACK** button at the bottom, and the phone's own Back button
   (or an edge swipe on iPhone) steps back one menu instead of leaving the game.
@@ -548,6 +550,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.54**: **Easier overdrive flick, especially upright.** The flick is the same short size both ways
+  up (upright used to need nearly twice as far), counts from a thumb already resting on a fret,
+  and can lean sideways.
 - **1.53**: License rows say which category each song is from (a tag in the category's colour:
   SPOOKY, CLASSICAL REMIX, BONUS TRACKS, PLAYERS' MUSIC...), grouped in song-list order.
 - **1.52**: **Bragging rights.** A beaten boss shows ✓ DEFEATED and REMATCH, with your best
