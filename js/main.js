@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.48';
+  const VERSION = '1.49';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -656,9 +656,13 @@
   }
 
   /** A song as a list row: title and details on the left, your best stars and a › on the right. */
-  /** ROOKIE · PRO · BOSS: how naturally hard a pack song is, whatever the difficulty. */
-  const TIERS = { rookie: 'ROOKIE', pro: 'PRO', boss: 'BOSS' };
-  const tierBadge = (tier) => (TIERS[tier] ? `<span class="tier tier-${tier}">${tier === 'boss' ? '<svg><use href="#i-skull"/></svg>' : ''}${TIERS[tier]}</span>` : '');
+  /**
+   * ROOKIE · PRO · ELITE: how naturally hard a pack song is, whatever the difficulty. (The
+   * hardest tier's id stays 'boss' in the song data; it's shown as ELITE so it isn't mixed up
+   * with the BOSS BATTLE.)
+   */
+  const TIERS = { rookie: 'ROOKIE', pro: 'PRO', boss: 'ELITE' };
+  const tierBadge = (tier) => (TIERS[tier] ? `<span class="tier tier-${tier}">${TIERS[tier]}</span>` : '');
 
   function songRow(title, detail, key, tier) {
     const p = save.active;
@@ -743,7 +747,7 @@
       ? `Get a B or better on Easy, Medium and Hard of all three songs to unlock (${bossCount(prog)} of 9 done)`
       : `${def.title} on Hard: beat the boss before the song ends!`;
     return `<div class="song-line"><button class="boss-row${locked ? ' locked' : ''}" data-boss="${esc(def.id)}" style="--boss:${battle.color}">` +
-      `<span class="row-main"><b><span class="tier tier-boss"><svg><use href="#i-skull"/></svg>BOSS BATTLE</span>${esc(battle.name)}</b><small>${esc(detail)}</small>` +
+      `<span class="row-main"><b><span class="tier tier-battle"><svg><use href="#i-skull"/></svg>BOSS BATTLE</span>${esc(battle.name)}</b><small>${esc(detail)}</small>` +
       (locked ? bossNeedHtml(prog) : '') + '</span>' +
       `<span class="row-side">${locked ? '<span class="lock-big">🔒<span class="lock-word"> LOCKED</span></span>' : '<span class="fight">FIGHT</span>'}</span><svg class="chev"><use href="#i-chev"/></svg></button></div>`;
   }

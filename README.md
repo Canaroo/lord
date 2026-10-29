@@ -94,13 +94,13 @@ its own leaderboards.
 
 ## Boss battles
 
-The BOSS songs of three categories have a **BOSS BATTLE** under their difficulties: *Witching
+The ELITE songs of three categories have a **BOSS BATTLE** under their difficulties: *Witching
 Hour* (Spooky) against **the Vampire Count**, *Amp Overload* (Rock) against **the Amp Titan** and
 *Dragon's Lair* (Epic Adventure) against **the Dragon**.
 
 - **On the song list** the battle has its own row at the end of its category, marked 🔒 LOCKED
   until you have a B or better on **Easy, Medium and Hard of each of the category's three songs**
-  (ROOKIE, PRO and BOSS): 9 in all, played any way (keys, sideways or upright). The row and the
+  (ROOKIE, PRO and ELITE): 9 in all, played any way (keys, sideways or upright). The row and the
   card tick off each song's levels as you go (*8 of 9 done*). Practice and failed runs don't count.
 - **The fight** uses the song's Hard notes, on keys or a phone (sideways or upright; not Tiles).
   The boss stands across the stage with a health bar. Every note you hit chips at it (PERFECT
@@ -144,8 +144,8 @@ it changes at **midnight US Eastern time**. It sits in a gold card at the top of
 song, the difficulty for the way you're playing, who leads today's board, and your 🔥 streak.
 
 - **The week builds up:** Monday and Tuesday on Easy, Wednesday and Thursday on Medium, Friday and
-  Saturday on Hard, and on Sunday a BOSS song on Hard. Weekdays cycle through
-  the ROOKIE and PRO songs and Sundays through the BOSS songs, so every song comes up before any repeats.
+  Saturday on Hard, and on Sunday an ELITE song on Hard. Weekdays cycle through
+  the ROOKIE and PRO songs and Sundays through the ELITE songs, so every song comes up before any repeats.
 - **One board per way of playing:** Keys, Sideways, Upright and Tiles each have their own board for
   the day, so thumbs never compete with keyboards. Tap **PLAY** (or **TILES**) on the card to start,
   or **TODAY'S BOARD** to see who's ahead. The song screen marks today's difficulty with a gold
@@ -487,10 +487,10 @@ themselves, with the melody walking across the frets.
 
 Every theme has three songs, from a gentle one to a tough one. Each can be played on any
 difficulty, but the song itself is naturally easier or harder, and a badge says so:
-**ROOKIE** (green), **PRO** (gold) and **BOSS** (red, with a skull). A ROOKIE song stays
-approachable even on Hard; a BOSS song is a challenge even on Easy.
+**ROOKIE** (green), **PRO** (gold) and **ELITE** (purple). A ROOKIE song stays
+approachable even on Hard; an ELITE song is a challenge even on Easy.
 
-| Theme | ROOKIE | PRO | BOSS | Sound |
+| Theme | ROOKIE | PRO | ELITE | Sound |
 | --- | --- | --- | --- | --- |
 | Classics | Pixel Overture (104) | Turbo Cartridge (140) | Castle Overdrive (168) | pulse lead, arpeggios |
 | Spooky | Haunted Hallway (112) | Graveyard Shift (138) | Witching Hour (172) | wobbly organ, long echo, toms / timpani |
@@ -504,7 +504,7 @@ approachable even on Hard; a BOSS song is a challenge even on Easy.
 
 To add a song, give it a `theme` and a `tier` (`rookie`, `pro` or `boss`); the lists show each
 theme's songs in the order they appear in `js/songs.js`. As a guide, on Easy a ROOKIE song has
-about 1.7 notes a second, PRO about 2.1 and BOSS 2.6 or more (`npm test` prints nothing about
+about 1.7 notes a second, PRO about 2.1 and ELITE 2.6 or more (`npm test` prints nothing about
 this, but the numbers are easy to check with ChartGen).
 
 With Claude Code, the **add-song** skill (`.claude/skills/add-song/`) does all of this from a
@@ -512,7 +512,7 @@ loose idea ("a spooky rookie song about a haunted carnival"): it composes the so
 density to the tier, runs the tests, renders an MP3 preview to listen to, and waits for your OK
 before publishing. It can also start a new theme or retune a song. Its two scripts work on their
 own too: `node .claude/skills/add-song/scripts/song-stats.js` prints every song's notes per second
-and checks each theme's ROOKIE → PRO → BOSS order.
+and checks each theme's ROOKIE → PRO → ELITE order.
 
 Songs are synthesised at 32 kHz (the SNES's own output rate) the first time they're played on a
 device, with a progress bar (roughly 10 to 60 seconds, longer for faster, busier songs), and
@@ -530,6 +530,8 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.49**: The hardest song tier is now called **ELITE** (purple badge) instead of BOSS, so it isn't
+  mixed up with the BOSS BATTLE. Same songs, same scores.
 - **1.48**: The boss battle's unlock list is one tidy line per song, with E / M / H chips (✓ done,
   🔒 still needs a B), so it reads at a glance on a phone.
 - **1.47**: **Boss battles fight back.** Misses cost twice the rock meter and heal the boss. Every

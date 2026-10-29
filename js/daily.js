@@ -28,7 +28,7 @@
   /** 0 = Sunday … 6 = Saturday. */
   const weekday = (date) => new Date(dayNumber(date) * DAY).getUTCDay();
 
-  // The week builds up: easy early on, harder toward the weekend, a BOSS song on Sunday.
+  // The week builds up: easy early on, harder toward the weekend, an ELITE song on Sunday.
   const RHYTHM = ['hard', 'easy', 'easy', 'medium', 'medium', 'hard', 'hard'];
 
   /** A fixed shuffle of a list (same order on every device), so songs don't repeat until all have come up. */
@@ -47,7 +47,7 @@
    * The pick for a date: { date, songId, base } where base is the difficulty
    * ('easy' | 'medium' | 'hard'). `songs` is the song pack
    * (objects with id and tier). Weekdays cycle through the ROOKIE and PRO songs,
-   * Sundays through the BOSS songs.
+   * Sundays through the ELITE songs.
    */
   function pick(songs, date = today()) {
     const wd = weekday(date);

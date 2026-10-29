@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * Song-pack report: notes per second on every difficulty, the checks npm test
- * makes, and whether each theme still runs ROOKIE → PRO → BOSS.
+ * makes, and whether each theme still runs ROOKIE → PRO → ELITE.
  *
  *   node .claude/skills/add-song/scripts/song-stats.js            # every song
  *   node .claude/skills/add-song/scripts/song-stats.js garage-jam  # just these (themes still checked)
@@ -17,6 +17,7 @@ const ChartGen = require(path.join(root, 'js/chartgen.js'));
 // Same limits as tests/songs.test.js (keep in step if those change).
 const RANGE = { easy: [1, 3.5], medium: [1.8, 5.5], hard: [3, 8], insane: [3.5, 8.6] };
 // Where each tier usually sits on Easy (notes a second), from the songs already in the pack.
+const LABEL = (t) => ({ rookie: 'ROOKIE', pro: 'PRO', boss: 'ELITE' }[t] || String(t || '?').toUpperCase());
 const TIER_EASY = { rookie: [1.2, 2.0], pro: [1.8, 2.6], boss: [2.4, 3.5] };
 const ORDER = { rookie: 0, pro: 1, boss: 2 };
 
@@ -42,7 +43,7 @@ for (const song of SongPack.SONGS) {
   if (!(total.easy < total.medium && total.medium < total.hard && total.hard < total.insane)) problems.push(`difficulties don't step up: ${JSON.stringify(total)}`);
   if (!ORDER.hasOwnProperty(song.tier)) problems.push(`tier must be rookie, pro or boss (got ${song.tier})`);
   const guide = TIER_EASY[song.tier];
-  const note = guide && (nps.easy < guide[0] || nps.easy > guide[1]) ? `Easy ${nps.easy.toFixed(2)}/s is unusual for ${song.tier.toUpperCase()} (usually ${guide[0]}–${guide[1]})` : '';
+  const note = guide && (nps.easy < guide[0] || nps.easy > guide[1]) ? `Easy ${nps.easy.toFixed(2)}/s is unusual for ${LABEL(song.tier)} (usually ${guide[0]}–${guide[1]})` : '';
   if (problems.length) failed++;
   rows.push({ song, nps, secs: a.duration, problems, note });
 }
@@ -58,7 +59,7 @@ for (const r of show) {
   if (r.note) console.log('   note ' + r.note);
 }
 
-// Each theme should list its songs ROOKIE, PRO, BOSS, getting harder as it goes.
+// Each theme should list its songs ROOKIE, PRO, ELITE, getting harder as it goes.
 const themes = {};
 for (const r of rows) (themes[r.song.theme || 'classic'] = themes[r.song.theme || 'classic'] || []).push(r);
 console.log('\nthemes (in list order):');
@@ -66,7 +67,7 @@ for (const [t, list] of Object.entries(themes)) {
   const tiers = list.map((r) => r.song.tier);
   const sorted = tiers.every((x, i) => i === 0 || ORDER[tiers[i - 1]] <= ORDER[x]);
   const easy = list.map((r) => (r.nps ? r.nps.easy.toFixed(2) : '?'));
-  console.log(`  ${pad(t, 9)} ${tiers.map((x) => (x || '?').toUpperCase()).join(' → ')}   easy ${easy.join(' → ')}${sorted ? '' : '   FAIL tiers out of order'}`);
+  console.log(`  ${pad(t, 9)} ${tiers.map(LABEL).join(' → ')}   easy ${easy.join(' → ')}${sorted ? '' : '   FAIL tiers out of order'}`);
   if (!sorted) failed++;
   const harder = list.every((r, i) => i === 0 || !r.nps || !list[i - 1].nps || r.song.tier === list[i - 1].song.tier || r.nps.easy > list[i - 1].nps.easy);
   if (!harder) console.log('   note a higher tier is not busier on Easy than the one before it');

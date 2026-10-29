@@ -36,7 +36,7 @@ changing anything, since they may prefer a new song instead.
 ## 2. Compose
 
 Add the song object to `SONGS` in `js/songs.js` inside its theme's block (`// ---- Spooky ----`
-etc.), placed so the theme reads ROOKIE → PRO → BOSS; the song list shows songs in array order. If
+etc.), placed so the theme reads ROOKIE → PRO → ELITE; the song list shows songs in array order. If
 two songs share a tier, put the gentler one first.
 
 Aim for the target length (about 90–98 s; the reference has the bar formula) and the tier's feel.

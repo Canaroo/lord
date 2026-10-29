@@ -14,7 +14,7 @@ test('the day changes at midnight US Eastern time', () => {
   assert.strictEqual(Daily.today(Date.UTC(2026, 11, 15, 5, 1)), '2026-12-15');
 });
 
-test('a weekly rhythm: easy early in the week, a BOSS song on Hard on Sunday', () => {
+test('a weekly rhythm: easy early in the week, an ELITE song on Hard on Sunday', () => {
   const week = ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31'];
   const picks = week.map((d) => Daily.pick(SongPack.SONGS, d));
   assert.deepStrictEqual(picks.map((p) => p.base), ['hard', 'easy', 'easy', 'medium', 'medium', 'hard', 'hard']);

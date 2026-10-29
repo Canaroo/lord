@@ -149,7 +149,7 @@ async function bossTests(browser) {
     const c = document.querySelector('#boss-battle .boss-card');
     return c && { locked: c.classList.contains('locked'), need: c.querySelectorAll('.boss-need > span').length, diff: c.dataset.diff, text: c.textContent };
   });
-  check(locked && locked.locked && locked.need === 3 && locked.diff === 'boss' && /VAMPIRE COUNT/.test(locked.text), `the BOSS song has a locked boss battle listing the three songs to beat (${JSON.stringify(locked)})`);
+  check(locked && locked.locked && locked.need === 3 && locked.diff === 'boss' && /VAMPIRE COUNT/.test(locked.text), `the ELITE song has a locked boss battle listing the three songs to beat (${JSON.stringify(locked)})`);
   check(await page.evaluate(() => document.querySelectorAll('#diffs [data-diff]').length === 4), 'the four usual difficulties are still there');
   await page.click('#boss-battle .boss-card');
   await page.waitForTimeout(300);
@@ -168,7 +168,7 @@ async function bossTests(browser) {
     await page.click('[data-pack="witching-hour"]');
     await screenIs(page, 'song');
   };
-  // A B on just Easy and Medium of the BOSS song isn't enough on its own; nor is Hard failed.
+  // A B on just Easy and Medium of the ELITE song isn't enough on its own; nor is Hard failed.
   await seedB(['boss'], ['easy', 'medium']);
   await page.evaluate(() => { const p = BeatFrets.save.active; const s = SongPack.SONGS.find((x) => x.id === 'witching-hour'); BeatFrets.save.addRun({ profileId: p.id, initials: p.initials, songKey: SongPack.keyFor(s), title: s.title, difficulty: 'hard', score: 900, grade: 'A', accuracy: 90, maxCombo: 10, fullCombo: false, hits: 10, failed: false, practice: true, stars: 2 }); });
   await seedB(['rookie', 'pro']);

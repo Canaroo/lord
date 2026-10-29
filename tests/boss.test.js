@@ -6,7 +6,7 @@ const Boss = require('../js/boss.js');
 const SongPack = require('../js/songs.js');
 const ChartGen = require('../js/chartgen.js');
 
-test('every boss battle is a BOSS song in its category', () => {
+test('every boss battle is on an ELITE song in its category', () => {
   for (const [id, b] of Object.entries(Boss.BATTLES)) {
     const def = SongPack.SONGS.find((s) => s.id === id);
     assert.ok(def, id);

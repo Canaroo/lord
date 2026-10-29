@@ -1,5 +1,5 @@
 /*
- * Boss battles: the BOSS song of a category, played on Hard against a boss with
+ * Boss battles: the ELITE song of a category, played on Hard against a boss with
  * a health bar. Every note you hit chips at it; glowing power notes charge a
  * Fireball (it takes the place of Overdrive) that you launch with the Overdrive
  * key or a swipe up for a big hit. A power note you miss lets the boss heal a

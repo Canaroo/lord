@@ -11,7 +11,7 @@ straight from it, which is why every player gets identical notes and the world l
 {
   id: 'garage-jam',          // lowercase-hyphenated, unique, permanent (see "ids are forever")
   theme: 'rock',             // classic (or leave out), spooky, rock, epic, space, carnival, salsa, hiphop, classical — or a new theme
-  tier: 'rookie',            // rookie | pro | boss
+  tier: 'rookie',            // rookie | pro | boss (shown as ROOKIE, PRO, ELITE)
   title: 'Garage Jam',
   blurb: 'Plug in and stomp along: a simple, chunky first riff.',   // one short line, shown in the list
   bpm: 104,
@@ -134,7 +134,7 @@ The badge describes the *song*, whatever difficulty it's played on. Measured on 
 | --- | --- | --- | --- |
 | ROOKIE | ~1.65–1.95 | 104–120 | on-the-beat drums, held melody, simple bass |
 | PRO | ~2.05–2.35 | 128–152 | off-beat hats, gallops, a busier chorus |
-| BOSS | ~2.55–2.8 | 160–172 | sixteenth hats, double kicks, fast runs; Medium near the 5.5 cap |
+| ELITE (`boss`) | ~2.55–2.8 | 160–172 | sixteenth hats, double kicks, fast runs; Medium near the 5.5 cap |
 
 In each theme the next tier up should be clearly busier on Easy than the one before it (look at the
 "themes" lines that `song-stats.js` prints).

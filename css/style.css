@@ -1189,12 +1189,13 @@ input[type="range"].pending::-moz-range-track { border-color: var(--gold); }
 .keep-list li { padding: 4px 0; border-bottom: 1px dashed var(--line); }
 .keep-list b { color: var(--gold); font-weight: 400; }
 
-/* ROOKIE · PRO · BOSS: how naturally hard a song is. */
+/* ROOKIE · PRO · ELITE: how naturally hard a song is (ELITE's class is tier-boss). BOSS BATTLE is its own badge. */
 .tier { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; padding: 3px 6px; border: 2px solid var(--ink); border-radius: 5px; font: 700 10px var(--act); vertical-align: 2px; letter-spacing: 0.06em; }
 .tier svg { width: 10px; height: 10px; fill: currentColor; }
 .tier-rookie { background: var(--green); color: var(--ink); }
 .tier-pro { background: var(--gold); color: var(--ink); }
-.tier-boss { background: linear-gradient(180deg, #ff6a82, #d81e45); color: var(--text); box-shadow: 0 0 8px rgba(248, 72, 96, 0.5); }
+.tier-boss { background: linear-gradient(180deg, #d58bff, #8a3ae0); color: var(--text); box-shadow: 0 0 8px rgba(180, 76, 255, 0.45); }
+.tier-battle { background: linear-gradient(180deg, #ff6a82, #d81e45); color: var(--text); box-shadow: 0 0 8px rgba(248, 72, 96, 0.5); }
 .song-tier { display: flex; align-items: center; justify-content: center; gap: 4px; margin: -4px 0 6px; font-size: 19px; color: var(--muted); }
 .song-tier:empty { display: none; }
 
@@ -1356,7 +1357,7 @@ body.touch .lane-switch.touch-only { display: flex; }
 :is(.diff-tabs button, .board-now-tier)[data-base="boss"] { --acc: #ff2f6d; }
 /* The boss battle's row at the end of its category on the song list. */
 :is(#pack-list) .cat-body button.boss-row { --acc: var(--boss); background: linear-gradient(90deg, color-mix(in srgb, var(--boss) 26%, #1a0820), #12061c 75%); box-shadow: inset 0 0 0 2px var(--boss), 0 4px 0 var(--ink); }
-.boss-row .tier-boss { margin-right: 8px; }
+.boss-row .tier-battle { margin-right: 8px; }
 .boss-row .boss-need { margin-top: 4px; }
 .boss-row .lock-big { font-size: 10px; color: var(--gold); white-space: nowrap; }
 .boss-row .fight { font-size: 11px; padding: 5px 8px; border-radius: 6px; background: var(--red); color: var(--ink); box-shadow: 0 2px 0 var(--ink); }
