@@ -147,7 +147,7 @@ async function bossTests(browser) {
   // Locked until a B on each of the category's three songs.
   const locked = await page.evaluate(() => {
     const c = document.querySelector('#boss-battle .boss-card');
-    return c && { locked: c.classList.contains('locked'), need: c.querySelectorAll('.boss-need span').length, diff: c.dataset.diff, text: c.textContent };
+    return c && { locked: c.classList.contains('locked'), need: c.querySelectorAll('.boss-need > span').length, diff: c.dataset.diff, text: c.textContent };
   });
   check(locked && locked.locked && locked.need === 3 && locked.diff === 'boss' && /VAMPIRE COUNT/.test(locked.text), `the BOSS song has a locked boss battle listing the three songs to beat (${JSON.stringify(locked)})`);
   check(await page.evaluate(() => document.querySelectorAll('#diffs [data-diff]').length === 4), 'the four usual difficulties are still there');

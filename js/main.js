@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.47';
+  const VERSION = '1.48';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -173,7 +173,7 @@
   }
   /** What's left for a song: ✓ E · ✓ M · 🔒 H. */
   const bossNeedHtml = (prog) => `<span class="boss-need">${prog.map((x) => `<span class="${x.done ? 'done' : ''}">` +
-    `<b>${esc(x.title)}</b> ${BOSS_LEVELS.map((lv) => `<i class="${x.levels[lv] ? 'ok' : ''}">${x.levels[lv] ? '✓' : '🔒'} ${{ easy: 'EASY', medium: 'MEDIUM', hard: 'HARD' }[lv]}</i>`).join(' ')}</span>`).join('')}</span>`;
+    `<b>${esc(x.title)}</b><span class="lv">${BOSS_LEVELS.map((lv) => `<i class="${x.levels[lv] ? 'ok' : ''}" title="${x.levels[lv] ? 'Done' : 'Needs a B'}">${x.levels[lv] ? '✓' : '🔒'}${{ easy: 'E', medium: 'M', hard: 'H' }[lv]}</i>`).join('')}</span></span>`).join('')}</span>`;
   const bossCount = (prog) => prog.reduce((n, x) => n + x.count, 0);
   const bossLocked = (id) => parseId(id).difficulty === 'boss' && !(current && current.kind === 'pack' && bossProgress(current.packId).every((x) => x.done));
   const UNLOCK_HINT = (id) => (parseId(id).tiles ? 'Clear lap 1 on Hard at 75%+ to unlock' : 'Get a B or better on Hard to unlock');
@@ -745,7 +745,7 @@
     return `<div class="song-line"><button class="boss-row${locked ? ' locked' : ''}" data-boss="${esc(def.id)}" style="--boss:${battle.color}">` +
       `<span class="row-main"><b><span class="tier tier-boss"><svg><use href="#i-skull"/></svg>BOSS BATTLE</span>${esc(battle.name)}</b><small>${esc(detail)}</small>` +
       (locked ? bossNeedHtml(prog) : '') + '</span>' +
-      `<span class="row-side">${locked ? '<span class="lock-big">🔒 LOCKED</span>' : '<span class="fight">FIGHT</span>'}</span><svg class="chev"><use href="#i-chev"/></svg></button></div>`;
+      `<span class="row-side">${locked ? '<span class="lock-big">🔒<span class="lock-word"> LOCKED</span></span>' : '<span class="fight">FIGHT</span>'}</span><svg class="chev"><use href="#i-chev"/></svg></button></div>`;
   }
 
   /** Back on the song list after playing: a boss battle may have just unlocked. */

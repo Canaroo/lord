@@ -530,6 +530,8 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.48**: The boss battle's unlock list is one tidy line per song, with E / M / H chips (✓ done,
+  🔒 still needs a B), so it reads at a glance on a phone.
 - **1.47**: **Boss battles fight back.** Misses cost twice the rock meter and heal the boss. Every
   13 seconds or so the boss attacks: blackouts, skull trap notes you mustn't hit, speed surges and
   (on keys) swapped lanes.

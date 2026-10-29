@@ -1,6 +1,6 @@
 {
   "name": "beat-frets",
-  "version": "1.47.0",
+  "version": "1.48.0",
   "private": true,
   "description": "Keyboard rhythm game that auto-generates note charts from your own MP3s.",
   "scripts": {

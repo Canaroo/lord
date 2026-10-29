@@ -1393,8 +1393,12 @@ body.touch .lane-switch.touch-only { display: flex; }
 /* Tiles is switched off (it can come back with the 'beatfrets.tiles' switch). */
 body.no-tiles .tiles-only { display: none !important; }
 body.no-tiles:not(.touch) .lines-group { display: none; }
-.boss-need > span { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
-.boss-need b { font: 400 18px/1 var(--body); color: var(--text); margin-right: 2px; }
-.boss-need i { font-style: normal; font-size: 16px; color: var(--muted); }
-.boss-need i.ok { color: var(--green); }
+/* One line per song: its name, then E / M / H chips (✓ done, 🔒 still needs a B). */
+.boss-need { gap: 5px; }
+.boss-need > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.boss-need b { font: 400 18px/1 var(--body); color: var(--text); min-width: 0; }
+.boss-need .lv { display: flex; gap: 4px; flex: none; }
+.boss-need i { font: 400 9px/1 var(--pixel); font-style: normal; width: 36px; text-align: center; padding: 4px 0; border-radius: 5px; border: 2px solid var(--line); color: var(--muted); white-space: nowrap; }
+.boss-need i.ok { color: var(--ink); background: var(--green); border-color: var(--green); }
+@media (max-width: 520px) { .boss-row .lock-word { display: none; } .boss-row .lock-big { font-size: 14px; } }
 .boss-need .done b { color: var(--green); }
