@@ -38,7 +38,13 @@ Controllers are detected automatically. Browsers only reveal a controller after 
 buttons is pressed, so press any button and the on-screen labels switch to that pad's buttons.
 The keyboard keeps working alongside it.
 
-## Tiles mode
+## Tiles mode (switched off)
+
+**Since 1.46 Tiles is switched off:** the game is about Beat Frets. Tiles no longer appears on the
+home screen, in the Song of the Day, on the boards or in Options. Its code is still in the game and
+old Tiles scores stay saved, so it can come back: in the browser console, run
+`localStorage.setItem('beatfrets.tiles', 'on')` and reload (`removeItem` turns it off again). The
+browser tests use this switch to keep Tiles working. The rest of this section describes it when on.
 
 A second way to play every song, in the style of *Magic Tiles*. Pick **Tiles Mode** on the main
 menu, or the **TILES** switch on any song's screen.
@@ -93,8 +99,9 @@ Hour* (Spooky) against **the Vampire Count**, *Amp Overload* (Rock) against **th
 *Dragon's Lair* (Epic Adventure) against **the Dragon**.
 
 - **On the song list** the battle has its own row at the end of its category, marked 🔒 LOCKED
-  until you have a B or better on each of the category's three songs (ROOKIE, PRO and BOSS), on any
-  difficulty and any way of playing. The row and the card tick the songs off as you go.
+  until you have a B or better on **Easy, Medium and Hard of each of the category's three songs**
+  (ROOKIE, PRO and BOSS): 9 in all, played any way (keys, sideways or upright). The row and the
+  card tick off each song's levels as you go (*8 of 9 done*). Practice and failed runs don't count.
 - **The fight** uses the song's Hard notes, on keys or a phone (sideways or upright; not Tiles).
   The boss stands across the stage with a health bar. Every note you hit chips at it (PERFECT
   most, OK least).
@@ -504,6 +511,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.46**: **Tiles is switched off** (its code stays; see *Tiles mode*), so the game is all Beat
+  Frets. A boss battle now unlocks with a B or better on Easy, Medium and Hard of all three of the
+  category's songs.
 - **1.45**: The four difficulty cards sit side by side in one row on a computer (two by two on a
   narrow window).
 - **1.44**: **Four clear tiers: Easy, Medium, Hard and Insane** on every song and every way of

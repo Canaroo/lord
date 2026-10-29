@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.45';
+  const VERSION = '1.46';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -42,7 +42,10 @@
   /** Medium+ and Duo were retired in 1.44: their old scores stay saved, but they're not offered or shown. */
   const RETIRED = (id) => /(^|:)(mediumplus|duo)$/.test(String(id));
   const SHORT = new Proxy({}, { get: (_, id) => { const p = parseId(String(id)); return (p.tiles ? 'T' : '') + (SHORT_BASE[p.difficulty] || id) + (p.touch ? p.lanes : ''); } });
-  const FAMILIES = { keys: 'KEYS', touch4: 'SIDEWAYS', touch2: 'UPRIGHT', tiles: 'TILES' };
+  // Tiles is switched off (1.46): the game is about Beat Frets. Its code stays, and old
+  // Tiles scores stay saved; this switch brings it back (localStorage 'beatfrets.tiles' = 'on').
+  const TILES_ON = (() => { try { return localStorage.getItem('beatfrets.tiles') === 'on'; } catch (e) { return false; } })();
+  const FAMILIES = { keys: 'KEYS', touch4: 'SIDEWAYS', touch2: 'UPRIGHT', ...(TILES_ON ? { tiles: 'TILES' } : {}) };
   const familyOf = (id) => { const p = parseId(id); return p.tiles ? 'tiles' : p.touch ? 'touch' + p.lanes : 'keys'; };
   const idsFor = (family) => (family === 'keys' ? DIFFS : family === 'tiles' ? TILES_IDS : ChartGen.TOUCH_TIERS.map((d) => family + ':' + d));
   /** The boss battle on a song (key 'pack:witching-hour'), or null. */
@@ -154,18 +157,24 @@
   const insaneLocked = (id) => parseId(id).difficulty === 'insane' && !(current && insaneUnlocked(current.key, id));
 
   /**
-   * A boss battle unlocks for the player with a B or better on each of its category's
-   * ROOKIE, PRO and BOSS songs, on any difficulty and any way of playing. Returns each
-   * song and whether it's done.
+   * A boss battle unlocks for the player with a B or better on Easy, Medium and Hard of
+   * each of its category's three songs (9 in all), played any way (keys, sideways or
+   * upright). Returns each song with the levels done, and whether it's done.
    */
+  const BOSS_LEVELS = ['easy', 'medium', 'hard'];
   function bossProgress(songId) {
     const battle = Boss.battleFor(songId);
     const p = save.active;
-    return SongPack.SONGS.filter((d) => d.theme === battle.theme).map((d) => ({
-      title: d.title, tier: d.tier,
-      done: !!p && save.data.runs.some((r) => r.profileId === p.id && r.songKey === SongPack.keyFor(d) && !r.failed && !r.practice && /^[SAB]/.test(String(r.grade))),
-    }));
+    return SongPack.SONGS.filter((d) => d.theme === battle.theme).map((d) => {
+      const levels = Object.fromEntries(BOSS_LEVELS.map((lv) => [lv, !!p && save.data.runs.some((r) => r.profileId === p.id && r.songKey === SongPack.keyFor(d)
+        && !r.failed && !r.practice && /^[SAB]/.test(String(r.grade)) && !parseId(r.difficulty).tiles && parseId(r.difficulty).difficulty === lv)]));
+      return { title: d.title, tier: d.tier, levels, count: BOSS_LEVELS.filter((lv) => levels[lv]).length, done: BOSS_LEVELS.every((lv) => levels[lv]) };
+    });
   }
+  /** What's left for a song: ✓ E · ✓ M · 🔒 H. */
+  const bossNeedHtml = (prog) => `<span class="boss-need">${prog.map((x) => `<span class="${x.done ? 'done' : ''}">` +
+    `<b>${esc(x.title)}</b> ${BOSS_LEVELS.map((lv) => `<i class="${x.levels[lv] ? 'ok' : ''}">${x.levels[lv] ? '✓' : '🔒'} ${{ easy: 'EASY', medium: 'MEDIUM', hard: 'HARD' }[lv]}</i>`).join(' ')}</span>`).join('')}</span>`;
+  const bossCount = (prog) => prog.reduce((n, x) => n + x.count, 0);
   const bossLocked = (id) => parseId(id).difficulty === 'boss' && !(current && current.kind === 'pack' && bossProgress(current.packId).every((x) => x.done));
   const UNLOCK_HINT = (id) => (parseId(id).tiles ? 'Clear lap 1 on Hard at 75%+ to unlock' : 'Get a B or better on Hard to unlock');
 
@@ -441,9 +450,10 @@
    */
   function renderModes() {
     const side = Input.touch && window.innerWidth > window.innerHeight;
-    $('#btn-mode-tiles').hidden = side;
-    $('#tiles-hint').hidden = !side;
-    $('.modes').classList.toggle('single', side);
+    $('#btn-mode-tiles').hidden = side || !TILES_ON;
+    $('#tiles-hint').hidden = !side || !TILES_ON;
+    $('.modes').classList.toggle('single', side || !TILES_ON);
+    $('#modes-head').textContent = TILES_ON ? 'CHOOSE A GAME' : 'READY TO ROCK?';
     $('#frets-lanes').innerHTML = !Input.touch ? ''
       : side ? '<b>SIDEWAYS · 4 LANES</b>'
         : '<b>UPRIGHT · 2 LANES</b><span>Turn your phone sideways for 4 lanes</span>';
@@ -487,13 +497,13 @@
     card.innerHTML = `<div class="daily-top"><span><svg><use href="#i-trophy"/></svg>SONG OF THE DAY</span><span>${esc(day)}</span></div>
       <div class="daily-body">
         <b>${tierBadge(def.tier)}${esc(def.title.toUpperCase())}</b>
-        <span class="daily-how"><span class="board-now-tier" data-base="${pk.base}">${BASE_LABEL(pk.base)}</span> · ${FAMILIES[fam]}${sideways ? '' : ` <i>(TILES: ${BASE_LABEL(parseId(dailyTier('tiles', pk)).difficulty)})</i>`}</span>
+        <span class="daily-how"><span class="board-now-tier" data-base="${pk.base}">${BASE_LABEL(pk.base)}</span> · ${FAMILIES[fam]}${sideways || !TILES_ON ? '' : ` <i>(TILES: ${BASE_LABEL(parseId(dailyTier('tiles', pk)).difficulty)})</i>`}</span>
         <span class="daily-lead" id="daily-lead">${World.available() ? 'CHECKING TODAY\'S BOARD…' : ''}</span>
         <span class="daily-streak${streak ? ' on' : ''}">${streak ? `🔥 ${streak}-DAY STREAK${playedToday ? ' · PLAYED TODAY' : ' · PLAY TODAY TO KEEP IT'}` : 'PLAY TODAY TO START A 🔥 STREAK'}</span>
       </div>
       <div class="daily-acts">
         <button class="btn primary" data-daily-play="frets">PLAY <svg><use href="#i-play"/></svg></button>
-        ${sideways ? '' : '<button class="btn" data-daily-play="tiles">TILES</button>'}
+        ${sideways || !TILES_ON ? '' : '<button class="btn" data-daily-play="tiles">TILES</button>'}
         ${World.available() ? '<button class="btn" data-daily-board>TODAY\'S BOARD</button>' : ''}
       </div>`;
     if (!World.available()) return;
@@ -730,11 +740,11 @@
     const prog = bossProgress(def.id);
     const locked = !prog.every((x) => x.done);
     const detail = locked
-      ? `Get a B or better on all three songs to unlock (${prog.filter((x) => x.done).length} of 3 done)`
+      ? `Get a B or better on Easy, Medium and Hard of all three songs to unlock (${bossCount(prog)} of 9 done)`
       : `${def.title} on Hard: beat the boss before the song ends!`;
     return `<div class="song-line"><button class="boss-row${locked ? ' locked' : ''}" data-boss="${esc(def.id)}" style="--boss:${battle.color}">` +
       `<span class="row-main"><b><span class="tier tier-boss"><svg><use href="#i-skull"/></svg>BOSS BATTLE</span>${esc(battle.name)}</b><small>${esc(detail)}</small>` +
-      (locked ? `<span class="boss-need">${prog.map((x) => `<span class="${x.done ? 'done' : ''}">${x.done ? '✓' : '🔒'} ${esc(x.title)}</span>`).join('')}</span>` : '') + '</span>' +
+      (locked ? bossNeedHtml(prog) : '') + '</span>' +
       `<span class="row-side">${locked ? '<span class="lock-big">🔒 LOCKED</span>' : '<span class="fight">FIGHT</span>'}</span><svg class="chev"><use href="#i-chev"/></svg></button></div>`;
   }
 
@@ -759,7 +769,7 @@
     if (h) { toggleCat('pack', h); return; }
     const boss = e.target.closest('[data-boss]');
     if (boss) {
-      if (boss.classList.contains('locked')) { toast('Locked: get a B or better on all three of this category\'s songs to fight the boss.'); return; }
+      if (boss.classList.contains('locked')) { toast('Locked: get a B or better on Easy, Medium and Hard of all three of this category\'s songs to fight the boss.'); return; }
       songOrigin = 'pack';
       focusBoss = true;
       loadPack(boss.dataset.boss);
@@ -1377,8 +1387,8 @@
         <span class="boss-main">
           <span class="boss-top"><strong>☠ BOSS BATTLE</strong>${locked ? '<span class="play-tag lock-tag">🔒 LOCKED</span>' : '<span class="play-tag">FIGHT <svg><use href="#i-play"/></svg></span>'}</span>
           <span class="boss-name">${esc(battle.name)}</span>
-          <span class="what">${locked ? 'Get a B or better on all three songs to unlock:' : 'Hard notes. Hit the glowing notes to charge a Fireball, then ' + (layoutMode() === 'keys' ? `press ${esc(Input.glyph('overdrive'))}` : 'swipe up') + ' to launch it. Beat the boss before the song ends!'}</span>
-          ${locked ? `<span class="boss-need">${prog.map((x) => `<span class="${x.done ? 'done' : ''}">${x.done ? '✓' : '·'} ${esc(x.title)}</span>`).join('')}</span>` : `<span class="stats">${c.notes.length} notes · ${Math.floor(Boss.powerNotes(c.notes).size)} power notes</span>`}
+          <span class="what">${locked ? `Get a B or better on Easy, Medium and Hard of all three songs to unlock (${bossCount(prog)} of 9 done):` : 'Hard notes. Hit the glowing notes to charge a Fireball, then ' + (layoutMode() === 'keys' ? `press ${esc(Input.glyph('overdrive'))}` : 'swipe up') + ' to launch it. Beat the boss before the song ends!'}</span>
+          ${locked ? bossNeedHtml(prog) : `<span class="stats">${c.notes.length} notes · ${Math.floor(Boss.powerNotes(c.notes).size)} power notes</span>`}
           ${cardStars(id)}
           <span class="wr" data-wr="${id}"></span>
         </span>
@@ -1591,7 +1601,7 @@
     if (playOpts.key && playOpts.key !== current.key) playOpts = {};
     const tier = parseId(difficulty);
     if (insaneLocked(difficulty)) { toast(`INSANE is locked: ${UNLOCK_HINT(difficulty)}.`); return; }
-    if (bossLocked(difficulty)) { toast('The boss battle is locked: get a B or better on all three of its category\'s songs.'); return; }
+    if (bossLocked(difficulty)) { toast('The boss battle is locked: get a B or better on Easy, Medium and Hard of all three of its category\'s songs.'); return; }
     const battle = tier.difficulty === 'boss' ? battleOf(current.key) : null;
     if (tier.tiles) { playTiles(difficulty); return; }
     // The first game starts straight away; moving the strike line and the timing test are
@@ -3730,6 +3740,7 @@
   /** Match the stage to the current device and orientation (not during a song). */
   function applyLayout() {
     document.body.classList.toggle('touch', Input.touch);
+    document.body.classList.toggle('no-tiles', !TILES_ON);
     if (game) return;
     stage.setLayout(layoutMode(), window.innerWidth / window.innerHeight);
     checkOrientation();

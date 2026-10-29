@@ -1389,3 +1389,12 @@ body.touch .lane-switch.touch-only { display: flex; }
 .ob-row .ob-state { color: var(--cyan); }
 .ob-row.failed .ob-state, .ob-row.confirm .ob-state { color: var(--red); }
 .ob-acts { display: flex; gap: 6px; flex: none; }
+
+/* Tiles is switched off (it can come back with the 'beatfrets.tiles' switch). */
+body.no-tiles .tiles-only { display: none !important; }
+body.no-tiles:not(.touch) .lines-group { display: none; }
+.boss-need > span { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
+.boss-need b { font: 400 18px/1 var(--body); color: var(--text); margin-right: 2px; }
+.boss-need i { font-style: normal; font-size: 16px; color: var(--muted); }
+.boss-need i.ok { color: var(--green); }
+.boss-need .done b { color: var(--green); }

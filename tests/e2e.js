@@ -67,6 +67,9 @@ async function newPage(browser) {
   return { page, errors, context };
 }
 
+// Tiles is switched off in the game (1.46); its tests turn it back on with its switch.
+const TILES_SWITCH = () => { try { localStorage.setItem('beatfrets.tiles', 'on'); } catch (e) { /* none */ } };
+
 const tap = (page, button) => page.evaluate((b) => window.__pad.tap(b), button);
 const screenIs = (page, name) => page.waitForFunction((n) => window.BeatFrets && BeatFrets.screen === n, name, { timeout: 30000 });
 /** Song lists are grouped into categories that open on a tap: open one (if it isn't already). */
@@ -133,7 +136,7 @@ async function bossTests(browser) {
     const rows = [...document.querySelectorAll('.cat[data-cat="spooky"] .cat-body button:not(.pv)')];
     return b && { last: rows[rows.length - 1] === b, locked: b.classList.contains('locked'), text: b.textContent, count: document.querySelector('.cat[data-cat="spooky"] .cat-count').textContent, others: document.querySelectorAll('#pack-list [data-boss]').length };
   });
-  check(row && row.last && row.locked && /VAMPIRE COUNT/.test(row.text) && /LOCKED/.test(row.text) && /0 of 3/.test(row.text) && /\+ BOSS/.test(row.count) && row.others === 3, `the song list shows each boss battle, locked, last in its category (${JSON.stringify(row)})`);
+  check(row && row.last && row.locked && /VAMPIRE COUNT/.test(row.text) && /LOCKED/.test(row.text) && /0 of 9/.test(row.text) && /\+ BOSS/.test(row.count) && row.others === 3, `the song list shows each boss battle, locked, last in its category (${JSON.stringify(row)})`);
   await page.click('.cat[data-cat="spooky"] [data-boss]');
   await page.waitForTimeout(300);
   check(await page.evaluate(() => BeatFrets.screen === 'pack' && /Locked/.test(document.getElementById('toast').textContent)), 'tapping a locked boss battle says how to unlock it');
@@ -152,22 +155,27 @@ async function bossTests(browser) {
   await page.waitForTimeout(300);
   check(await page.evaluate(() => BeatFrets.screen === 'song' && !BeatFrets.game), 'a locked boss battle does not start');
   // A B on two of them isn't enough; all three unlocks it.
-  const seedB = (ids) => page.evaluate((list) => {
+  // A B on Easy, Medium and Hard of each song, played different ways (keys, sideways, upright).
+  const seedB = (ids, levels = ['easy', 'touch4:medium', 'touch2:hard']) => page.evaluate(([list, lv]) => {
     const p = BeatFrets.save.active;
     for (const s of SongPack.SONGS.filter((x) => list.includes(x.tier) && x.theme === 'spooky')) {
-      BeatFrets.save.addRun({ profileId: p.id, initials: p.initials, songKey: SongPack.keyFor(s), title: s.title, difficulty: 'easy', score: 1000, grade: 'B', accuracy: 80, maxCombo: 10, fullCombo: false, hits: 10, failed: false, practice: false, stars: 2 });
+      for (const d of lv) BeatFrets.save.addRun({ profileId: p.id, initials: p.initials, songKey: SongPack.keyFor(s), title: s.title, difficulty: d, score: 1000, grade: 'B', accuracy: 80, maxCombo: 10, fullCombo: false, hits: 10, failed: false, practice: false, stars: 2 });
     }
-  }, ids);
+  }, [ids, levels]);
   const reopen = async () => {
     await page.click('#btn-back');
     await screenIs(page, 'pack');
     await page.click('[data-pack="witching-hour"]');
     await screenIs(page, 'song');
   };
+  // A B on just Easy and Medium of the BOSS song isn't enough on its own; nor is Hard failed.
+  await seedB(['boss'], ['easy', 'medium']);
+  await page.evaluate(() => { const p = BeatFrets.save.active; const s = SongPack.SONGS.find((x) => x.id === 'witching-hour'); BeatFrets.save.addRun({ profileId: p.id, initials: p.initials, songKey: SongPack.keyFor(s), title: s.title, difficulty: 'hard', score: 900, grade: 'A', accuracy: 90, maxCombo: 10, fullCombo: false, hits: 10, failed: false, practice: true, stars: 2 }); });
   await seedB(['rookie', 'pro']);
   await reopen();
-  check(await page.evaluate(() => document.querySelector('#boss-battle .boss-card').classList.contains('locked') && document.querySelectorAll('#boss-battle .boss-need .done').length === 2), 'two of three songs ticked: still locked');
-  await seedB(['boss']);
+  check(await page.evaluate(() => document.querySelector('#boss-battle .boss-card').classList.contains('locked') && document.querySelectorAll('#boss-battle .boss-need .done').length === 2), 'two of three songs ticked (Hard on the third only played as practice): still locked');
+  check(await page.evaluate(() => /8 of 9/.test(document.querySelector('#boss-battle').textContent) && document.querySelectorAll('#boss-battle .boss-need i.ok').length === 8), 'the card counts every level done: 8 of 9');
+  await seedB(['boss'], ['hard']);
   await page.click('#btn-back');
   await screenIs(page, 'pack');
   const unlocked = await page.evaluate(() => { const b = document.querySelector('[data-boss="witching-hour"]'); return { locked: b.classList.contains('locked'), text: b.textContent }; });
@@ -278,6 +286,7 @@ const touchZone = (page, zone) => page.evaluate((z) => {
 async function touchTests(browser) {
   const context = await browser.newContext({ viewport: LAND, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   const page = await context.newPage();
+  await page.addInitScript(TILES_SWITCH);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.(googleapis|gstatic)/.test(m.text())) errors.push(m.text()); });
@@ -813,6 +822,7 @@ async function worldTests(browser) {
 
   const { page, errors, context } = await newPage(browser);
   await page.addInitScript(MEMORY_WORLD);
+  await page.addInitScript(TILES_SWITCH);
   await page.goto(url);
   await screenIs(page, 'title');
   await page.click('#btn-start');
@@ -1053,6 +1063,11 @@ async function recordTests(browser) {
   await page.goto(url);
   await screenIs(page, 'title');
   await page.evaluate(() => { window.BeatFretsWorldBackend.uid = 'devR'; BeatFrets.save.createProfile('JDT'); document.querySelector('#btn-start').click(); });
+  // Tiles is switched off: home offers only Beat Frets, and the boards have no Tiles chip.
+  await screenIs(page, 'main');
+  const home = await page.evaluate(() => ({ tiles: !document.getElementById('btn-mode-tiles').hidden, head: document.getElementById('modes-head').textContent, daily: !!document.querySelector('[data-daily-play="tiles"]'), dailyText: document.getElementById('daily-card').textContent }));
+  check(!home.tiles && !home.daily && !/TILES/.test(home.dailyText) && home.head === 'READY TO ROCK?', `Tiles is hidden: home and Song of the Day offer only Beat Frets (${JSON.stringify(home).slice(0, 120)})`);
+  await page.screenshot({ path: path.join(outDir, 'e2e-home-no-tiles.png') });
   await page.click('#btn-mode-frets');
   await screenIs(page, 'pack');
   // Categories start closed, each summing up its records.
@@ -1142,6 +1157,7 @@ async function recordTests(browser) {
   // Pick a difficulty first: tabs say how many songs have a leader there, and every
   // category and song then shows who leads that difficulty.
   check(await page.evaluate(() => document.querySelector('[data-pick-tier="easy"]').classList.contains('on') && document.querySelector('[data-pick-family="keys"]').classList.contains('on')), 'Boards opens with a difficulty picker (Easy, the way you play)');
+  check(await page.evaluate(() => [...document.querySelectorAll('[data-pick-family]')].map((b) => b.dataset.pickFamily).join()) === 'keys,touch4,touch2', 'the boards offer Keys, Sideways and Upright (no Tiles)');
   await page.waitForFunction(() => /CLAIMED/.test(document.querySelector('#boards-list .cat[data-cat="classic"] .cat-sum').textContent) && /SONG|NO ONE/.test(document.querySelector('[data-pick-tier="hard"]').textContent), null, { timeout: 5000 }).catch(() => {});
   const pick = await page.evaluate(() => ({ easy: document.querySelector('[data-pick-tier="easy"]').textContent, hard: document.querySelector('[data-pick-tier="hard"]').textContent, sum: document.querySelector('#boards-list .cat[data-cat="classic"] .cat-sum').textContent }));
   check(/1 SONG/.test(pick.easy) && /NO ONE YET/.test(pick.hard), `each difficulty tab counts the songs with a leader (${pick.easy} | ${pick.hard})`);

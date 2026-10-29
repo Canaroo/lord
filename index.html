@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-v="1.45">
+<html lang="en" data-v="1.46">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen:wght@400;700&family=VT323&display=swap" />
-  <link rel="stylesheet" href="css/style.css?v=1.45" />
+  <link rel="stylesheet" href="css/style.css?v=1.46" />
 </head>
 <body class="crt">
   <canvas id="stage" aria-label="Game stage"></canvas>
@@ -71,7 +71,7 @@
       <div class="scroll center">
         <button id="outbox-card" class="outbox-card" hidden></button>
         <div id="daily-card" class="daily-card" hidden></div>
-        <h2 class="head">CHOOSE A GAME</h2>
+        <h2 class="head" id="modes-head">CHOOSE A GAME</h2>
         <div class="modes">
           <button class="mode-card frets" id="btn-mode-frets" data-autofocus>
             <span class="mode-screen" aria-hidden="true"><span class="mode-art"><i></i><i></i><i></i><i></i></span></span>
@@ -363,11 +363,11 @@
           <button id="opt-nofail" class="toggle">NO-FAIL MODE <span></span> <small>Play every song to the end. Practice only: these runs don't go on leaderboards</small></button>
           <button id="opt-vibrate" class="toggle" hidden>VIBRATION <span></span> <small>Short buzzes on misses and level-ups (touch)</small></button>
         </div>
-        <div class="group">
+        <div class="group lines-group">
           <p class="label">LINES</p>
           <div class="opts">
-            <label for="opt-tiles-line">TILES LINE HEIGHT <output id="opt-tiles-line-out"></output></label>
-            <input id="opt-tiles-line" type="range" min="15" max="45" step="1" />
+            <label for="opt-tiles-line" class="tiles-only">TILES LINE HEIGHT <output id="opt-tiles-line-out"></output></label>
+            <input id="opt-tiles-line" class="tiles-only" type="range" min="15" max="45" step="1" />
             <label for="opt-strike4" class="touch-only">STRIKE LINE, SIDEWAYS <output id="opt-strike4-out"></output></label>
             <input id="opt-strike4" class="touch-only" type="range" min="16" max="40" step="1" />
             <label for="opt-strike2" class="touch-only">STRIKE LINE, UPRIGHT <output id="opt-strike2-out"></output></label>
@@ -581,22 +581,22 @@
   <div id="hints" class="hints" aria-hidden="true"></div>
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script src="js/analyzer.js?v=1.45"></script>
-  <script src="js/chartgen.js?v=1.45"></script>
-  <script src="js/songs.js?v=1.45"></script>
-  <script src="js/bonus.js?v=1.45"></script>
-  <script src="js/save.js?v=1.45"></script>
-  <script src="js/library.js?v=1.45"></script>
-  <script src="js/sfx.js?v=1.45"></script>
-  <script src="js/input.js?v=1.45"></script>
-  <script src="js/render.js?v=1.45"></script>
-  <script src="js/boss.js?v=1.45"></script>
-  <script src="js/game.js?v=1.45"></script>
-  <script src="js/tiles.js?v=1.45"></script>
-  <script src="js/share.js?v=1.45"></script>
-  <script src="js/firebase-config.js?v=1.45"></script>
-  <script src="js/world.js?v=1.45"></script>
-  <script src="js/daily.js?v=1.45"></script>
-  <script src="js/main.js?v=1.45"></script>
+  <script src="js/analyzer.js?v=1.46"></script>
+  <script src="js/chartgen.js?v=1.46"></script>
+  <script src="js/songs.js?v=1.46"></script>
+  <script src="js/bonus.js?v=1.46"></script>
+  <script src="js/save.js?v=1.46"></script>
+  <script src="js/library.js?v=1.46"></script>
+  <script src="js/sfx.js?v=1.46"></script>
+  <script src="js/input.js?v=1.46"></script>
+  <script src="js/render.js?v=1.46"></script>
+  <script src="js/boss.js?v=1.46"></script>
+  <script src="js/game.js?v=1.46"></script>
+  <script src="js/tiles.js?v=1.46"></script>
+  <script src="js/share.js?v=1.46"></script>
+  <script src="js/firebase-config.js?v=1.46"></script>
+  <script src="js/world.js?v=1.46"></script>
+  <script src="js/daily.js?v=1.46"></script>
+  <script src="js/main.js?v=1.46"></script>
 </body>
 </html>
