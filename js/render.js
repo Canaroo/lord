@@ -1422,7 +1422,7 @@
     drawBlackout(v, geo, hz, nowMs) {
       const cutY = Math.round(geo.yAt(0.36));
       const top = Math.max(0, HORIZON - 12);
-      const tint = { count: [12, 4, 22], titan: [40, 40, 52], dragon: [28, 16, 12] }[hz.boss] || [10, 8, 20];
+      const tint = { count: [12, 4, 22], titan: [40, 40, 52], dragon: [28, 16, 12], glitch: [4, 18, 26], alien: [4, 6, 22], ringmaster: [26, 6, 10], toro: [44, 30, 16], mc: [34, 32, 40], troll: [14, 16, 10] }[hz.boss] || [10, 8, 20];
       const g = this.g;
       // Over the highway only (and a little either side), never over the HUD beside it.
       for (let y = top; y < cutY + 10; y++) {
@@ -1431,19 +1431,30 @@
         g.fillStyle = `rgba(${tint[0]},${tint[1]},${tint[2]},${(0.97 * edge * hz.k).toFixed(3)})`;
         g.fillRect(Math.round(geo.cx - half), y, Math.round(half * 2), 1);
       }
-      // Wisps: bats for the Count, drifting smoke for the others.
+      // Wisps: bats (the Count, the Mountain King's cave), glitch blocks, stars, or smoke and dust.
       const r = seeded(31);
       for (let i = 0; i < 14; i++) {
         const sy = top + r() * (cutY - top);
         const half = geo.halfW * Math.max(0, (sy - HORIZON) / (HIT_Y - HORIZON)) + 6;
         const sx = geo.cx - half + ((r() * 2 * half + nowMs * (0.02 + r() * 0.03)) % (2 * half));
         g.globalAlpha = 0.5 * hz.k;
-        if (hz.boss === 'count') {
+        if (hz.boss === 'count' || hz.boss === 'troll') {
+          // Bats (the Count's, and the ones in the Mountain King's cave).
           const flap = Math.floor(nowMs / 120 + i) % 2;
-          this.rect(sx - 3, sy - flap, 2, 1, '#5a2080');
-          this.rect(sx + 2, sy - flap, 2, 1, '#5a2080');
-          this.rect(sx - 1, sy, 3, 2, '#3a1050');
-        } else this.ellipse(sx, sy, 8 + r() * 10, 3 + r() * 3, hz.boss === 'dragon' ? '#4a2a18' : '#6a6a7a');
+          const c = hz.boss === 'troll' ? '#3a4a2a' : '#5a2080';
+          this.rect(sx - 3, sy - flap, 2, 1, c);
+          this.rect(sx + 2, sy - flap, 2, 1, c);
+          this.rect(sx - 1, sy, 3, 2, hz.boss === 'troll' ? '#2a3020' : '#3a1050');
+        } else if (hz.boss === 'glitch') {
+          // Glitch blocks that jump about.
+          if (Math.floor(nowMs / 90 + i * 7) % 3) this.rect(sx, sy, 3 + (i % 4) * 3, 2, i % 2 ? '#58f8f8' : '#f858c8');
+        } else if (hz.boss === 'alien') {
+          // An eclipse: stars glint in the dark.
+          if (Math.sin(nowMs / 200 + i) > 0) this.rect(sx, sy, 1, 1, '#c8ccf8');
+        } else {
+          const smoke = { dragon: '#4a2a18', toro: '#7a5a30', ringmaster: '#4a1018', mc: '#7a7a8a' }[hz.boss] || '#6a6a7a';
+          this.ellipse(sx, sy, 8 + r() * 10, 3 + r() * 3, smoke);
+        }
         g.globalAlpha = 1;
       }
     }

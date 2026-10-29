@@ -94,9 +94,19 @@ its own leaderboards.
 
 ## Boss battles
 
-The ELITE songs of three categories have a **BOSS BATTLE** under their difficulties: *Witching
-Hour* (Spooky) against **the Vampire Count**, *Amp Overload* (Rock) against **the Amp Titan** and
-*Dragon's Lair* (Epic Adventure) against **the Dragon**.
+Every category's ELITE song has a **BOSS BATTLE** under its difficulties:
+
+| Category | ELITE song | Boss | Its attacks (blackout · trap notes · surge · lane swap) |
+| --- | --- | --- | --- |
+| Chiptune Classics | *Castle Overdrive* | **the Glitch King** | screen glitch · glitch notes · overclock · bit flip |
+| Spooky | *Witching Hour* | **the Vampire Count** | bats · cursed notes · speeding up time · a hex |
+| Rock | *Amp Overload* | **the Amp Titan** | stage smoke · feedback notes · shockwave · amp scramble |
+| Epic Adventure | *Dragon's Lair* | **the Dragon** | smoke · fire notes · roar · tail swipe |
+| Space | *Galactic Showdown* | **the Alien Overlord** | eclipse · space mines · hyperspace · gravity flip |
+| Carnival | *Ringmaster's Gallop* | **the Ringmaster** | lights out in the big top · cream pies · faster, faster · hall of mirrors |
+| Salsa | *Fuego Mambo* | **El Toro** | dust cloud · horn notes · stampede · the matador's cape |
+| Hip Hop | *Mic Drop* | **MC Thunder** | fog machine · broken records · double time · remix |
+| Classical Remix | *Hall of the Mountain King* | **the Mountain King** | into the cave · troll traps · faster! faster! · troll tricks |
 
 - **On the song list** the battle has its own row at the end of its category, marked 🔒 LOCKED
   until you have a B or better on **Easy, Medium and Hard of each of the category's three songs**
@@ -111,7 +121,7 @@ Hour* (Spooky) against **the Vampire Count**, *Amp Overload* (Rock) against **th
   A full meter doesn't charge any further, so launch it soon.
 - **Misses are punished:** every miss costs **twice** the usual rock meter and heals the boss a
   little; a missed power note heals it a lot more.
-- **The boss fights back.** About every 13 seconds (from 10 seconds in) it attacks for a few
+- **The boss fights back.** About every 13 seconds (11 on the shorter Classics; from 10 seconds in) it attacks for a few
   seconds, announced by a red banner just before. Each boss has its own names and leads with its
   favourite, but all three use all four attacks:
   - **Blackout** (the Count's bats, the Titan's stage smoke, the Dragon's smoke): the far end of
@@ -530,6 +540,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.50**: **Boss battles in every category:** the Glitch King, the Alien Overlord, the Ringmaster,
+  El Toro, MC Thunder and the Mountain King join the Count, the Titan and the Dragon. Short songs
+  space their attacks a little closer, so every boss uses all four.
 - **1.49**: The hardest song tier is now called **ELITE** (purple badge) instead of BOSS, so it isn't
   mixed up with the BOSS BATTLE. Same songs, same scores.
 - **1.48**: The boss battle's unlock list is one tidy line per song, with E / M / H chips (✓ done,

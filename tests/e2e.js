@@ -136,7 +136,7 @@ async function bossTests(browser) {
     const rows = [...document.querySelectorAll('.cat[data-cat="spooky"] .cat-body button:not(.pv)')];
     return b && { last: rows[rows.length - 1] === b, locked: b.classList.contains('locked'), text: b.textContent, count: document.querySelector('.cat[data-cat="spooky"] .cat-count').textContent, others: document.querySelectorAll('#pack-list [data-boss]').length };
   });
-  check(row && row.last && row.locked && /VAMPIRE COUNT/.test(row.text) && /LOCKED/.test(row.text) && /0 of 9/.test(row.text) && /\+ BOSS/.test(row.count) && row.others === 3, `the song list shows each boss battle, locked, last in its category (${JSON.stringify(row)})`);
+  check(row && row.last && row.locked && /VAMPIRE COUNT/.test(row.text) && /LOCKED/.test(row.text) && /0 of 9/.test(row.text) && /\+ BOSS/.test(row.count) && row.others === 9, `the song list shows each boss battle, locked, last in its category (${JSON.stringify(row)})`);
   await page.click('.cat[data-cat="spooky"] [data-boss]');
   await page.waitForTimeout(300);
   check(await page.evaluate(() => BeatFrets.screen === 'pack' && /Locked/.test(document.getElementById('toast').textContent)), 'tapping a locked boss battle says how to unlock it');

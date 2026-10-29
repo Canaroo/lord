@@ -18,6 +18,12 @@
     'witching-hour': { id: 'count', theme: 'spooky', name: 'THE VAMPIRE COUNT', color: '#b878f8' },
     'amp-overload': { id: 'titan', theme: 'rock', name: 'THE AMP TITAN', color: '#f84848' },
     'dragons-lair': { id: 'dragon', theme: 'epic', name: 'THE DRAGON', color: '#f8d830' },
+    'castle-overdrive': { id: 'glitch', theme: 'classic', name: 'THE GLITCH KING', color: '#58f8f8' },
+    'galactic-showdown': { id: 'alien', theme: 'space', name: 'THE ALIEN OVERLORD', color: '#5a8cff' },
+    'ringmasters-gallop': { id: 'ringmaster', theme: 'carnival', name: 'THE RINGMASTER', color: '#f88820' },
+    'fuego-mambo': { id: 'toro', theme: 'salsa', name: 'EL TORO', color: '#9be22e' },
+    'mic-drop': { id: 'mc', theme: 'hiphop', name: 'MC THUNDER', color: '#ff4f9a' },
+    'mountain-king': { id: 'troll', theme: 'classical', name: 'THE MOUNTAIN KING', color: '#e8d8a8' },
   };
 
   // Tuning. The boss has 100 health. Hitting every note (all PERFECT) deals 70 of it
@@ -49,17 +55,30 @@
   const ATTACK_LEN = { blackout: 5, trap: 6, surge: 4, scramble: 6 };
   const CLEAR = 0.25; // seconds between a trap note and any real note in its lane
   const ATTACK_GAP = 13; // seconds from one attack's start to the next
+  const ATTACK_GAP_MIN = 11; // ...on a short song
   const WARN = 1.5; // seconds of warning
   // Each boss leads with its favourite.
   const ORDER = {
     count: ['blackout', 'trap', 'surge', 'scramble'],
     titan: ['surge', 'scramble', 'trap', 'blackout'],
     dragon: ['trap', 'blackout', 'scramble', 'surge'],
+    glitch: ['scramble', 'blackout', 'trap', 'surge'],
+    alien: ['blackout', 'scramble', 'surge', 'trap'],
+    ringmaster: ['scramble', 'trap', 'blackout', 'surge'],
+    toro: ['surge', 'blackout', 'trap', 'scramble'],
+    mc: ['surge', 'trap', 'scramble', 'blackout'],
+    troll: ['surge', 'trap', 'blackout', 'scramble'],
   };
   const ATTACK_NAMES = {
     count: { blackout: ['BATS BLOT OUT THE LIGHT!', 'NOTES APPEAR LATE'], trap: ['CURSED NOTES!', "DON'T HIT THE SKULLS"], surge: ['THE COUNT SPEEDS UP TIME!', 'NOTES RUSH IN'], scramble: ['A HEX ON YOUR FRETS!', 'TWO LANES SWAPPED'] },
     titan: { blackout: ['STAGE SMOKE!', 'NOTES APPEAR LATE'], trap: ['FEEDBACK NOTES!', "DON'T HIT THE SKULLS"], surge: ['SHOCKWAVE!', 'NOTES RUSH IN'], scramble: ['AMP SCRAMBLE!', 'TWO LANES SWAPPED'] },
     dragon: { blackout: ['A CLOUD OF SMOKE!', 'NOTES APPEAR LATE'], trap: ['FIRE NOTES!', "DON'T HIT THE SKULLS"], surge: ["DRAGON'S ROAR!", 'NOTES RUSH IN'], scramble: ['TAIL SWIPE!', 'TWO LANES SWAPPED'] },
+    glitch: { blackout: ['SCREEN GLITCH!', 'NOTES APPEAR LATE'], trap: ['GLITCH NOTES!', "DON'T HIT THE SKULLS"], surge: ['OVERCLOCK!', 'NOTES RUSH IN'], scramble: ['BIT FLIP!', 'TWO LANES SWAPPED'] },
+    alien: { blackout: ['ECLIPSE!', 'NOTES APPEAR LATE'], trap: ['SPACE MINES!', "DON'T HIT THE SKULLS"], surge: ['HYPERSPACE!', 'NOTES RUSH IN'], scramble: ['GRAVITY FLIP!', 'TWO LANES SWAPPED'] },
+    ringmaster: { blackout: ['LIGHTS OUT IN THE BIG TOP!', 'NOTES APPEAR LATE'], trap: ['CREAM PIES!', "DON'T HIT THE SKULLS"], surge: ['FASTER, FASTER!', 'NOTES RUSH IN'], scramble: ['HALL OF MIRRORS!', 'TWO LANES SWAPPED'] },
+    toro: { blackout: ['A DUST CLOUD!', 'NOTES APPEAR LATE'], trap: ['HORN NOTES!', "DON'T HIT THE SKULLS"], surge: ['STAMPEDE!', 'NOTES RUSH IN'], scramble: ["THE MATADOR'S CAPE!", 'TWO LANES SWAPPED'] },
+    mc: { blackout: ['FOG MACHINE!', 'NOTES APPEAR LATE'], trap: ['BROKEN RECORDS!', "DON'T HIT THE SKULLS"], surge: ['DOUBLE TIME!', 'NOTES RUSH IN'], scramble: ['REMIX!', 'TWO LANES SWAPPED'] },
+    troll: { blackout: ['INTO THE CAVE!', 'NOTES APPEAR LATE'], trap: ['TROLL TRAPS!', "DON'T HIT THE SKULLS"], surge: ['FASTER! FASTER!', 'NOTES RUSH IN'], scramble: ['TROLL TRICKS!', 'TWO LANES SWAPPED'] },
   };
 
   /**
@@ -72,8 +91,11 @@
     if (!notes.length) return [];
     const order = ORDER[bossId] || ORDER.count;
     const first = notes[0].t, last = notes[notes.length - 1].t;
+    // Shorter songs (the Classics run about a minute) space their attacks a little closer,
+    // so every boss gets to use all four.
+    const gap = Math.max(ATTACK_GAP_MIN, Math.min(ATTACK_GAP, (last - 3 - (first + 10)) / 5));
     const out = [];
-    for (let k = 0, t = first + 10; ; k++, t += ATTACK_GAP) {
+    for (let k = 0, t = first + 10; ; k++, t += gap) {
       let kind = order[k % order.length];
       if (touch && kind === 'scramble') kind = 'surge';
       if (lanes <= 2 && kind === 'trap') kind = 'blackout';
@@ -218,6 +240,143 @@
         '....HHHHHHHH....',
         '....HHH..HHH....',
         '...CCC....CCC...',
+      ],
+    },
+    glitch: {
+      palette: { Y: '#f8d830', R: '#f84848', B: '#58f8f8', F: '#e8e0f0', E: '#101018', M: '#601020', P: '#5a2a9a', W: '#f4f4ff', C: '#58f8f8', K: '#181020' },
+      rows: [
+        '...Y..Y..Y..Y...',
+        '...YYYYYYYYYY...',
+        '...YRYYBYYRYY...',
+        '....FFFFFFFF....',
+        '....FEFFFFEF....',
+        '....FFFCFFFF....',
+        '....FFMMMMFF....',
+        '.....FFFFFF.....',
+        '..PPPPPPPPPPPP..',
+        '.PPPPPWWWWPPPPP.',
+        'PPPPPPWCCWPPPPPP',
+        'PPPCPPWWWWPPPCPP',
+        'PPPPPPPPPPPPPPPP',
+        '.PPPPPPCPPPPPPP.',
+        '..PPPPPPPPPPPP..',
+        '..PPPP....PPPP..',
+        '..KKK......KKK..',
+      ],
+    },
+    alien: {
+      palette: { A: '#f8d830', G: '#58d858', K: '#101018', M: '#186818', S: '#b8c0d8', L: '#5a8cff' },
+      rows: [
+        '.......A........',
+        '.......A........',
+        '....GGGGGGGG....',
+        '...GGGGGGGGGG...',
+        '..GGGGGGGGGGGG..',
+        '..GKKKGGGGKKKG..',
+        '..GKKKKGGKKKKG..',
+        '...GGKGGGGKGG...',
+        '....GGGGGGGG....',
+        '.....GGMMGG.....',
+        '......GGGG......',
+        '....SSSSSSSS....',
+        '...SSSLLLLSSS...',
+        '..GSSSLLLLSSSG..',
+        '..G.SSSSSSSS.G..',
+        '....SS....SS....',
+        '....SS....SS....',
+        '...SSS....SSS...',
+      ],
+    },
+    ringmaster: {
+      palette: { K: '#181020', R: '#d82838', F: '#f0c8a0', E: '#101018', M: '#5a3018', W: '#f4f4ff', Y: '#f8d830' },
+      rows: [
+        '....KKKKKKKK....',
+        '....KKKKKKKK....',
+        '....KKKKKKKK....',
+        '....RRRRRRRR....',
+        '..KKKKKKKKKKKK..',
+        '....FFFFFFFF....',
+        '....FEFFFFEF....',
+        '...MMMFFFFMMM...',
+        '....FFFFFFFF....',
+        '.....FFFFFF.....',
+        '...RRRWWWWRRR...',
+        '..RRRRWWWWRRRR..',
+        '..RRYRRWWRRYRR..',
+        '..RRRRRRRRRRRR..',
+        '..RRYRRRRRRYRR..',
+        '..RR.RRRRRR.RR..',
+        '....KKK..KKK....',
+        '....KKK..KKK....',
+        '...KKKK..KKKK...',
+      ],
+    },
+    toro: {
+      palette: { W: '#f0e8d0', B: '#5a3018', E: '#f84848', T: '#c89058', N: '#2a1008', Y: '#f8d830', K: '#181010' },
+      rows: [
+        'W..............W',
+        'WW............WW',
+        '.WW..BBBBBB..WW.',
+        '..WWBBBBBBBBWW..',
+        '...BBBBBBBBBB...',
+        '..BBEBBBBBBEBB..',
+        '..BBBBBBBBBBBB..',
+        '...BBBBBBBBBB...',
+        '....BTTTTTTB....',
+        '....TTNTTNTT....',
+        '....TTTYYTTT....',
+        '.....TTTTTT.....',
+        '...BBBBBBBBBB...',
+        '..BBBBBBBBBBBB..',
+        '..BBBBBBBBBBBB..',
+        '..BBB......BBB..',
+        '..BBB......BBB..',
+        '..KK........KK..',
+      ],
+    },
+    mc: {
+      palette: { C: '#ff4f9a', F: '#a87048', K: '#101018', W: '#f4f4ff', H: '#3a3a58', Y: '#f8d830', M: '#9aa0b8', D: '#262648' },
+      rows: [
+        '....CCCCCCCC....',
+        '...CCCCCCCCCCC..',
+        '....FFFFFFFF....',
+        '...FKKKKKKKKF...',
+        '...FKKFFFFKKF...',
+        '....FFFFFFFF....',
+        '....FFWWWWFF....',
+        '.....FFFFFF.....',
+        '...HHHHHHHHHH...',
+        '..HHHYHHHHYHHH..',
+        '..HHHHYYYYHHHH..',
+        '..HHHHHYYHHHHH.M',
+        '..HHHHHHHHHHHHMM',
+        '..HH.HHHHHH.HHF.',
+        '....DDDDDDDD....',
+        '....DD....DD....',
+        '....DD....DD....',
+        '...WWW....WWW...',
+      ],
+    },
+    troll: {
+      palette: { Y: '#f8d830', G: '#7a9a5a', E: '#f84848', N: '#5a7a3a', W: '#f0e8d0', B: '#9aa0a8', F: '#7a4a28' },
+      rows: [
+        '...Y.Y.Y.Y.Y....',
+        '...YYYYYYYYY....',
+        '..GGGGGGGGGGG...',
+        '..GGEGGGGGEGG...',
+        '..GGGGGNGGGGG...',
+        '..GGGGNNNGGGG...',
+        '..GGWGGGGGWGG...',
+        '...BBBBBBBBB....',
+        '..BBBBBBBBBBB...',
+        '.FFFFBBBBBFFFF..',
+        'FFFFFFFFFFFFFFF.',
+        'FFGGFFFFFFFGGFF.',
+        'FFGGFFFFFFFGGFF.',
+        '.FFFFFFFFFFFFF..',
+        '..GGG.....GGG...',
+        '..GGG.....GGG...',
+        '.GGGG.....GGGG..',
       ],
     },
   };

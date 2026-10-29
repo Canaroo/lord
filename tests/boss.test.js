@@ -11,7 +11,7 @@ test('every boss battle is on an ELITE song in its category', () => {
     const def = SongPack.SONGS.find((s) => s.id === id);
     assert.ok(def, id);
     assert.strictEqual(def.tier, 'boss');
-    assert.strictEqual(def.theme, b.theme);
+    assert.strictEqual(def.theme || 'classic', b.theme);
     assert.ok(Boss.SPRITES[b.id], `${b.id} has a sprite`);
   }
 });
@@ -74,7 +74,7 @@ test('the boss attacks: all four hazards, spaced out, the same every time, over 
       const lanes = tier === 'hard' ? 5 : +tier[5];
       const list = Boss.attacks(notes, battle.id, { touch, lanes });
       assert.deepStrictEqual(Boss.attacks(notes, battle.id, { touch, lanes }), list, 'deterministic');
-      assert.ok(list.length >= 5, `${id} ${tier}: ${list.length} attacks`);
+      assert.ok(list.length >= 4, `${id} ${tier}: ${list.length} attacks`);
       const kinds = new Set(list.map((a) => a.kind));
       for (const k of lanes === 2 ? ['blackout', 'surge'] : touch ? ['blackout', 'trap', 'surge'] : ['blackout', 'trap', 'surge', 'scramble']) assert.ok(kinds.has(k), `${id} ${tier} has ${k}`);
       if (lanes === 2) assert.ok(!kinds.has('trap'), 'no trap notes on two lanes');

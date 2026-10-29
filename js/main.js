@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.49';
+  const VERSION = '1.50';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -165,7 +165,7 @@
   function bossProgress(songId) {
     const battle = Boss.battleFor(songId);
     const p = save.active;
-    return SongPack.SONGS.filter((d) => d.theme === battle.theme).map((d) => {
+    return SongPack.SONGS.filter((d) => (d.theme || 'classic') === battle.theme).map((d) => {
       const levels = Object.fromEntries(BOSS_LEVELS.map((lv) => [lv, !!p && save.data.runs.some((r) => r.profileId === p.id && r.songKey === SongPack.keyFor(d)
         && !r.failed && !r.practice && /^[SAB]/.test(String(r.grade)) && !parseId(r.difficulty).tiles && parseId(r.difficulty).difficulty === lv)]));
       return { title: d.title, tier: d.tier, levels, count: BOSS_LEVELS.filter((lv) => levels[lv]).length, done: BOSS_LEVELS.every((lv) => levels[lv]) };
