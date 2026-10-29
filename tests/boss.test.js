@@ -25,42 +25,46 @@ test('sprites are 16 pixels wide and every colour is in the palette', () => {
   }
 });
 
-test('power notes: rare (about one in twenty), spread through the song, whole Fireballs, never two at once', () => {
+test('power notes: enough for 9 Fireballs on every song, spread through it, never two at once', () => {
   for (const id of Object.keys(Boss.BATTLES)) {
     const def = SongPack.SONGS.find((s) => s.id === id);
     const analysis = SongPack.toAnalysis(SongPack.build(def));
     for (const tier of ['hard', 'touch4:hard', 'touch2:hard']) {
       const notes = ChartGen.generateId(analysis, tier).notes;
       const power = Boss.powerNotes(notes);
-      assert.strictEqual(power.size % Boss.POWER_PER_FIREBALL, 0, `${id} ${tier}: ${power.size}`);
-      assert.ok(power.size >= notes.length / 26 && power.size <= notes.length / 15, `${id} ${tier}: ${power.size} of ${notes.length}`);
+      assert.strictEqual(power.size, Boss.FIREBALLS * Boss.POWER_PER_FIREBALL, `${id} ${tier}: ${power.size}`);
       const times = [...power].map((i) => notes[i].t).sort((a, b) => a - b);
       assert.strictEqual(new Set(times).size, times.length, 'one power note per moment');
-      // Spread out: no big stretch of the song without any.
       const span = notes[notes.length - 1].t - notes[0].t;
       for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] < (3 * span) / times.length, `${id} ${tier}: gap at ${times[i]}`);
       assert.deepStrictEqual([...Boss.powerNotes(notes)], [...power], 'the same every time');
+      // Every fight is a proper battle: even a perfect run (every Fireball launched the
+      // moment it's charged) takes most of the song to bring the boss down.
+      const tune = Boss.tuning(notes, power);
+      let hp = tune.hp, charge = 0, downAt = null;
+      notes.forEach((n, i) => {
+        if (downAt != null) return;
+        hp -= tune.hit;
+        if (power.has(i) && ++charge === Boss.POWER_PER_FIREBALL) { charge = 0; hp -= tune.fireball; }
+        if (hp <= 0) downAt = n.t;
+      });
+      const at = (downAt - notes[0].t) / span;
+      assert.ok(downAt != null && at > 0.6 && at < 0.95, `${id} ${tier}: a perfect run wins ${(at * 100).toFixed(0)}% of the way through`);
     }
   }
 });
 
-test('the fight: a near-perfect run wins, hitting notes without Fireballs never does', () => {
+test('the fight: a strong run wins, hitting notes without Fireballs never does', () => {
   const notes = Array.from({ length: 600 }, (_, i) => ({ t: i * 0.15, lane: i % 4 }));
   const power = Boss.powerNotes(notes);
   const tune = Boss.tuning(notes, power);
-  const fireballs = Math.floor(power.size / Boss.POWER_PER_FIREBALL);
-  assert.ok(notes.length * tune.hit + fireballs * tune.fireball > tune.hp * 1.3, 'room to spare at the top');
+  assert.strictEqual(tune.fireball, 10, 'a Fireball takes 10% of the boss');
+  assert.strictEqual(tune.fireballs, 9);
   assert.ok(notes.length * tune.hit < tune.hp, 'Fireballs are needed');
-  // A B-ish run: 90% of notes hit at GOOD, 90% of power notes, the rest missed.
-  const hit = 0.9;
-  const dmg = notes.length * hit * tune.hit * Boss.JUDGE_DAMAGE.good + Math.floor(power.size * hit / Boss.POWER_PER_FIREBALL) * tune.fireball
+  const run = (hit, judge) => notes.length * hit * tune.hit * judge + Math.floor(power.size * hit / Boss.POWER_PER_FIREBALL) * tune.fireball
     - power.size * (1 - hit) * tune.heal - notes.length * (1 - hit) * tune.missHeal;
-  assert.ok(dmg >= tune.hp, `a solid run wins (${dmg.toFixed(1)})`);
-  // A shakier run (80% of notes, at GOOD) doesn't.
-  const weak = 0.8;
-  const dmg2 = notes.length * weak * tune.hit * Boss.JUDGE_DAMAGE.good + Math.floor(power.size * weak / Boss.POWER_PER_FIREBALL) * tune.fireball
-    - power.size * (1 - weak) * tune.heal - notes.length * (1 - weak) * tune.missHeal;
-  assert.ok(dmg2 < tune.hp, `a shaky run loses (${dmg2.toFixed(1)})`);
+  assert.ok(run(0.93, 0.85) >= tune.hp, `a strong run (93% of notes) wins (${run(0.93, 0.85).toFixed(1)})`);
+  assert.ok(run(0.85, 0.75) < tune.hp, `a shaky run (85% of notes) doesn't (${run(0.85, 0.75).toFixed(1)})`);
   assert.strictEqual(tune.missMul, 2, 'misses cost twice the rock meter');
 });
 

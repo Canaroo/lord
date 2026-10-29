@@ -1393,6 +1393,8 @@
       this.rect(bx, by, bw, 4, '#3a1020');
       this.rect(bx, by, bw * this.shownHp, 4, PAL.white);
       this.rect(bx, by, bw * b.hp, 4, b.hp < 0.25 ? PAL.red : b.hp < 0.6 ? PAL.orange : PAL.gold);
+      // Ten ticks: each is 10% of its health, what one Fireball takes.
+      for (let k = 1; k < 10; k++) this.rect(bx + Math.round((bw * k) / 10), by, 1, 4, PAL.ink);
       if (big && b.lastDmg) this.text('-' + b.lastDmg, fx, y + h / 2 - 4 - (nowMs - b.bigHitAt) / 30, PAL.gold, 8, 'center');
     }
 

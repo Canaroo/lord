@@ -142,7 +142,9 @@
         const power = Boss.powerNotes(this.notes);
         for (const i of power) this.notes[i].power = true;
         const tune = Boss.tuning(this.notes, power);
-        this.boss = { ...o.boss, tune, hp: tune.hp, fb: 0, fbAnnounced: false, hitAt: 0, healAt: 0, fireballs: [], downAt: 0, launched: 0, trapsHit: 0 };
+        this.boss = { ...o.boss, tune, hp: tune.hp, fb: 0, fbAnnounced: false, hitAt: 0, healAt: 0, fireballs: [], downAt: 0, launched: 0, trapsHit: 0,
+          // For the results: what the player did to the boss, and what it got back.
+          stats: { landed: 0, powerCaught: 0, powerTotal: power.size, fireballsPossible: tune.fireballs, dmgNotes: 0, dmgFireballs: 0, healed: 0, downT: null } };
         // Misses hurt twice as much in a boss battle.
         this.missMul = Math.max(this.missMul, tune.missMul);
         // The boss's attacks, and the trap notes its trap attacks bring.
@@ -268,7 +270,13 @@
         timingSamples: this.offsets.length,
         graph: this.graph.map((b) => ({ acc: b.max ? b.earned / b.max : null, miss: b.miss })),
         timeline: this.timeline.slice(),
-        boss: this.boss ? { id: this.boss.id, name: this.boss.name, defeated: this.boss.hp <= 0, hp: Math.ceil(this.boss.hp), bossWon, trapsHit: this.boss.trapsHit } : null,
+        boss: this.boss ? {
+          id: this.boss.id, name: this.boss.name, color: this.boss.color, defeated: this.boss.hp <= 0, hp: Math.ceil(this.boss.hp), bossWon,
+          trapsHit: this.boss.trapsHit, trapsTotal: (this.traps || []).length, launched: this.boss.launched,
+          ...this.boss.stats,
+          // How long before the end of the song it went down.
+          spare: this.boss.stats.downT != null ? Math.max(0, Math.round(this.lastNoteT - this.boss.stats.downT)) : null,
+        } : null,
       };
     }
 
@@ -346,7 +354,8 @@
       for (const f of b.fireballs) {
         if (f.landed || now - f.at < FIREBALL_FLIGHT) continue;
         f.landed = true;
-        this._damage(f.dmg);
+        if (b.hp > 0) b.stats.landed++;
+        b.stats.dmgFireballs += this._damage(f.dmg);
         b.bigHitAt = now;
         b.lastDmg = Math.round(f.dmg);
         Sfx.bossHit();
@@ -357,18 +366,30 @@
       b.fireballs = b.fireballs.filter((f) => now - f.at < FIREBALL_FLIGHT + 600);
     }
 
+    /** Take health off the boss; returns how much it actually lost. */
     _damage(amount) {
       const b = this.boss;
-      if (b.hp <= 0) return;
+      if (b.hp <= 0) return 0;
+      const was = b.hp;
       b.hp = Math.max(0, b.hp - amount);
       if (b.hp === 0) {
         b.downAt = performance.now();
+        b.stats.downT = this.now();
         b.fb = 0;
         Sfx.bossDown();
         this.stage.kick(5);
         this.stage.flashScreen(0.6);
         this._banner('BOSS DEFEATED!', '#f8d830', b.name);
       }
+      return was - b.hp;
+    }
+
+    /** Health back for the boss (it can't go over full); counted for the results. */
+    _heal(amount) {
+      const b = this.boss;
+      const was = b.hp;
+      b.hp = Math.min(b.tune.hp, b.hp + amount);
+      b.stats.healed += b.hp - was;
     }
 
     _buzz(pattern) {
@@ -404,7 +425,7 @@
       const b = this.boss;
       trap.hit = true;
       b.trapsHit++;
-      b.hp = Math.min(b.tune.hp, b.hp + b.tune.trapHeal);
+      this._heal(b.tune.trapHeal);
       b.healAt = performance.now();
       this.combo = 0;
       this.judgement = { kind: 'trap', at: performance.now() };
@@ -465,8 +486,9 @@
       if (this.boss) {
         // Every hit chips at the boss; a power note also charges the Fireball.
         if (this.bossAlive) {
-          this._damage(this.boss.tune.hit * Boss.JUDGE_DAMAGE[kind]);
+          this.boss.stats.dmgNotes += this._damage(this.boss.tune.hit * Boss.JUDGE_DAMAGE[kind]);
           this.boss.hitAt = performance.now();
+          if (best.power) this.boss.stats.powerCaught++;
           if (best.power) this.boss.fb = Math.min(1, this.boss.fb + this.boss.tune.charge + 1e-9);
           if (this.boss.fb >= 1 && !this.boss.fbAnnounced && this.bossAlive) {
             this.boss.fbAnnounced = true;
@@ -508,7 +530,7 @@
       this.counts.miss++;
       if (note && this.bossAlive) {
         // Every miss lets the boss heal a little; a dropped power note, a lot more.
-        this.boss.hp = Math.min(this.boss.tune.hp, this.boss.hp + this.boss.tune.missHeal + (note.power ? this.boss.tune.heal : 0));
+        this._heal(this.boss.tune.missHeal + (note.power ? this.boss.tune.heal : 0));
         if (note.power) { this.boss.healAt = performance.now(); Sfx.bossHeal(); }
       }
       if (note) this._graph(note.t, 0);

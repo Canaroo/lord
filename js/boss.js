@@ -26,16 +26,20 @@
     'mountain-king': { id: 'troll', theme: 'classical', name: 'THE MOUNTAIN KING', color: '#e8d8a8' },
   };
 
-  // Tuning. The boss has 100 health. Hitting every note (all PERFECT) deals 70 of it
-  // between them, and launching every Fireball the power notes charge deals 90. But
-  // every miss heals it a little (and costs twice the usual rock meter), a missed power
-  // note heals it more, and so does hitting a trap note: a win takes a strong run.
+  // Tuning. The boss has 100 health. Every song charges the same 9 Fireballs and each
+  // one takes 10 (so every fight is the same battle, whatever the song's length), and
+  // hitting every note (all PERFECT) deals 50 between them: 140 at most. A perfect run
+  // brings the boss down about three quarters of the way through; a win takes over 90%
+  // of the notes and 8 of the 9 Fireballs. Every miss heals it a
+  // little (and costs twice the usual rock meter), a missed power note heals it more, and
+  // so does hitting a trap note: a win takes a strong run with most Fireballs launched.
   const HP = 100;
-  const HITS_TOTAL = 70;
-  const FIREBALLS_TOTAL = 90;
+  const HITS_TOTAL = 50;
+  const FIREBALLS = 9; // per song
+  const FIREBALL_DAMAGE = 10;
   const POWER_PER_FIREBALL = 4; // power notes to charge one Fireball
   const HEAL = 2.5; // health back for each power note missed
-  const MISS_HEAL = 0.25; // and for any miss
+  const MISS_HEAL = 0.2; // and for any miss
   const MISS_MUL = 2; // misses cost twice the usual rock meter
   const TRAP_HEAL = 3; // hitting a trap note
   const TRAP_ROCK = 0.12; // ...and what it costs the rock meter
@@ -132,13 +136,14 @@
   const scrambleLanes = (lanes) => (lanes >= 4 ? [1, lanes - 2] : [0, lanes - 1]);
 
   /**
-   * Which notes glow: about one in twenty, spread evenly through the song, in a
-   * multiple of POWER_PER_FIREBALL. Returns the set of note indices (notes sorted by time).
+   * Which notes glow: enough for FIREBALLS Fireballs (36; about one note in fifteen on a
+   * full-length song), spread evenly through it. Returns the set of note indices
+   * (notes sorted by time).
    */
   function powerNotes(notes) {
     const out = new Set();
     if (!notes.length) return out;
-    const want = Math.max(POWER_PER_FIREBALL, Math.round(notes.length / 20 / POWER_PER_FIREBALL) * POWER_PER_FIREBALL);
+    const want = Math.min(FIREBALLS * POWER_PER_FIREBALL, Math.floor(notes.length / 4 / POWER_PER_FIREBALL) * POWER_PER_FIREBALL);
     const t0 = notes[0].t, t1 = notes[notes.length - 1].t;
     let j = 0;
     for (let k = 0; k < want; k++) {
@@ -158,7 +163,8 @@
     return {
       hp: HP,
       hit: HITS_TOTAL / Math.max(1, notes.length),
-      fireball: FIREBALLS_TOTAL / fireballs,
+      fireball: FIREBALL_DAMAGE,
+      fireballs,
       charge: 1 / POWER_PER_FIREBALL,
       heal: HEAL,
       missHeal: MISS_HEAL,
@@ -382,7 +388,7 @@
   };
 
   return {
-    BATTLES, SPRITES, HP, POWER_PER_FIREBALL, JUDGE_DAMAGE, ATTACK_NAMES, WARN,
+    BATTLES, SPRITES, HP, POWER_PER_FIREBALL, FIREBALLS, FIREBALL_DAMAGE, JUDGE_DAMAGE, ATTACK_NAMES, WARN,
     powerNotes, tuning, attacks, traps, scrambleLanes, battleFor: (songId) => BATTLES[songId] || null,
   };
 });

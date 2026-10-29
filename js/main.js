@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.50';
+  const VERSION = '1.51';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -2013,6 +2013,7 @@
       : st.next ? `Next star at ${st.next.toLocaleString('en-US')}` : 'Full combo for gold stars';
 
     drawGraph($('#res-graph'), res.graph);
+    renderBossResult(res.boss);
 
     // Timing advice: suggest a calibration change when hits lean one way.
     const avg = res.avgOffset;
@@ -2132,6 +2133,38 @@
       if (target) setTimeout(() => { if (screen === 'results') openOutcome(res, target, panel); }, 900);
     };
     requestAnimationFrame(step);
+  }
+
+  /**
+   * A boss battle's end card: the boss's health bar as it ended, then what you did to it
+   * (Fireballs landed out of those the song offers, power notes caught, damage) and what
+   * it got back (healing from misses, trap notes hit).
+   */
+  function renderBossResult(b) {
+    const box = $('#res-boss');
+    box.hidden = !b;
+    if (!b) { box.innerHTML = ''; return; }
+    const left = b.defeated ? 0 : Math.max(1, b.hp);
+    const art = Boss.SPRITES[b.id];
+    const headline = b.defeated
+      ? `DEFEATED${b.spare ? ` WITH ${b.spare} SECOND${b.spare === 1 ? '' : 'S'} TO SPARE` : ' AT THE VERY END'}!`
+      : left <= 10 ? `SO CLOSE! ${left}% HEALTH LEFT` : `${left}% HEALTH LEFT`;
+    const r1 = (x) => Math.round(x);
+    box.style.setProperty('--boss', b.color || 'var(--red)');
+    box.innerHTML = `<div class="rb-top"><canvas class="boss-art" width="16" height="${art ? art.rows.length : 20}" aria-hidden="true"></canvas>
+        <div class="rb-main"><p class="rb-name">${esc(b.name)}</p><p class="rb-head ${b.defeated ? 'won' : 'lost'}">${headline}</p>
+        <div class="rb-bar" role="img" aria-label="Boss health left: ${left}%"><span style="width:${left}%"></span>${'<i></i>'.repeat(10)}</div></div></div>
+      <table class="res rb-stats">
+        <tr><td>🔥 FIREBALLS LANDED</td><td>${b.landed} of ${b.fireballsPossible}</td></tr>
+        <tr><td>POWER NOTES CAUGHT</td><td>${b.powerCaught} of ${b.powerTotal}</td></tr>
+        <tr><td>DAMAGE: NOTES · FIREBALLS</td><td>${r1(b.dmgNotes)} · ${r1(b.dmgFireballs)}</td></tr>
+        <tr><td class="miss">HEALED BY YOUR MISSES</td><td>${r1(b.healed)}</td></tr>
+        ${b.trapsTotal ? `<tr><td class="miss">TRAP NOTES HIT</td><td>${b.trapsHit} of ${b.trapsTotal}</td></tr>` : ''}
+      </table>`;
+    if (art) {
+      const g = $('.boss-art', box).getContext('2d');
+      art.rows.forEach((row, y) => [...row].forEach((k, x) => { if (k !== '.') { g.fillStyle = art.palette[k]; g.fillRect(x, y, 1, 1); } }));
+    }
   }
 
   // Keyboard and mouse can skip the count-up too (without also pressing a button).

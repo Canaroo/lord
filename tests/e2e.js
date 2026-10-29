@@ -237,6 +237,13 @@ async function bossTests(browser) {
   check(mid.fb === 1 && mid.ready, 'power notes charge the Fireball meter');
   await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 150000 });
   await page.waitForTimeout(2500);
+  // The end card: the boss's health left, and the fight in numbers.
+  const card = () => page.evaluate(() => { const b = document.getElementById('res-boss'); return { shown: !b.hidden, head: b.querySelector('.rb-head') && b.querySelector('.rb-head').textContent, bar: b.querySelector('.rb-bar span') && b.querySelector('.rb-bar span').style.width, ticks: b.querySelectorAll('.rb-bar i').length, stats: b.querySelector('.rb-stats') && b.querySelector('.rb-stats').textContent.replace(/\s+/g, ' ') }; });
+  const lostCard = await card();
+  check(lostCard.shown && /\d+% HEALTH LEFT/.test(lostCard.head) && parseInt(lostCard.bar, 10) > 20 && lostCard.ticks === 10 && /FIREBALLS LANDED\s*0 of 9/.test(lostCard.stats) && /POWER NOTES CAUGHT\s*3\d of 36/.test(lostCard.stats),
+    `a lost boss battle's card shows the health left and the fight in numbers (${JSON.stringify(lostCard)})`);
+  await page.evaluate(() => document.getElementById('res-boss').scrollIntoView({ block: 'center' }));
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-lost-card.png') });
   const lost = await page.evaluate(() => ({ flag: document.getElementById('res-flag').textContent, grade: document.getElementById('res-grade').textContent, board: BeatFrets.save.leaderboard('pack:witching-hour', 'boss').length, suggest: document.getElementById('res-suggest').textContent, world: !document.getElementById('res-world-box').hidden }));
   check(/BOSS WINS/.test(lost.flag) && lost.grade === 'F' && lost.board === 0 && !lost.world, `the song done but the boss standing: BOSS WINS, nothing posted (${JSON.stringify(lost)})`);
   check(/Fireball/.test(lost.suggest), `the results say how to win (${lost.suggest})`);
@@ -259,6 +266,11 @@ async function bossTests(browser) {
   await page.screenshot({ path: path.join(outDir, 'e2e-boss-results.png') });
   const won = await page.evaluate(() => ({ flag: document.getElementById('res-flag').textContent, grade: document.getElementById('res-grade').textContent, board: BeatFrets.save.leaderboard('pack:witching-hour', 'boss').length, title: document.getElementById('res-title').textContent }));
   check(/BOSS DEFEATED/.test(won.flag) && won.grade !== 'F' && won.board === 1 && /BOSS BATTLE/.test(won.title), `beating the boss is a win that goes on the board (${JSON.stringify(won)})`);
+  const wonCard = await card();
+  const landed = wonCard.stats && +(/FIREBALLS LANDED\s*(\d+) of 9/.exec(wonCard.stats) || [])[1];
+  check(wonCard.shown && /DEFEATED WITH \d+ SECONDS TO SPARE/.test(wonCard.head) && wonCard.bar === '0%' && landed >= 6, `a won battle's card says how much song was left, and how many Fireballs landed (${JSON.stringify(wonCard)})`);
+  await page.evaluate(() => document.getElementById('res-boss').scrollIntoView({ block: 'center' }));
+  await page.screenshot({ path: path.join(outDir, 'e2e-boss-won-card.png') });
   await page.waitForFunction(() => /#1|WORLD/.test(document.getElementById('res-world').textContent), null, { timeout: 8000 }).catch(() => {});
   check(await page.evaluate(() => !document.getElementById('res-world-box').hidden), 'a boss win can go on the world board');
   // Its board has a BOSS BATTLE tab.

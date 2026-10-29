@@ -115,7 +115,7 @@ Every category's ELITE song has a **BOSS BATTLE** under its difficulties:
 - **The fight** uses the song's Hard notes, on keys or a phone (sideways or upright; not Tiles).
   The boss stands across the stage with a health bar. Every note you hit chips at it (PERFECT
   most, OK least).
-- **Power notes** have flames on top. They're rare, about one note in twenty, so watch for them.
+- **Power notes** have flames on top. There are 36 in every fight (about one note in fifteen; more often in the shorter Classics), so watch for them.
   Each one fills a quarter of the **Fireball** meter (FB, where the Overdrive meter usually is).
   When it's full, press the Overdrive key (Space) or swipe up to launch a Fireball for a big hit.
   A full meter doesn't charge any further, so launch it soon.
@@ -142,17 +142,15 @@ Every category's ELITE song has a **BOSS BATTLE** under its difficulties:
   posted anywhere, even if you played the whole song.
 - **Leaderboards:** each battle has its own boards (a **BOSS BATTLE** tab on the song's boards),
   and only wins go on them. A boss board you lead counts as a trophy on your license.
-- **Tuning** (`js/boss.js`): the boss has 100 health. Hitting every note deals 70 of it and
-  launching every Fireball deals 90. Each miss heals it 0.25 (a power note 2.75), and a trap note
-  3. A run that hits 90% of the notes and launches its Fireballs wins narrowly; one that hits 80%
-  doesn't.
-
-## Song of the Day
-
-Every day one song-pack song and difficulty is picked for everyone, the same on every device, and
-it changes at **midnight US Eastern time**. It sits in a gold card at the top of **Play**: the
-song, the difficulty for the way you're playing, who leads today's board, and your 🔥 streak.
-
+- **Tuning** (`js/boss.js`): the boss has 100 health, shown as ten ticks. Every song has 36
+  power notes, enough for **9 Fireballs**, and each Fireball takes **10** (one tick), whatever
+  the song's length. Hitting every note deals 50 between them. Each miss heals it 0.2, a missed
+  power note 2.7, and a trap note 3. A perfect run brings the boss down about three quarters of
+  the way through the song; a win takes about 93% of the notes and 8 of the 9 Fireballs.
+- **The end card:** a boss battle's results show the boss with its health bar as the fight
+  ended: *DEFEATED WITH 22 SECONDS TO SPARE!*, or *54% HEALTH LEFT* (*SO CLOSE!* under 10%).
+  Then the fight in numbers: Fireballs landed out of 9, power notes caught out of 36, damage
+  from notes and from Fireballs, how much your misses healed it, and trap notes hit.
 - **The week builds up:** Monday and Tuesday on Easy, Wednesday and Thursday on Medium, Friday and
   Saturday on Hard, and on Sunday an ELITE song on Hard. Weekdays cycle through
   the ROOKIE and PRO songs and Sundays through the ELITE songs, so every song comes up before any repeats.
@@ -540,6 +538,10 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.51**: **Fairer, longer boss fights.** Every Fireball now takes 10% (a tick) of the boss and
+  every song charges 9, so even the one-minute Classics boss takes a real fight (before, its 3
+  Fireballs took 30% each). Notes deal 50 in all. A boss battle's results show the boss's health
+  bar and the fight in numbers.
 - **1.50**: **Boss battles in every category:** the Glitch King, the Alien Overlord, the Ringmaster,
   El Toro, MC Thunder and the Mountain King join the Count, the Titan and the Dragon. Short songs
   space their attacks a little closer, so every boss uses all four.
