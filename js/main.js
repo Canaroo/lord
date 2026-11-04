@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.55';
+  const VERSION = '1.56';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -2802,7 +2802,8 @@
    * for imported songs, lines their notes up with your copy) behind the pop-up,
    * waits for the phone to be turned the right way, then FIGHT! starts the race.
    */
-  function openVersus(r) {
+  /** The versus pop-up against score row `r`. `useKey`: play their notes over this copy of the song. */
+  function openVersus(r, useKey = null) {
     const { key, diff } = boardState;
     const t = parseId(diff);
     const me = save.active;
@@ -2816,7 +2817,7 @@
       tiles: !!t.tiles,
       prevWant: orientation.wanted,
       target: r ? { initials: r.initials, score: Number(r.score), timeline: Array.isArray(r.tl) && r.tl.length > 1 ? r.tl : null, laps: Number(r.laps) || 0, rank, sid: r.id || null } : null,
-      loaded: false, error: null, status: 'Loading the stage…', opts: null, match: null, needCopy: null, row: r,
+      loaded: false, error: null, status: 'Loading the stage…', opts: null, match: null, needCopy: null, row: r, useKey,
     };
     $('#vs-you-ini').textContent = me ? me.initials : '---';
     $('#vs-you-line').textContent = mine ? `#${worldRows.indexOf(mine) + 1} · ${fmt(mine.score)}` : 'NOT RANKED YET';
@@ -2848,9 +2849,14 @@
         updateVersus();
         const b = await World.board(v.id);
         if (!b || !b.chart) throw new Error('This board has no notes saved.');
-        const copy = await findCopy(b.fp, b.title || boardState.title, b.songKey || v.key);
+        // The copy to play: one the player just picked or imported for this challenge, or
+        // the best match by sound and name. Their notes are then lined up with it.
+        const copy = v.useKey ? { key: v.useKey, current: !!current && current.key === v.useKey }
+          : await findCopy(b.fp, b.title || boardState.title, b.songKey || v.key);
         if (!copy) {
-          v.needCopy = { title: b.title || boardState.title };
+          // Nothing matched by itself: the player can say which of their songs it is.
+          const choices = (await rankCopies(b.fp, b.title || boardState.title, b.songKey || v.key)).slice(0, 6);
+          v.needCopy = { title: b.title || boardState.title, choices };
           if (vs === v) updateVersus();
           return;
         }
@@ -2885,7 +2891,9 @@
     show('board');
     await ready;
     const r = pr.row && (worldRows.find((x) => x.id && x.id === pr.row.id) || pr.row);
-    openVersus(r || worldRows[0] || null);
+    // The song just imported for this challenge is the copy to use: their notes are lined
+    // up with it (and a poor fit is pointed out), rather than asking for a copy again.
+    openVersus(r || worldRows[0] || null, current && current.kind === 'mp3' ? current.key : null);
   }
 
   /** Song loading behind the versus pop-up: no loading screen, progress shown in the pop-up. */
@@ -2912,7 +2920,12 @@
     const fight = $('#btn-vs-fight');
     fight.textContent = v.needCopy ? 'IMPORT YOUR COPY' : 'FIGHT!';
     if (v.needCopy) {
-      $('#vs-status').innerHTML = `<p class="vs-warn">You don't have "${esc(v.needCopy.title)}" yet. Import your own copy (any version) and the game lines their notes up with it.</p>`;
+      const ch = v.needCopy.choices || [];
+      $('#vs-status').innerHTML = ch.length
+        ? `<p class="vs-warn">Couldn't find "${esc(v.needCopy.title)}" in your music by itself. Is it one of these? Their notes are lined up with the one you pick.</p>` +
+          `<div class="vs-copies">${ch.map((c) => `<button class="btn small" data-vs-copy="${esc(c.key)}">${esc(String(c.title).toUpperCase().slice(0, 36))}</button>`).join('')}</div>` +
+          '<p class="hint">Or import your own copy (any version).</p>'
+        : `<p class="vs-warn">You don't have "${esc(v.needCopy.title)}" yet. Import your own copy (any version) and the game lines their notes up with it.</p>`;
       fight.disabled = false;
       return;
     }
@@ -2940,6 +2953,17 @@
     }
   }
 
+  // "Is it one of these?": the player says which of their songs the challenge is on.
+  $('#vs-status').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-vs-copy]');
+    const v = vs;
+    if (!b || !v || !v.needCopy) return;
+    v.needCopy = null;
+    v.useKey = b.dataset.vsCopy;
+    v.status = 'Opening your copy of the song…';
+    updateVersus();
+    prepareVersus(v);
+  });
   $('#btn-vs-cancel').addEventListener('click', () => closeVersus(true));
   $('#btn-vs-close').addEventListener('click', () => closeVersus(true));
   $('#btn-vs-fight').addEventListener('click', () => {
@@ -3317,26 +3341,40 @@
    * Your copy of a song someone else posted: the song that's open, or one saved
    * in Your music, matched by sound (or by the same key / title words).
    */
-  async function findCopy(fp, title, songKey) {
+  /**
+   * Your copies of a song someone else posted, best match first: { key, title, fp, sc }.
+   * Scored by sound (a fingerprint slid along to allow a different intro or length) and
+   * by name (the core title, ignoring anything in brackets: "Megalovania (hard mode)" is
+   * "Megalovania"). Only songs whose audio is kept on this device can be played.
+   */
+  async function rankCopies(fp, title, songKey) {
     let saved = new Set();
     try { saved = new Set((await Library.list()).map((m) => m.key)); } catch (e) { /* none saved */ }
     const words = (x) => new Set(String(x || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2));
+    const core = (x) => words(String(x || '').replace(/[([{][^)\]}]*[)\]}]/g, ' '));
     const want = words(title);
+    const wantCore = core(title);
     const cands = [];
     if (current && current.kind === 'mp3') cands.push({ key: current.key, fp: current.fp, title: current.title, current: true });
     for (const s of save.data.library) if (saved.has(s.key) && !(current && current.key === s.key)) cands.push({ key: s.key, fp: s.fp, title: s.title });
-    let best = null;
-    let bestScore = 0;
     for (const c of cands) {
       let sc = c.key === songKey ? 10 : 0;
       if (fp && c.fp) {
-        sc += 3 * SaveData.similarity(fp, c.fp);
+        sc += 3 * Math.max(SaveData.similarity(fp, c.fp), SaveData.similarityShifted(fp, c.fp));
         if (World.tempoKeys(fp.bpm).includes(Math.round(c.fp.bpm))) sc += 0.5;
       }
       for (const w of words(c.title)) if (want.has(w)) sc += 1;
-      if (sc > bestScore) { best = c; bestScore = sc; }
+      // The same core title (every word of the shorter one is in the other): a strong sign.
+      const mine = core(c.title);
+      const [small, big] = mine.size <= wantCore.size ? [mine, wantCore] : [wantCore, mine];
+      if (small.size && [...small].every((w) => big.has(w))) sc += 2;
+      c.sc = sc;
     }
-    return bestScore >= 1.5 ? best : null;
+    return cands.sort((x, y) => y.sc - x.sc);
+  }
+  async function findCopy(fp, title, songKey) {
+    const best = (await rankCopies(fp, title, songKey))[0];
+    return best && best.sc >= 1.5 ? best : null;
   }
 
   $('#boards-pick').addEventListener('click', (e) => {

@@ -160,3 +160,19 @@ test('scores that could not be posted wait on the device, the best per player pe
   again.deleteProfile(b.id);
   assert.strictEqual(again.outbox.length, 0, "a deleted player's waiting scores go with them");
 });
+
+test('finding your copy of a posted song: another rip with a longer intro still matches by sound', async () => {
+  const sections = [['k', 4], ['khs', 6], ['h', 3], ['khs', 5], ['k', 2], ['khs', 4]];
+  const song = synthSong({ bpm: 120, sr: 22050, sections });
+  const fpA = SaveData.fingerprint(await BeatAnalyzer.analyze([song.samples], 22050));
+  // The same song with 8 seconds of silence first: too different in length for the strict check.
+  const pad = new Float32Array(Math.round(8 * 22050) + song.samples.length);
+  pad.set(song.samples, Math.round(8 * 22050));
+  const fpB = SaveData.fingerprint(await BeatAnalyzer.analyze([pad], 22050));
+  assert.strictEqual(SaveData.similarity(fpA, fpB), 0, 'the strict check gives up on lengths 8 s apart');
+  assert.ok(SaveData.similarityShifted(fpA, fpB) > 0.8, `sliding it along finds the match (${SaveData.similarityShifted(fpA, fpB).toFixed(2)})`);
+  // A different song doesn't match.
+  const other = synthSong({ bpm: 120, sr: 22050, sections: [['khs', 2], ['k', 6], ['khs', 2], ['h', 6], ['k', 8]] });
+  const fpC = SaveData.fingerprint(await BeatAnalyzer.analyze([other.samples], 22050));
+  assert.ok(SaveData.similarityShifted(fpA, fpC) < 0.8, `a different song doesn't (${SaveData.similarityShifted(fpA, fpC).toFixed(2)})`);
+});

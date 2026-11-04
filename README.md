@@ -439,8 +439,16 @@ The world boards are fair because a score only ranks against people who played *
 - **Players' music:** the Boards tab lists imported songs other players have posted (newest
   first), even ones you don't have. Open one to see its world board. To challenge a score on a
   song you don't have, the versus pop-up asks you to **import your own copy** (any version: a
-  different rip, a remaster); once imported, it goes straight back into the challenge. The game
-  also finds your copy by itself if you already have the song in Your music, matched by sound.
+  different rip, a remaster); once imported, it goes straight back into the challenge with that
+  copy. The game also finds your copy by itself if you already have the song in Your music:
+  - **by sound:** length, tempo and the shape of its loudness, slid along so a longer intro or
+    extra silence at either end still matches;
+  - **by name:** the core title, ignoring anything in brackets, so *Megalovania* matches
+    *Megalovania (hard mode)*. The name helps but is never required.
+
+  If nothing matches by itself, it asks **"Is it one of these?"** with your songs. Whichever copy
+  is used, their notes are then lined up with its beats, and the pop-up warns if they only match
+  part of it (*it may be a different version*).
 - **Naming songs:** the first time an imported song goes on the world board, the game asks what
   it's called (the file name is suggested), because everyone will see that name.
 - **Challenge links:** a shared score links to its world board, so a friend who opens it goes
@@ -555,6 +563,10 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.56**: **Challenging a player's song finds your copy more easily:** the sound check allows a
+  different intro or length, names match on the core title ("Megalovania" = "Megalovania (hard
+  mode)"), a copy imported for a challenge is used straight away, and if nothing matches you can
+  pick which of your songs it is.
 - **1.55**: **Faster taps on phones.** Every finger that lands counts as a tap (a quick tap that landed
   while the last finger was still lifting used to be dropped); Hard, Insane and boss battles get a
   wider timing window on touch; and pinch or double-tap zoom is blocked.

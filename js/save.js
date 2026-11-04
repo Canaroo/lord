@@ -113,6 +113,29 @@
 
   const MATCH_THRESHOLD = 0.8;
 
+  /**
+   * Like similarity, but for finding your copy of a song someone else posted: their file
+   * may be a different rip, with a longer intro or more silence at either end. Slides one
+   * loudness curve along the other (up to about 20 s) and takes the best fit; lengths may
+   * differ by up to 25 s. Not used to merge songs on import (that stays strict).
+   */
+  function similarityShifted(f1, f2) {
+    if (!f1 || !f2 || Math.abs(f1.du - f2.du) > 25) return 0;
+    const ratio = f1.bpm / f2.bpm;
+    if (![1, 2, 0.5].some((r) => Math.abs(ratio / r - 1) < 0.04)) return 0;
+    const a = [...f1.sig].map(Number);
+    const b = [...f2.sig].map(Number);
+    let best = 0;
+    for (let k = -10; k <= 10; k++) {
+      const x = k >= 0 ? a.slice(k) : a;
+      const y = k >= 0 ? b : b.slice(-k);
+      const n = Math.min(x.length, y.length);
+      if (n < 8) continue;
+      best = Math.max(best, correlation(x.slice(0, n), y.slice(0, n)));
+    }
+    return Math.max(0, best);
+  }
+
   // ---- share links ----------------------------------------------------------------------
 
   function hash(str) {
@@ -507,5 +530,5 @@
     }
   }
 
-  return { Store, fingerprint, similarity, encodeShare, decodeShare, cleanInitials, MATCH_THRESHOLD, DEFAULT_SETTINGS };
+  return { Store, fingerprint, similarity, similarityShifted, encodeShare, decodeShare, cleanInitials, MATCH_THRESHOLD, DEFAULT_SETTINGS };
 });

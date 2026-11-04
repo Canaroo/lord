@@ -1452,3 +1452,7 @@ body.no-tiles:not(.touch) .lines-group { display: none; }
 
 /* A song's category on a license row (in that category's colour). */
 .cat-chip { --acc: #9aa4c8; display: inline-block; align-self: flex-start; padding: 3px 7px; border: 2px solid var(--acc); border-radius: 5px; color: var(--acc); font: 400 8px/1 var(--pixel); letter-spacing: 0.04em; background: color-mix(in srgb, var(--acc) 14%, transparent); }
+
+/* "Is it one of these?": your songs to pick from for a challenge. */
+.vs-copies { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.vs-copies .btn { width: 100%; text-align: left; }

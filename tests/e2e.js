@@ -1171,6 +1171,57 @@ async function worldTests(browser) {
   check(await c.page.evaluate(() => BeatFrets.screen === 'board'), 'after importing, it goes straight back to the challenge, ready to FIGHT');
   await c.page.click('#btn-vs-cancel');
 
+  // Player D has the song already, under another name ("Drum") and as a longer rip (8 s
+  // of silence first). The challenge finds it by itself, with no import.
+  {
+    const d = await newPage(browser);
+    await d.page.addInitScript((sd) => { window.__seed = sd; }, seed);
+    await d.page.addInitScript(MEMORY_WORLD);
+    await d.page.goto(url);
+    await screenIs(d.page, 'title');
+    await d.page.evaluate(() => { BeatFrets.save.createProfile('DDD'); window.BeatFretsWorldBackend.uid = 'devD'; document.querySelector('#btn-start').click(); });
+    await screenIs(d.page, 'main');
+    const longer = new Float32Array(Math.round(8 * 22050) + song.samples.length);
+    longer.set(song.samples, Math.round(8 * 22050));
+    const other = synthSong({ bpm: 100, sr: 22050, sections: [['khs', 3], ['k', 5], ['h', 4], ['khs', 6]] });
+    const importAs = (b64, name) => d.page.evaluate(async ([bb, n]) => {
+      const bytes = Uint8Array.from(atob(bb), (ch) => ch.charCodeAt(0));
+      await BeatFrets.importFile(new File([bytes], n + '.wav', { type: 'audio/wav' }));
+    }, [b64, name]);
+    // First only a different song: nothing matches, so it asks which of your songs it is.
+    await importAs(wavBase64(other.samples, 22050), 'My Beat');
+    await screenIs(d.page, 'song');
+    const challengeIt = async () => {
+      await d.page.evaluate(() => BeatFrets.goHome());
+      await screenIs(d.page, 'main');
+      await d.page.click('#tabbar [data-go="boards"]');
+      await openCat(d.page, 'players', 'click');
+      await d.page.waitForSelector('[data-remote]', { timeout: 5000 }).catch(() => {});
+      await d.page.click('[data-remote]:has-text("DRUM SONG CLASSIC")');
+      await screenIs(d.page, 'board');
+      await d.page.waitForSelector('[data-challenge="0"]', { timeout: 5000 });
+      await d.page.click('[data-challenge="0"]');
+    };
+    await challengeIt();
+    await d.page.waitForSelector('[data-vs-copy]', { timeout: 10000 }).catch(() => {});
+    const pick = await d.page.evaluate(() => ({ text: document.getElementById('vs-status').textContent, choices: [...document.querySelectorAll('[data-vs-copy]')].map((b) => b.textContent) }));
+    check(/one of these/.test(pick.text) && pick.choices.includes('MY BEAT'), `no match by itself: "Is it one of these?" lists your songs (${JSON.stringify(pick)})`);
+    await d.page.screenshot({ path: path.join(outDir, 'e2e-pick-copy.png') });
+    await d.page.click('[data-vs-copy]');
+    await d.page.waitForFunction(() => !document.querySelector('#btn-vs-fight').disabled && document.querySelector('#btn-vs-fight').textContent === 'FIGHT!', null, { timeout: 30000 });
+    check(/only match \d+%/.test(await d.page.textContent('#vs-status')), 'picking a song lines their notes up with it, warning when they don\'t fit');
+    await d.page.click('#btn-vs-cancel');
+    // Now the real song, named differently and longer: found by itself.
+    await importAs(wavBase64(longer, 22050), 'Drum');
+    await screenIs(d.page, 'song');
+    await challengeIt();
+    await d.page.waitForFunction(() => !document.querySelector('#vs').hidden && !document.querySelector('#btn-vs-fight').disabled && document.querySelector('#btn-vs-fight').textContent === 'FIGHT!', null, { timeout: 30000 }).catch(() => {});
+    const auto = await d.page.evaluate(() => ({ fight: document.querySelector('#btn-vs-fight').textContent, status: document.getElementById('vs-status').textContent, song: BeatFrets.current && BeatFrets.current.title }));
+    check(auto.fight === 'FIGHT!' && auto.song === 'Drum' && !/only match/.test(auto.status), `your copy under another name and a longer intro is found by itself, notes lined up (${JSON.stringify(auto)})`);
+    await d.page.click('#btn-vs-cancel');
+    await d.context.close();
+  }
+
   // A challenge link straight to a world board.
   const token = await c.page.evaluate((r) => SaveData.encodeShare(r), runForLink);
   await c.page.goto(url + '#c=' + token);
