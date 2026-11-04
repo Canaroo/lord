@@ -178,8 +178,12 @@
   let lastTouchEnd = 0;
   document.addEventListener('touchend', (e) => {
     const now = e.timeStamp;
-    // Only on the game's own stage (or mid-song), so quick taps on menu buttons still click.
-    if (now - lastTouchEnd < 400 && (gameplay || (e.target && e.target.id === 'stage'))) stop(e);
+    // A quick second tap could be read as "double-tap to zoom". Stop it on the game's stage,
+    // mid-song, and anywhere that isn't a button or a field: a button a tap just hid (POST,
+    // say) leaves the next tap on the text behind it. Buttons still take quick taps (the
+    // initials letter grid needs them).
+    const onControl = e.target && e.target.closest && e.target.closest('button, a, input, select, textarea, label, [role="button"]');
+    if (now - lastTouchEnd < 400 && (gameplay || (e.target && e.target.id === 'stage') || !onControl)) stop(e);
     lastTouchEnd = now;
   }, { passive: false });
   document.addEventListener('dblclick', stop, { passive: false });

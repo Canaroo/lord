@@ -248,7 +248,10 @@ press a key or a controller button.
   finger that lands is a tap, even if another is still lifting off that lane, so fast runs and
   repeated notes never drop a press. The game can't be zoomed by accident: pinches and double-taps
   are blocked (the page asks for no zoom, and on iPhones, which ignore that, the gestures
-  themselves are stopped).
+  themselves are stopped), in songs and in menus alike (a button that hides itself when tapped,
+  like POST, can't turn the next quick tap into a zoom; buttons still take quick taps). After
+  the keyboard closes (naming a song before its first world post), any zoom or shift it left is
+  undone and the game goes back to full screen if it was.
 - **Big tap pads, raised strike line:** on phones the notes are short, wide arcade-button caps centred on
   the beat, so the strike line passes through the middle of each one. A note's length doesn't
   change how easy it is to hit (the whole lane is the target), so blocks stay short and shrink
@@ -565,6 +568,8 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.58**: No more zooming around POST TO WORLD: quick double taps can't zoom in menus either, and
+  naming a song (the keyboard) no longer leaves the page zoomed or out of full screen.
 - **1.57**: When your copy's beats don't line up with a challenge's notes, the pop-up offers IMPORT
   THE RIGHT SONG straight away (and your other songs), or PLAY ANYWAY as unposted practice.
 - **1.56**: **Challenging a player's song finds your copy more easily:** the sound check allows a

@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.57';
+  const VERSION = '1.58';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -2501,10 +2501,18 @@
       const input = $('#name-input');
       input.value = String(suggested || '').replace(/[_]+/g, ' ').trim().slice(0, 40);
       box.hidden = false;
+      // The keyboard can knock a phone out of full screen, or leave the page zoomed or
+      // shifted after it closes: put things back once the name is in.
+      const wasFull = !!document.fullscreenElement;
       const done = (v) => {
         box.hidden = true;
         $('#name-ok').onclick = $('#name-cancel').onclick = input.onkeydown = null;
         askSongName.cancel = null;
+        input.blur();
+        resetZoom();
+        if (wasFull && !document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+        }
         resolve(v);
       };
       const ok = () => { const v = input.value.trim().replace(/\s+/g, ' ').slice(0, 40); if (v) done(v); else input.focus(); };
@@ -2514,6 +2522,16 @@
       askSongName.cancel = () => done(null);
       requestAnimationFrame(() => { input.focus(); input.select(); });
     });
+  }
+
+  /**
+   * Undo any zoom or shift a phone left behind (after its keyboard closes, say): setting
+   * the viewport again makes iPhones return to 100%, and the page scrolls back to the top.
+   */
+  function resetZoom() {
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (meta) { const c = meta.getAttribute('content'); meta.setAttribute('content', c + ', '); meta.setAttribute('content', c); }
+    window.scrollTo(0, 0);
   }
 
   /** Use the name a player gave a song in Your music too. */

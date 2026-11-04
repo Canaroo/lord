@@ -555,6 +555,17 @@ async function touchTests(browser) {
   check(/user-scalable=no/.test(zoom.meta) && /maximum-scale=1/.test(zoom.meta) && zoom.pinch && zoom.gesture && zoom.doubleTap, `pinch and double-tap zoom are blocked (${JSON.stringify(zoom)})`);
   await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 15000 });
   await page.evaluate(() => BeatFrets.save.setSetting('noFail', false));
+  // On the results: a quick second tap on text (where a button that just hid itself was,
+  // like POST) is blocked from zooming, but buttons still take quick taps.
+  const menuTaps = await page.evaluate(() => {
+    const tapEnd = (el) => { const e = new TouchEvent('touchend', { touches: [], changedTouches: [new Touch({ identifier: 4, target: el, clientX: 10, clientY: 10 })], cancelable: true, bubbles: true }); el.dispatchEvent(e); return e.defaultPrevented; };
+    const text = document.getElementById('res-title'), btn = document.getElementById('btn-res-board');
+    tapEnd(text);
+    const textSecond = tapEnd(text);
+    tapEnd(btn);
+    return { textSecond, btnSecond: tapEnd(btn) };
+  });
+  check(menuTaps.textSecond && !menuTaps.btnSecond, `in menus, a quick double tap on text can't zoom, and buttons still take quick taps (${JSON.stringify(menuTaps)})`);
   await page.tap('#btn-res-board');
   await screenIs(page, 'board');
   const tabs = await page.evaluate(() => [...document.querySelectorAll('[data-board-family]')].map((b) => b.textContent).join('|'));
