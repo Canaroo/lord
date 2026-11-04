@@ -243,7 +243,12 @@ press a key or a controller button.
 - **Tiers:** Easy, Medium, Hard and Insane, in either direction. Touch charts are built for
   thumbs: quick notes switch hands, chords use one finger from each hand, and while one hand
   holds a long note, the other hand plays everything else. The timing window is slightly wider
-  than on keys, since a thumb can brush the glass.
+  than on keys, since a thumb can brush the glass (15% wider, and 25% on Hard, Insane and boss
+  battles, whose fast runs are hardest on thumbs; Insane's tighter window is for keys only). Every
+  finger that lands is a tap, even if another is still lifting off that lane, so fast runs and
+  repeated notes never drop a press. The game can't be zoomed by accident: pinches and double-taps
+  are blocked (the page asks for no zoom, and on iPhones, which ignore that, the gestures
+  themselves are stopped).
 - **Big tap pads, raised strike line:** on phones the notes are short, wide arcade-button caps centred on
   the beat, so the strike line passes through the middle of each one. A note's length doesn't
   change how easy it is to hit (the whole lane is the target), so blocks stay short and shrink
@@ -550,6 +555,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.55**: **Faster taps on phones.** Every finger that lands counts as a tap (a quick tap that landed
+  while the last finger was still lifting used to be dropped); Hard, Insane and boss battles get a
+  wider timing window on touch; and pinch or double-tap zoom is blocked.
 - **1.54**: **Easier overdrive flick, especially upright.** The flick is the same short size both ways
   up (upright used to need nearly twice as far), counts from a thumb already resting on a fret,
   and can lean sideways.

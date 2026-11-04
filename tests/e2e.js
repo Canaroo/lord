@@ -519,6 +519,42 @@ async function touchTests(browser) {
   await STRIKE_TEST();
   await screenIs(page, 'results');
   check(true, 'MOVE THE LINE comes back to the results');
+  // Fast taps on one lane: the second finger lands before the first has lifted. Both count.
+  await page.evaluate(() => {
+    BeatFrets.save.setSetting('noFail', true); // a practice run: this tiny chart stays off the boards
+    BeatFrets.current.charts['touch4:easy'] = { difficulty: 'touch4:easy', lanes: 4, notes: [{ t: 1, lane: 1 }, { t: 1.12, lane: 1 }, { t: 1.24, lane: 1 }] };
+    BeatFrets.play('touch4:easy', {});
+  });
+  await page.waitForFunction(() => BeatFrets.game && BeatFrets.game.running, null, { timeout: 10000 });
+  const jack = await page.evaluate(async () => {
+    const g = BeatFrets.game, cv = document.getElementById('stage');
+    const c = BeatFrets.stage.laneCenterClient(4, 1);
+    const ev = (type, id, dx) => cv.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', clientX: c.x + dx, clientY: c.y, bubbles: true }));
+    const at = (t) => new Promise((r) => { const tick = () => (g.now() >= t ? r() : requestAnimationFrame(tick)); tick(); });
+    await at(1); ev('pointerdown', 801, -6);
+    await at(1.12); ev('pointerdown', 802, 6); // finger 801 is still down
+    await at(1.17); ev('pointerup', 801, -6);
+    await at(1.24); ev('pointerdown', 803, -6); // and 802 still down
+    await at(1.3); ev('pointerup', 802, 6); ev('pointerup', 803, -6);
+    return { ...g.counts };
+  });
+  check(jack.perfect + jack.good === 3 && jack.miss === 0, `fast overlapping taps on one lane all count (${JSON.stringify(jack)})`);
+  // No zooming: the page says so, and pinches and double-taps are blocked (iPhones ignore the first).
+  const zoom = await page.evaluate(() => {
+    const t = (id, x) => new Touch({ identifier: id, target: document.body, clientX: x, clientY: 200 });
+    const pinch = new TouchEvent('touchmove', { touches: [t(1, 100), t(2, 200)], cancelable: true, bubbles: true });
+    document.body.dispatchEvent(pinch);
+    const gesture = new Event('gesturestart', { cancelable: true, bubbles: true });
+    document.dispatchEvent(gesture);
+    const stage = document.getElementById('stage');
+    const end = () => { const e = new TouchEvent('touchend', { touches: [], changedTouches: [new Touch({ identifier: 3, target: stage, clientX: 50, clientY: 50 })], cancelable: true, bubbles: true }); stage.dispatchEvent(e); return e.defaultPrevented; };
+    end();
+    const second = end();
+    return { meta: document.querySelector('meta[name=viewport]').content, pinch: pinch.defaultPrevented, gesture: gesture.defaultPrevented, doubleTap: second };
+  });
+  check(/user-scalable=no/.test(zoom.meta) && /maximum-scale=1/.test(zoom.meta) && zoom.pinch && zoom.gesture && zoom.doubleTap, `pinch and double-tap zoom are blocked (${JSON.stringify(zoom)})`);
+  await page.waitForFunction(() => BeatFrets.screen === 'results', null, { timeout: 15000 });
+  await page.evaluate(() => BeatFrets.save.setSetting('noFail', false));
   await page.tap('#btn-res-board');
   await screenIs(page, 'board');
   const tabs = await page.evaluate(() => [...document.querySelectorAll('[data-board-family]')].map((b) => b.textContent).join('|'));

@@ -168,6 +168,22 @@
   // Any finger on the screen switches to touch; the last input used wins.
   window.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') setDevice(TOUCH); }, true);
 
+  // Never zoom. Fast taps and swipes can look like a pinch or a double-tap to the phone, and
+  // iPhones ignore the page's "don't zoom" setting, so block those gestures directly:
+  // pinches (Safari's gesture events, and any move with two or more fingers), double-tap
+  // zoom (two touches ending close together), and during a song any move at all.
+  const stop = (e) => { if (e.cancelable) e.preventDefault(); };
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(type, stop, { passive: false });
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 || gameplay) stop(e); }, { passive: false });
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = e.timeStamp;
+    // Only on the game's own stage (or mid-song), so quick taps on menu buttons still click.
+    if (now - lastTouchEnd < 400 && (gameplay || (e.target && e.target.id === 'stage'))) stop(e);
+    lastTouchEnd = now;
+  }, { passive: false });
+  document.addEventListener('dblclick', stop, { passive: false });
+
   /**
    * Play with fingers on `canvas`. `resolve(clientX, clientY)` says what a
    * touch means: { type: 'lane', lane } | { type: 'overdrive' } | { type: 'pause' } | null.
@@ -195,10 +211,11 @@
       if (!hit) return;
       if (hit.type === 'lane') {
         try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events */ }
-        const first = pressedBy(hit.lane) === 0;
         fingers.set(e.pointerId, hit.lane);
         touchPoints.set(e.pointerId, { lane: hit.lane, x: e.clientX, y: e.clientY });
-        if (first) emit('lane', hit.lane, true, e.timeStamp);
+        // Every new finger is a press, even while another is still lifting off that lane:
+        // in fast runs the next tap often lands before the last finger has left.
+        emit('lane', hit.lane, true, e.timeStamp);
       } else emit('action', hit.type);
     });
     canvas.addEventListener('pointermove', (e) => {

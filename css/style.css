@@ -1036,6 +1036,8 @@ body:not(.touch).has-hints { --hint-h: 30px; }
 /* ---- touch, small screens, landscape ------------------------------------------------------------------------------ */
 
 html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+/* touch-action doesn't pass into scrolling boxes, so set it everywhere: no double-tap zoom. */
+body * { touch-action: manipulation; }
 #stage { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 body.touch .hints { display: none; }
 body.touch .mini-board { display: none; }

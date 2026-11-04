@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.54';
+  const VERSION = '1.55';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -1677,8 +1677,9 @@
       lookahead: (LOOKAHEAD[tier.difficulty] || 1.5) / settings.speed,
       calibration: (tier.touch ? settings.calibrationTouchMs : settings.calibrationMs) / 1000,
       noFail: settings.noFail,
-      // Insane: a tighter timing window, and misses drain the rock meter faster.
-      windowScale: (tier.touch ? 1.15 : 1) * (tier.difficulty === 'insane' ? 0.85 : 1),
+      // Touch is less precise than a key, more so in the fast runs of Hard and Insane, so
+      // phones get a wider window (and Insane's tighter window is for keys only).
+      windowScale: tier.touch ? (['hard', 'insane', 'boss'].includes(tier.difficulty) ? 1.25 : 1.15) : tier.difficulty === 'insane' ? 0.85 : 1,
       missMul: tier.difficulty === 'insane' ? 1.3 : 1,
       holdGrace: tier.touch ? 0.12 : 0,
       vibrate: tier.touch && settings.vibrate,
