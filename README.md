@@ -174,6 +174,29 @@ Every category's ELITE song has a **BOSS BATTLE** under its difficulties:
 - **Daily wins:** finishing a day as #1 on its board counts as a daily win, shown in Boards →
   Players and on the player license.
 
+## Battle a friend (live rooms)
+
+**BATTLE** on the home screen puts two players on the same song at the same moment, each on their
+own device: keys, a phone held sideways or upright.
+
+1. One player taps **CREATE A ROOM** and tells the other the 4-letter code.
+2. The other types it under **JOIN A FRIEND'S ROOM**. Anyone with the code can join; a room holds two.
+3. Whoever made the room picks the song and difficulty (Easy, Medium or Hard): any pack song,
+   bonus track, or **their own music**. With their own music, the friend imports their own copy
+   of the same song; the game checks it lines up (the same matching as challenges) and says
+   **MATCHES N%**, or asks for the right song if it doesn't.
+4. Both press **READY!** and the song starts on both screens together. A tug-of-war bar at the top
+   shows who's ahead live.
+
+The winner is whoever gets **closest to a perfect run** (score as a % of the most that chart can
+score), because keyboards and phones get different notes. The big button at the bottom of the room
+always shows the one next step (PICK A SONG, IMPORT YOUR COPY, READY!, REMATCH: READY!…). If a
+player leaves or drops out mid-song, the other wins. Battles are just between the two of you: they
+never go on the leaderboards or your records.
+
+Coming next: attacks you launch at your rival (and that fire on their own on long streaks), and
+battle wins on your license.
+
 ## Getting around
 
 The menus look like an early-90s arcade cabinet, and every screen fills the display:
@@ -568,6 +591,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.59**: **BATTLE: live two-player rooms.** Make a room, share its 4-letter code, pick any
+  song (your own music too: your friend's copy is matched to yours), press READY together and race
+  for the best % of a perfect run, with a live tug-of-war bar. Rematch as often as you like.
 - **1.58**: No more zooming around POST TO WORLD: quick double taps can't zoom in menus either, and
   naming a song (the keyboard) no longer leaves the page zoomed or out of full screen.
 - **1.57**: When your copy's beats don't line up with a challenge's notes, the pop-up offers IMPORT

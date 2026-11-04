@@ -155,6 +155,9 @@
         this.scrambled = Boss.scrambleLanes(this.lanes);
       }
       this.endingAt = 0; // the boss laughs for a moment before the results
+      // A battle room: { round, me: {initials, color}, opp: {initials, color} }; the room
+      // keeps oppLive ({ pct, status }) up to date. No overdrive: scores have to compare.
+      this.battle = o.battle ? { ...o.battle, oppLive: { pct: 0, status: 'live' } } : null;
       this._frame = this._frame.bind(this);
     }
 
@@ -320,6 +323,7 @@
 
     activateOverdrive() {
       if (this.boss) { this._launchFireball(); return; }
+      if (this.battle) return;
       if (!this.running || this.paused || this.failed || this.odActive || this.od < 0.5) return;
       this.odActive = true;
       Sfx.overdrive();
@@ -497,7 +501,7 @@
             this._banner('FIREBALL READY!', '#f88820', this.stage.layout !== 'keys' ? 'SWIPE UP TO LAUNCH' : `PRESS ${Input.glyph('overdrive')}`);
           }
         }
-      } else if (!this.odActive) this.od = Math.min(1, this.od + OD_PER_HIT);
+      } else if (!this.odActive && !this.battle) this.od = Math.min(1, this.od + OD_PER_HIT);
       this.judgement = { kind, at: performance.now(), early: best.t > t };
       if (this.hitSounds) Sfx.hitTick();
 
@@ -516,7 +520,7 @@
         this._buzz([15, 40, 15]);
         this.stage.kick(2);
         this.stage.flashScreen(0.25);
-        if (!this.odActive && !this.boss) this.od = Math.min(1, this.od + 0.1);
+        if (!this.odActive && !this.boss && !this.battle) this.od = Math.min(1, this.od + 0.1);
       }
       if (this.od >= 0.5 && !this.odActive && !this.odReadyAnnounced) {
         this.odReadyAnnounced = true;
@@ -655,6 +659,9 @@
       else { this._banner(`${this.rival.initials} TAKES THE LEAD`, '#f84848'); Sfx.loseLead(); }
     }
 
+    /** A battle's measure: the score as a percentage of a perfect run (the most this chart allows). */
+    battlePct() { return this.maxScore ? Math.min(100, Math.round((1000 * this.score) / this.maxScore) / 10) : 0; } // hold tails can score a frame past their length: never above a perfect run
+
     _surge(t) { const a = this._attackAt(t); return a && a.kind === 'surge' ? a.k : 0; }
 
     /** What Stage needs to draw an attack: how dark, which lanes are swapped and how far. */
@@ -764,6 +771,7 @@
         failed: this.failed,
         restart: this.restartProgress,
         hazard: this._hazardView(t),
+        battle: this.battle ? { me: { ...this.battle.me, pct: this.battlePct() }, opp: { ...this.battle.opp, ...this.battle.oppLive } } : null,
         traps: this.traps || null,
         boss: this.boss ? {
           id: this.boss.id, name: this.boss.name, color: this.boss.color, attackAt: this.boss.attackAt || 0,
@@ -776,8 +784,9 @@
           mult: this.multiplier,
           pips: this.level >= 4 ? 10 : this.combo % 10,
           rock: this.rock,
-          // Boss battles: the Fireball meter takes the Overdrive meter's place.
+          // Boss battles: the Fireball meter takes the Overdrive meter's place; a battle room has none.
           fire: !!this.boss,
+          noOd: !!this.battle,
           od: this.boss ? this.boss.fb : this.od,
           odReady: this.boss ? this.boss.fb >= 1 && this.bossAlive : this.od >= 0.5,
           odReadyAt: this.boss ? this.boss.readyAt || 0 : this.odReadyAt || 0,

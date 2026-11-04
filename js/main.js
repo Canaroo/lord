@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.58';
+  const VERSION = '1.59';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -98,7 +98,7 @@
     $('#rotate-msg').textContent = want === 'landscape' ? 'TURN YOUR PHONE SIDEWAYS' : 'TURN YOUR PHONE UPRIGHT';
     // Beat Frets can carry on the way the phone is held: 2 lanes upright, 4 sideways.
     const swap = $('#btn-rotate-swap');
-    swap.hidden = gameLayout === 'tiles';
+    swap.hidden = gameLayout === 'tiles' || !!(game && game.battle); // a battle can't restart mid-song
     swap.textContent = want === 'landscape' ? 'PLAY UPRIGHT INSTEAD' : 'PLAY SIDEWAYS INSTEAD';
     if (game) {
       if (wrong) {
@@ -267,6 +267,7 @@
     stopPreview();
     stage.setupMode = name === 'strike-setup';
     if (pendingRemote && !['import', 'loading'].includes(name)) pendingRemote = null;
+    if (pendingRoom && !['import', 'loading', 'room'].includes(name)) { pendingRoom = false; $('#screen-import').dataset.back = 'main'; }
     if (name === 'main' || name === 'title') leaveMode();
     screen = name;
     renderCrumbs(name);
@@ -288,6 +289,7 @@
     if (!$('#keep-pop').hidden) return $('#keep-pop');
     if (!$('#inbox').hidden) return $('#inbox');
     if (!$('#outbox').hidden) return $('#outbox');
+    if (!$('#room-pick').hidden) return $('#room-pick');
     if (!$('#name-pop').hidden) return $('#name-pop');
     if (!$('#vs').hidden) return $('#vs');
     if (!$('#outcome').hidden) return $('#outcome');
@@ -346,6 +348,9 @@
     if (!$('#keep-pop').hidden) { if (askKeep.cancel) askKeep.cancel(); return; }
     if (!$('#inbox').hidden) { closeInbox(); return; }
     if (!$('#outbox').hidden) { closeOutbox(); return; }
+    if (!$('#room-pick').hidden) { closeRoomPick(); return; }
+    // Backing out of a battle room leaves it (the other player is told).
+    if (screen === 'room') { leaveRoom().then(openBattle); return; }
     if (!$('#name-pop').hidden) { if (askSongName.cancel) askSongName.cancel(); return; }
     if (!$('#vs').hidden) { closeVersus(true); return; }
     if (!$('#outcome').hidden) { $('#outcome').hidden = true; return; }
@@ -485,7 +490,7 @@
     const side = Input.touch && window.innerWidth > window.innerHeight;
     $('#btn-mode-tiles').hidden = side || !TILES_ON;
     $('#tiles-hint').hidden = !side || !TILES_ON;
-    $('.modes').classList.toggle('single', side || !TILES_ON);
+    $('.modes').classList.toggle('single', false); // Beat Frets and Battle side by side
     $('#modes-head').textContent = TILES_ON ? 'CHOOSE A GAME' : 'READY TO ROCK?';
     $('#frets-lanes').innerHTML = !Input.touch ? ''
       : side ? '<b>SIDEWAYS · 4 LANES</b>'
@@ -1087,6 +1092,7 @@
     keepPreview('mp3:' + reg.key, buffer);
     if (quietLoad) quietDone();
     else if (pendingRemote) resumeRemote();
+    else if (pendingRoom) resumeRoom();
     else showSong();
   }
 
@@ -1648,7 +1654,8 @@
     const tier = parseId(difficulty);
     if (insaneLocked(difficulty)) { toast(`INSANE is locked: ${UNLOCK_HINT(difficulty)}.`); return; }
     if (bossLocked(difficulty)) { toast('The boss battle is locked: get a B or better on Easy, Medium and Hard of all three of its category\'s songs.'); return; }
-    const battle = tier.difficulty === 'boss' ? battleOf(current.key) : null;
+    const bossFight = tier.difficulty === 'boss' ? battleOf(current.key) : null;
+    const vsRoom = playOpts.battle || null; // a battle room's song: the rival plays it at the same moment
     if (tier.tiles) { playTiles(difficulty); return; }
     // The first game starts straight away; moving the strike line and the timing test are
     // offered on the results screen when they'd help.
@@ -1676,7 +1683,7 @@
       stage,
       lookahead: (LOOKAHEAD[tier.difficulty] || 1.5) / settings.speed,
       calibration: (tier.touch ? settings.calibrationTouchMs : settings.calibrationMs) / 1000,
-      noFail: settings.noFail,
+      noFail: settings.noFail && !vsRoom, // a battle is played for real
       // Touch is less precise than a key, more so in the fast runs of Hard and Insane, so
       // phones get a wider window (and Insane's tighter window is for keys only).
       windowScale: tier.touch ? (['hard', 'insane', 'boss'].includes(tier.difficulty) ? 1.25 : 1.15) : tier.difficulty === 'insane' ? 0.85 : 1,
@@ -1685,16 +1692,20 @@
       vibrate: tier.touch && settings.vibrate,
       hitSounds: settings.hitSounds,
       playerColor: save.active ? save.active.color : '#58f8f8',
-      best: !playOpts.chart && save.active ? save.pace(save.active.id, current.key, difficulty) : null,
+      best: !playOpts.chart && !vsRoom && save.active ? save.pace(save.active.id, current.key, difficulty) : null,
       rival: playOpts.target ? { initials: playOpts.target.initials, score: playOpts.target.score, timeline: playOpts.target.timeline || null } : null,
-      boss: battle,
+      boss: bossFight,
+      battle: vsRoom,
       touch: !!tier.touch,
-      intro: { title: current.title.toUpperCase().slice(0, 40), sub: (playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : battle ? 'BOSS BATTLE: ' + battle.name : LABEL(difficulty)) + (settings.noFail ? ' · NO-FAIL PRACTICE' : '') },
+      intro: { title: current.title.toUpperCase().slice(0, 40), sub: vsRoom ? `BATTLE VS ${vsRoom.opp.initials} · ${LABEL(difficulty)}`
+        : (playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : bossFight ? 'BOSS BATTLE: ' + bossFight.name : LABEL(difficulty)) + (settings.noFail ? ' · NO-FAIL PRACTICE' : '') },
       onEnd: (res) => {
         game = null;
         wakeLock.release();
         Input.setGameplay(false);
         applyLayout();
+        // A battle goes back to its room (never to the leaderboards).
+        if (vsRoom) { battleFinished(res); return; }
         // Their notes over a different version of the song: practice only, never posted.
         if (playOpts.practiceOnly) res.practice = true;
         showResults(difficulty, res, chart);
@@ -1880,6 +1891,7 @@
     applyLayout();
   }
   function goHome() {
+    if (battleOn()) leaveRoom();
     if (game) {
       game.stop();
       game = null;
@@ -1936,6 +1948,18 @@
   $('#btn-home').addEventListener('click', goHome);
   /** Stop the song in progress and go back to the song screen. */
   function quitToSong() {
+    // Quitting a battle: it counts as finished where you stopped, and back to the room.
+    if (playOpts.battle && game && !(game instanceof TilesGame)) {
+      const res = game.results();
+      game.stop();
+      game = null;
+      wakeLock.release();
+      Input.setGameplay(false);
+      applyLayout();
+      $('#pause').hidden = true;
+      battleFinished(res, true);
+      return;
+    }
     if (game) game.stop();
     game = null;
     wakeLock.release();
@@ -2905,6 +2929,7 @@
 
   /** A challenge waiting for you to import your copy of the song. */
   let pendingRemote = null;
+  let pendingRoom = false; // importing a copy for the battle song: come back to the room after
   async function resumeRemote() {
     const pr = pendingRemote;
     pendingRemote = null;
@@ -3941,6 +3966,432 @@
     if (file) { songOrigin = 'import'; importFile(file); }
   });
 
+  // ---- battles: two players, one song, the same moment --------------------------------------------
+  //
+  // A room has a 4-letter code (World.rooms). Its host picks the song, both press READY, and
+  // the host's device says GO: each phone or computer then plays the song itself, sending its
+  // live percentage of a perfect run every moment. Highest percentage wins (keyboards and
+  // phones get different notes, so raw scores wouldn't be fair). Battles never touch the
+  // leaderboards. Players' own music works too: the guest's copy is found and lined up with
+  // the host's notes, as in a challenge.
+
+  const battle = {
+    code: null, role: null, uid: null, room: null, players: [], stops: [], beat: null, live: null,
+    song: null, // this device's take on the room's song: { sig, status, title, note, choices, fit }
+    started: 0, // the round this device last started
+    lastRound: 0, // the round this device last played (for the result card)
+    finals: {}, // round → this device's final
+    seen: {}, seenJson: {}, // player uid → when their document last changed here (to spot a lost connection)
+    sentStatus: '',
+  };
+  const battleOn = () => !!battle.code;
+  const roomsAvailable = () => !!(window.BeatFretsRoomBackend || World.available());
+  const meCard = () => { const p = save.active; return { initials: p ? p.initials : '???', color: p ? p.color : '#58f8f8' }; };
+  const oppInfo = () => { const r = battle.room; return r ? (battle.role === 'host' ? r.guest : r.host) : null; };
+  const oppDoc = () => { const o = oppInfo(); return o ? battle.players.find((x) => x.uid === o.uid) || null : null; };
+  const meDoc = () => battle.players.find((x) => x.uid === battle.uid) || null;
+  const oppStale = () => { const o = oppDoc(); return !!o && performance.now() - (battle.seen[o.uid] || 0) > 15000; };
+  const FAMILY_LABEL = { keys: 'KEYS', touch4: 'SIDEWAYS', touch2: 'UPRIGHT' };
+  const pctText = (x) => (Math.round(Number(x || 0) * 10) / 10).toFixed(1) + '%';
+
+  function openBattle() {
+    const ok = roomsAvailable();
+    $('#battle-msg').textContent = ok ? '' : 'Battles need the internet. Connect, then try again.';
+    $('#btn-room-create').disabled = $('#btn-room-join').disabled = !ok;
+    show('battle');
+  }
+  $('#btn-mode-battle').addEventListener('click', () => { ensureAudio(); openBattle(); });
+
+  $('#btn-room-create').addEventListener('click', async () => {
+    const btn = $('#btn-room-create');
+    btn.disabled = true;
+    $('#battle-msg').textContent = 'Making a room…';
+    try {
+      const code = await World.rooms.create(meCard());
+      await enterRoom(code, 'host');
+    } catch (e) {
+      console.warn(e);
+      $('#battle-msg').textContent = (e && e.message) || "Couldn't make a room. Check the internet and try again.";
+    }
+    btn.disabled = false;
+  });
+  async function joinFromInput() {
+    const code = $('#room-code-in').value.toUpperCase().replace(/[^A-Z]/g, '');
+    if (code.length !== 4) { $('#battle-msg').textContent = 'A room code is 4 letters. Ask your friend for theirs.'; return; }
+    $('#battle-msg').textContent = `Joining room ${code}…`;
+    try {
+      const room = await World.rooms.join(code, meCard());
+      await enterRoom(code, room.host.uid === (await World.rooms.uid()) ? 'host' : 'guest');
+    } catch (e) {
+      console.warn(e);
+      $('#battle-msg').textContent = (e && e.message) || "Couldn't join. Check the code and the internet.";
+    }
+  }
+  $('#btn-room-join').addEventListener('click', joinFromInput);
+  $('#room-code-in').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); joinFromInput(); } });
+  $('#room-code-in').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4); });
+
+  async function enterRoom(code, role) {
+    stopRoom();
+    Object.assign(battle, { code, role, uid: await World.rooms.uid(), room: null, players: [], song: null, started: 0, lastRound: 0, finals: {}, seen: {}, seenJson: {}, sentStatus: '' });
+    $('#room-result').hidden = true;
+    await World.rooms.me(code, { ...meCard(), family: layoutMode(), ready: false, round: 0, left: false, final: null, live: null, songStatus: '' });
+    battle.stops.push(await World.rooms.watch(code, onRoom));
+    battle.stops.push(await World.rooms.watchPlayers(code, onPlayers));
+    // Now and then: still here (and how this device would play).
+    battle.beat = setInterval(() => {
+      if (!battleOn() || game) return;
+      World.rooms.me(battle.code, { family: layoutMode() }).catch(() => {});
+      renderRoom();
+    }, 4000);
+    show('room');
+    renderRoom();
+  }
+  function stopRoom() {
+    battle.stops.forEach((f) => { try { f(); } catch (e) { /* already stopped */ } });
+    battle.stops = [];
+    clearInterval(battle.beat);
+    clearInterval(battle.live);
+    battle.code = null;
+  }
+  async function leaveRoom() {
+    const { code, role } = battle;
+    if (!code) return;
+    stopRoom();
+    try {
+      await World.rooms.me(code, { left: true, ready: false });
+      await World.rooms.update(code, role === 'host' ? { closed: true } : { guest: null });
+    } catch (e) { /* offline: the other player sees the connection drop */ }
+  }
+  $('#btn-room-leave').addEventListener('click', async () => { await leaveRoom(); openBattle(); });
+
+  function onRoom(room) {
+    if (room === undefined || !battleOn()) return; // undefined: a dropped connection, keep what we have
+    if (!room || room.closed) {
+      const who = oppInfo();
+      stopRoom();
+      toast(room && room.closed ? `${who ? who.initials : 'The host'} closed the room.` : 'That room is gone.');
+      if (!game && screen === 'room') openBattle();
+      return;
+    }
+    battle.room = room;
+    const sig = room.song ? `${room.song.key}|${room.song.base}|${room.song.n}` : '';
+    if (!battle.song || battle.song.sig !== sig) prepareBattleSong();
+    if (room.go && room.go.round === room.round && battle.started !== room.round && !game && battle.song && battle.song.status === 'ready') startBattle();
+    hostTick();
+    renderRoom();
+  }
+
+  function onPlayers(list) {
+    if (!battleOn()) return;
+    const now = performance.now();
+    for (const p of list) {
+      const j = JSON.stringify(p);
+      if (battle.seenJson[p.uid] !== j) { battle.seenJson[p.uid] = j; battle.seen[p.uid] = now; }
+    }
+    battle.players = list;
+    if (game && game.battle) game.battle.oppLive = oppLiveView();
+    hostTick();
+    renderRoom();
+  }
+
+  /**
+   * The host keeps the room moving: GO once both are ready for this round, and the next
+   * round once both have finished (or the other player has gone).
+   */
+  function hostTick() {
+    const r = battle.room;
+    if (battle.role !== 'host' || !r || !battleOn()) return;
+    const me = meDoc(), opp = oppDoc();
+    const playing = r.go && r.go.round === r.round;
+    if (!playing && r.song && r.guest && me && opp && me.ready && opp.ready && me.round === r.round && opp.round === r.round) {
+      World.rooms.update(battle.code, { go: { round: r.round, at: Date.now() } }).catch(() => {});
+    } else if (playing && me && me.final && me.final.round === r.round && (!opp || opp.left || oppStale() || (opp.final && opp.final.round === r.round))) {
+      World.rooms.update(battle.code, { round: r.round + 1, go: null }).catch(() => {});
+    }
+  }
+
+  /** Get this device ready for the room's song: load it (or find this player's copy of theirs). */
+  async function prepareBattleSong(useKey = null) {
+    const s = battle.room && battle.room.song;
+    const st = battle.song = { sig: s ? `${s.key}|${s.base}|${s.n}` : '', status: s ? 'loading' : 'none', title: s ? s.title : '' };
+    renderRoom();
+    if (!s) return;
+    try {
+      if (s.kind !== 'mp3' || s.by === battle.uid) {
+        if (!current || current.key !== s.key) await loadQuietly(s.key);
+      } else {
+        // The other player's own music: find this player's copy (by sound and name), then
+        // line their notes up with it.
+        const copy = useKey ? { key: useKey } : await findCopy(s.fp, s.title, s.key);
+        if (!copy) {
+          if (battle.song !== st) return;
+          Object.assign(st, { status: 'need', choices: (await rankCopies(s.fp, s.title, s.key)).slice(0, 6) });
+          renderRoom();
+          return;
+        }
+        if (!current || current.key !== copy.key) await loadQuietly(copy.key);
+        st.copyKey = copy.key;
+        const { fit } = battleChart();
+        st.fit = fit;
+        if (!fit.good) {
+          Object.assign(st, { status: 'wrong', choices: (await rankCopies(s.fp, s.title, s.key)).filter((c) => c.key !== current.key).slice(0, 5) });
+          renderRoom();
+          return;
+        }
+      }
+      if (battle.song !== st) return;
+      st.status = 'ready';
+      if (battle.room.go && battle.room.go.round === battle.room.round && battle.started !== battle.room.round && !game) startBattle();
+    } catch (e) {
+      console.warn(e);
+      if (battle.song === st) { st.status = 'error'; st.note = (e && e.message) || String(e); }
+    }
+    renderRoom();
+  }
+
+  /** The battle's chart for how this device plays: the song's own, or the host's notes lined up with this copy. */
+  function battleChart() {
+    const s = battle.room.song;
+    const id = idFor(s.base);
+    if (s.kind !== 'mp3' || s.by === battle.uid) return { id, chart: null, fit: null };
+    const fit = World.alignChart(World.unpackChart(s.charts[familyOf(id)]), chartFor(id));
+    return { id, chart: fit.chart, fit };
+  }
+
+  /** Is the song this device would play still the one loaded? (Importing another song replaces it.) */
+  function battleSongLoaded() {
+    const s = battle.room && battle.room.song, st = battle.song;
+    if (!s || !st || !current) return false;
+    return s.kind !== 'mp3' || s.by === battle.uid ? current.key === s.key : current.key === st.copyKey;
+  }
+
+  /** What the big button at the bottom of the room does now: the one next step, always. */
+  function roomAction() {
+    const r = battle.room, opp = oppInfo(), st = battle.song, me = meDoc();
+    const oName = opp ? opp.initials : 'your friend';
+    if (!r) return { label: 'CONNECTING…', disabled: true };
+    if (r.go && r.go.round === r.round && battle.started === r.round) return { label: `WAITING FOR ${oName} TO FINISH…`, disabled: true };
+    if (!r.song) return battle.role === 'host' ? { label: 'PICK A SONG', go: openRoomPick } : { label: `WAITING FOR ${r.host.initials} TO PICK A SONG…`, disabled: true };
+    if (!st || st.status === 'loading') return { label: 'GETTING THE SONG READY…', disabled: true };
+    if (st.status === 'need') return { label: 'IMPORT YOUR COPY', go: importForBattle };
+    if (st.status === 'wrong') return { label: 'IMPORT THE RIGHT SONG', go: importForBattle };
+    if (st.status === 'error') return { label: 'TRY AGAIN', go: () => prepareBattleSong() };
+    if (!opp) return { label: 'WAITING FOR A FRIEND TO JOIN…', disabled: true };
+    if (me && me.ready && me.round === r.round) return { label: `WAITING FOR ${oName} TO PRESS READY…`, disabled: true };
+    return { label: battle.lastRound ? 'REMATCH: READY!' : 'READY!', go: () => World.rooms.me(battle.code, { ready: true, round: r.round, family: layoutMode() }).catch((e) => toast(e.message)) };
+  }
+  $('#btn-room-ready').addEventListener('click', () => { const a = roomAction(); if (a.go && !a.disabled) a.go(); });
+
+  /** One player in the VS strip: initials in their colour, how they play, and where they're at. */
+  function slotHtml(info, doc, mine) {
+    if (!info) return '<b class="slot-ini wait">???</b><small>WAITING FOR A FRIEND…</small><span class="slot-state">SHARE THE CODE</span>';
+    const r = battle.room;
+    let state = 'NOT READY YET', cls = '';
+    if (doc && doc.left) { state = 'LEFT THE ROOM'; cls = 'bad'; }
+    else if (!mine && oppStale()) { state = 'CONNECTION LOST?'; cls = 'bad'; }
+    else if (doc && r && r.go && r.go.round === r.round && !(doc.final && doc.final.round === r.round)) { state = doc.live && doc.live.round === r.round ? `PLAYING · ${pctText(doc.live.pct)}` : 'PLAYING…'; cls = 'live'; }
+    else if (doc && doc.ready && doc.round === (r && r.round)) { state = '✓ READY'; cls = 'ok'; }
+    else if (doc && doc.songStatus === 'loading') state = 'GETTING THE SONG READY…';
+    else if (doc && (doc.songStatus === 'need' || doc.songStatus === 'wrong')) state = 'FINDING THE SONG…';
+    return `<b class="slot-ini" style="color:${esc(info.color || '#58f8f8')}">${esc(info.initials)}</b>` +
+      `<small>${mine ? 'YOU' : 'RIVAL'}${doc && doc.family ? ' · ' + FAMILY_LABEL[doc.family] : ''}</small><span class="slot-state ${cls}">${state}</span>`;
+  }
+
+  function renderRoom() {
+    if (!battleOn() || screen !== 'room') return;
+    // Another song was loaded meanwhile: get the battle song ready again.
+    if (battle.song && battle.song.status === 'ready' && !battleSongLoaded()) { prepareBattleSong(battle.song.copyKey || null); return; }
+    const r = battle.room, st = battle.song, opp = oppInfo();
+    $('#room-code').textContent = battle.code;
+    $('#room-code-tip').textContent = opp ? `${opp.initials} is in. One room, two players.` : 'Tell your friend this code. They tap BATTLE, then JOIN.';
+    const me = r ? (battle.role === 'host' ? r.host : r.guest) : meCard();
+    $('#room-me').innerHTML = slotHtml(me || meCard(), meDoc(), true);
+    $('#room-opp').innerHTML = slotHtml(opp, oppDoc(), false);
+    // This device's song status, for the other player's slot.
+    const status = st ? st.status : '';
+    if (status !== battle.sentStatus) { battle.sentStatus = status; World.rooms.me(battle.code, { songStatus: status }).catch(() => {}); }
+    // The song.
+    const s = r && r.song;
+    let song = '';
+    if (!s) {
+      song = battle.role === 'host' ? '<p class="rs-empty">No song yet. Tap <b>PICK A SONG</b> below.</p>' : `<p class="rs-empty">${esc(r ? r.host.initials : 'The host')} picks the song.</p>`;
+    } else {
+      const from = s.kind === 'pack' ? 'SONG PACK' : s.kind === 'bonus' ? 'BONUS TRACK' : s.by === battle.uid ? 'YOUR MUSIC' : `${esc((r.host.uid === s.by ? r.host : r.guest || {}).initials || 'THEIR')}'S MUSIC`;
+      song = `<div class="rs-top"><span class="rs-label">THE SONG</span>${battle.role === 'host' && !(r.go && r.go.round === r.round) ? '<button class="btn small" data-room-pick>CHANGE</button>' : ''}</div>` +
+        `<b class="rs-title">${esc(String(s.title).toUpperCase().slice(0, 40))}</b>` +
+        `<span class="rs-how"><span class="board-now-tier" data-base="${esc(s.base)}">${BASE_LABEL(s.base)}</span> · ${from}</span>`;
+      if (st && st.status === 'ready') {
+        song += `<p class="rs-ok">✓ READY ON YOUR ${FAMILY_LABEL[layoutMode()]}${st.fit ? ` · YOUR COPY "${esc(current.title)}" MATCHES ${Math.round(st.fit.match * 100)}%` : ''}</p>`;
+      } else if (st && st.status === 'loading') song += '<p class="rs-wait">Getting the song ready…</p>';
+      else if (st && st.status === 'error') song += `<p class="rs-bad">${esc(st.note || 'Something went wrong.')}</p>`;
+      else if (st && (st.status === 'need' || st.status === 'wrong')) {
+        song += (st.status === 'need'
+          ? `<p class="rs-bad">This is ${esc((r.host || {}).initials)}'s own music. Find your copy of "${esc(s.title)}"${st.choices && st.choices.length ? ': is it one of these?' : ', or import it.'}</p>`
+          : `<p class="rs-bad">Your copy "${esc(current ? current.title : '')}" only matches ${Math.round((st.fit ? st.fit.match : 0) * 100)}% of their notes: the beats don't line up, so it's a different version. Import the version they have${st.choices && st.choices.length ? ', or is it one of these?' : '.'}</p>`) +
+          (st.choices && st.choices.length ? `<div class="vs-copies">${st.choices.map((c) => `<button class="btn small" data-room-copy="${esc(c.key)}">${esc(String(c.title).toUpperCase().slice(0, 36))}</button>`).join('')}</div>` : '');
+      }
+    }
+    $('#room-song').innerHTML = song + '<p class="rs-fair">Keyboards and phones get different notes, so a battle is won by the <b>% of a perfect run</b>.</p>';
+    renderBattleResult();
+    const a = roomAction();
+    const btn = $('#btn-room-ready');
+    btn.textContent = a.label;
+    btn.disabled = !!a.disabled;
+    $('#room-msg').textContent = !opp ? `Your room code is ${battle.code}.` : '';
+  }
+  $('#room-song').addEventListener('click', (e) => {
+    if (e.target.closest('[data-room-pick]')) { openRoomPick(); return; }
+    const c = e.target.closest('[data-room-copy]');
+    if (c) prepareBattleSong(c.dataset.roomCopy);
+  });
+
+  /** After a battle: who won, both percentages, or that the rival is still playing. */
+  function renderBattleResult() {
+    const box = $('#room-result');
+    const round = battle.lastRound;
+    const mine = round && battle.finals[round];
+    box.hidden = !mine;
+    if (!mine) return;
+    const o = oppDoc(), oi = oppInfo() || { initials: '???' };
+    const theirs = o && o.final && o.final.round === round ? o.final : null;
+    const gone = !theirs && (!o || o.left || oppStale());
+    let head, cls;
+    if (theirs) {
+      const d = Math.round((mine.pct - theirs.pct) * 10) / 10;
+      head = d > 0 ? 'YOU WIN!' : d < 0 ? `${oi.initials} WINS!` : "IT'S A TIE!";
+      cls = d > 0 ? 'won' : d < 0 ? 'lost' : 'tie';
+    } else if (gone) { head = `${oi.initials} LEFT: YOU WIN!`; cls = 'won'; }
+    else { head = `${oi.initials} IS STILL PLAYING…`; cls = 'wait'; }
+    const col = (who, f, live) => `<div class="rr-col"><small>${esc(who)}</small><b>${f ? pctText(f.pct) : live ? pctText(live.pct) : '–'}</b>` +
+      `<span>${f ? `${Number(f.score).toLocaleString('en-US')} · ${esc(f.grade)}${f.quit ? ' · QUIT' : f.failed ? ' · FAILED' : ''}` : live ? 'PLAYING…' : ''}</span></div>`;
+    box.className = 'room-result ' + cls;
+    box.innerHTML = `<p class="rr-head">${head}</p><div class="rr-cols">${col('YOU', mine)}<span class="rr-vs">VS</span>${col(oi.initials, theirs, o && o.live && o.live.round === round ? o.live : null)}</div>`;
+    if (theirs && !battle.cheered) { battle.cheered = round; if (cls === 'won') Sfx.record(); }
+  }
+
+  /** The host's song picker: a difficulty, then any song (the pack, bonus tracks, your music). */
+  let rpDiff = 'medium';
+  async function openRoomPick() {
+    const list = $('#room-pick-list');
+    for (const b of $$('#room-pick-diff [data-rp-diff]')) b.classList.toggle('on', b.dataset.rpDiff === rpDiff);
+    const row = (key, title, tag) => `<button data-rp-key="${esc(key)}"><span class="row-main"><b>${tag || ''}${esc(String(title).toUpperCase().slice(0, 40))}</b></span><svg class="chev"><use href="#i-chev"/></svg></button>`;
+    let html = THEMES.map(([theme, heading]) => {
+      const songs = SongPack.SONGS.filter((s) => (s.theme || 'classic') === theme);
+      return songs.length ? `<p class="label rp-cat theme-${theme}">${heading}</p><div class="list">${songs.map((s) => row(SongPack.keyFor(s), s.title, tierBadge(s.tier))).join('')}</div>` : '';
+    }).join('');
+    const bonus = bonusIndex || (await fetchBonusIndex());
+    if (bonus.length) html += `<p class="label rp-cat">BONUS TRACKS</p><div class="list">${bonus.map((s) => row(BonusPack.keyFor(s.id), s.title)).join('')}</div>`;
+    let mine = [];
+    try { mine = await Library.list(); } catch (e) { /* none */ }
+    html = (mine.length ? `<p class="label rp-cat">YOUR MUSIC</p><div class="list">${mine.map((m) => row(m.key, save.songTitle(m.key) || m.title)).join('')}</div>` : '') + html;
+    list.innerHTML = html;
+    $('#room-pick').hidden = false;
+    requestAnimationFrame(() => { const b = $('#room-pick-diff .on'); if (b) b.focus(); });
+  }
+  const closeRoomPick = () => { $('#room-pick').hidden = true; };
+  $('#btn-room-pick-close').addEventListener('click', closeRoomPick);
+  $('#room-pick-diff').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-rp-diff]');
+    if (!b) return;
+    rpDiff = b.dataset.rpDiff;
+    for (const x of $$('#room-pick-diff [data-rp-diff]')) x.classList.toggle('on', x === b);
+  });
+  $('#room-pick-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-rp-key]');
+    if (b) pickBattleSong(b.dataset.rpKey);
+  });
+
+  async function pickBattleSong(key) {
+    closeRoomPick();
+    const r = battle.room;
+    if (!r || battle.role !== 'host') return;
+    const n = ((r.song && r.song.n) || 0) + 1;
+    let song;
+    try {
+      if (key.startsWith('pack:')) {
+        const def = SongPack.SONGS.find((x) => SongPack.keyFor(x) === key);
+        song = { kind: 'pack', key, title: def.title, base: rpDiff, n };
+      } else if (key.startsWith('bonus:')) {
+        const def = (bonusIndex || []).find((x) => BonusPack.keyFor(x.id) === key);
+        song = { kind: 'bonus', key, title: def ? def.title : 'Bonus track', base: rpDiff, n };
+      } else {
+        // Your own music: the guest plays your notes, so they go with the song.
+        battle.song = { sig: 'picking', status: 'loading', title: '' };
+        renderRoom();
+        if (!current || current.key !== key) await loadQuietly(key);
+        const charts = {};
+        for (const fam of ['keys', 'touch4', 'touch2']) charts[fam] = World.packChart(current.charts[fam === 'keys' ? rpDiff : fam + ':' + rpDiff]);
+        song = { kind: 'mp3', key, title: current.title, base: rpDiff, n, fp: current.fp || null, by: battle.uid, charts };
+      }
+      await World.rooms.update(battle.code, { song, round: r.round + 1, go: null });
+    } catch (e) {
+      console.warn(e);
+      toast("Couldn't pick that song: " + ((e && e.message) || e));
+      battle.song = null;
+      renderRoom();
+    }
+  }
+
+  /** Off to Your music to import a copy of the battle song; back to the room once it's in. */
+  function importForBattle() {
+    const s = battle.room && battle.room.song;
+    pendingRoom = true;
+    songOrigin = 'import';
+    $('#screen-import').dataset.back = 'room';
+    renderImport(`Import your copy of "${s ? s.title : 'the song'}" for the battle: the version ${(oppInfo() || {}).initials || 'your friend'} has. Once it's in, it's straight back to the room.`);
+    show('import');
+  }
+  function resumeRoom() {
+    pendingRoom = false;
+    $('#screen-import').dataset.back = 'main';
+    if (!battleOn()) { openBattle(); return; }
+    show('room');
+    prepareBattleSong(current ? current.key : null);
+  }
+
+  /** GO: both are ready. Play the song on this device, sending the live percentage as it goes. */
+  function startBattle() {
+    const r = battle.room;
+    battle.started = r.round;
+    battle.lastRound = r.round;
+    battle.cheered = 0;
+    const { id, chart } = battleChart();
+    const o = oppInfo() || { initials: '???', color: '#f84848' };
+    songOrigin = 'room';
+    lastDifficulty = id;
+    play(id, { battle: { round: r.round, me: meCard(), opp: { initials: o.initials, color: o.color } }, ...(chart ? { chart, key: current.key } : {}) });
+    clearInterval(battle.live);
+    battle.live = setInterval(sendLive, 700);
+  }
+  function sendLive() {
+    if (!battleOn() || !game || !game.battle) return;
+    World.rooms.me(battle.code, { live: { round: game.battle.round, pct: game.battlePct(), score: Math.round(game.score), combo: game.combo } }).catch(() => {});
+  }
+  /** The rival as the game's HUD shows them. */
+  function oppLiveView() {
+    const o = oppDoc(), r = battle.room;
+    const round = game && game.battle ? game.battle.round : r && r.round;
+    if (!o) return { pct: 0, status: 'gone' };
+    if (o.left) return { pct: o.live ? o.live.pct : 0, status: 'gone' };
+    if (o.final && o.final.round === round) return { pct: o.final.pct, status: 'done' };
+    return { pct: o.live && o.live.round === round ? o.live.pct : 0, status: oppStale() ? 'lost' : 'live' };
+  }
+
+  /** The song's over (or quit): how this device did, for the room. */
+  function battleFinished(res, quit = false) {
+    clearInterval(battle.live);
+    const round = playOpts.battle ? playOpts.battle.round : battle.lastRound;
+    const pct = res && res.maxScore ? Math.min(100, Math.round((1000 * res.score) / res.maxScore) / 10) : 0; // never above a perfect run
+    const fin = { round, pct, score: res ? Math.round(res.score) : 0, grade: res ? res.grade : 'F', accuracy: res ? res.accuracy : 0, failed: !!(res && res.failed), quit };
+    battle.finals[round] = fin;
+    playOpts = {};
+    if (!battleOn()) { openBattle(); return; }
+    World.rooms.me(battle.code, { final: fin, live: null, ready: false }).catch(() => {});
+    show('room');
+    renderRoom();
+  }
+
   // ---- phones: layout, orientation, wake lock, full screen ------------------------------------------------
 
   /** Match the stage to the current device and orientation (not during a song). */
@@ -4171,6 +4622,7 @@
     loadBonus,
     loadSaved,
     importFile,
+    showRoom: () => { show('room'); renderRoom(); },
     openBoard,
     Library,
   };

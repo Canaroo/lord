@@ -822,7 +822,30 @@
       const h = v.hud;
       if (LAYOUT === 'keys') this.drawDesktopHud(v, h, nowMs);
       else this.drawTouchHud(v, h, nowMs);
+      if (v.battle) this.drawBattleBar(v.battle, nowMs);
       this.drawHudCommon(v, h, nowMs);
+    }
+
+    /**
+     * A battle room: a tug-of-war bar between you and your rival, each with their
+     * percentage of a perfect run. Whoever's ahead pushes the split their way.
+     */
+    drawBattleBar(b, nowMs) {
+      const keys = LAYOUT === 'keys', port = LAYOUT === 'touch2';
+      const bw = keys ? 150 : port ? 170 : 124;
+      const x = keys ? Math.round(W / 2 + 14 - bw / 2) : port ? Math.round(W / 2 - bw / 2) : 60;
+      const y = keys ? 44 : port ? HORIZON - 30 : 36;
+      const me = b.me, op = b.opp;
+      const lead = Math.max(-1, Math.min(1, ((me.pct || 0) - (op.pct || 0)) / 20));
+      const split = Math.round(bw * (0.5 + 0.42 * lead));
+      this.rect(x - 2, y - 2, bw + 4, 10, PAL.ink);
+      this.rect(x, y, split, 6, me.color || PAL.cyan);
+      this.rect(x + split, y, bw - split, 6, op.status === 'gone' ? '#3a3a58' : op.color || PAL.red);
+      this.rect(x + split - 1, y - 2, 2, 10, PAL.white);
+      const pct = (p) => (Math.round((p || 0) * 10) / 10).toFixed(1) + '%';
+      this.text(`${me.initials} ${pct(me.pct)}`, x, y + 9, me.color || PAL.cyan, 8, 'left');
+      const tag = op.status === 'gone' ? 'LEFT' : op.status === 'lost' ? 'LOST?' : op.status === 'done' ? `DONE ${pct(op.pct)}` : pct(op.pct);
+      this.text(`${tag} ${op.initials}`, x + bw, y + 19, op.status === 'gone' || op.status === 'lost' ? PAL.grey : op.color || PAL.red, 8, 'right');
     }
 
     multColor(mult) {
@@ -930,7 +953,7 @@
         const gap = d % 6 === 5;
         const xl = Math.round(geo.cx - half) - 4 - w;
         const xr = Math.round(geo.cx + half) + 4;
-        this.rect(xl - 1, y, w + 2, 1, PAL.ink);
+        if (!h.noOd) this.rect(xl - 1, y, w + 2, 1, PAL.ink);
         this.rect(xr - 1, y, w + 2, 1, PAL.ink);
         if (gap) continue;
         let c = '#141c44';
@@ -939,7 +962,7 @@
           else if (ready) c = ((d - climb) % 14 + 14) % 14 < 5 ? PAL.white : odc;
           else c = odc;
         }
-        this.rect(xl, y, w, 1, c);
+        if (!h.noOd) this.rect(xl, y, w, 1, c);
         c = '#141c44';
         if (k <= h.rock) c = danger ? PAL.white : k < 0.25 ? PAL.red : k < 0.6 ? PAL.gold : PAL.green;
         this.rect(xr, y, w, 1, c);
@@ -947,7 +970,7 @@
       const sTop = (yTop - HORIZON) / (HIT_Y - HORIZON);
       const lx = geo.cx - geo.halfW * sTop - 6;
       const rx = geo.cx + geo.halfW * sTop + 6;
-      this.text(h.fire ? 'FB' : 'OD', lx, yTop - 11, ready && glow > 0.5 ? PAL.white : odc, 8, 'center');
+      if (!h.noOd) this.text(h.fire ? 'FB' : 'OD', lx, yTop - 11, ready && glow > 0.5 ? PAL.white : odc, 8, 'center');
       this.text('ROCK', rx, yTop - 11, h.rock < 0.25 ? PAL.red : PAL.grey, 8, 'center');
 
       if (ready) this.drawSwipeArrows(geo, nowMs, odc);
@@ -1122,17 +1145,19 @@
       // Overdrive meter (left) and rock meter (right): 12 chunky segments each.
       const segs = 12;
       const mx = 64, rx = W - 72, my = 74, segH = 6;
-      this.window(mx - 5, my - 18, 18, segs * segH + 24);
       this.window(rx - 5, my - 18, 18, segs * segH + 24);
-      const odc = h.fire ? PAL.orange : PAL.cyan; // boss battles: the Fireball meter
-      this.text(h.fire ? 'FB' : 'OD', mx + 4, my - 13, odc, 8, 'center');
-      const odBlink = h.odReady && !v.odActive && Math.floor(nowMs / 250) % 2 === 0;
-      for (let i = 0; i < segs; i++) {
-        const filled = h.od * segs > i + 1e-6;
-        const y = my + (segs - 1 - i) * segH;
-        this.rect(mx, y, 8, segH - 1, filled ? (v.odActive || odBlink ? PAL.white : odc) : '#101838');
+      if (!h.noOd) {
+        this.window(mx - 5, my - 18, 18, segs * segH + 24);
+        const odc = h.fire ? PAL.orange : PAL.cyan; // boss battles: the Fireball meter
+        this.text(h.fire ? 'FB' : 'OD', mx + 4, my - 13, odc, 8, 'center');
+        const odBlink = h.odReady && !v.odActive && Math.floor(nowMs / 250) % 2 === 0;
+        for (let i = 0; i < segs; i++) {
+          const filled = h.od * segs > i + 1e-6;
+          const y = my + (segs - 1 - i) * segH;
+          this.rect(mx, y, 8, segH - 1, filled ? (v.odActive || odBlink ? PAL.white : odc) : '#101838');
+        }
+        if (h.odReady && !v.odActive) this.text(h.odKey, mx + 4, my + segs * segH + 9, odBlink ? PAL.white : odc, 8, 'center');
       }
-      if (h.odReady && !v.odActive) this.text(h.odKey, mx + 4, my + segs * segH + 9, odBlink ? PAL.white : odc, 8, 'center');
       this.text('RK', rx + 4, my - 13, PAL.grey, 8, 'center');
       const danger = h.rock < 0.25;
       for (let i = 0; i < segs; i++) {

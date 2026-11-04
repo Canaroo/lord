@@ -22,8 +22,29 @@ const SONGS_DIR = process.env.SONGS_DIR ? path.resolve(process.env.SONGS_DIR) : 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.mp3': 'audio/mpeg', '.png': 'image/png' };
 
 // A tiny static server, so the page can fetch songs/ like it does on GitHub Pages.
+// Battle rooms for the tests: kept by the test server, so two pages (two "devices") share them,
+// the way two phones share a room through Firebase.
+const testRooms = new Map(); // code → { room, players: Map(uid → data) }
+function roomCall(body) {
+  const r = testRooms.get(body.code);
+  switch (body.op) {
+    case 'get': return { room: r ? r.room : null };
+    case 'create': if (r) return { error: 'exists' }; testRooms.set(body.code, { room: body.data, players: new Map() }); return {};
+    case 'update': if (r) Object.assign(r.room, body.patch); return {};
+    case 'player': if (r) r.players.set(body.uid, { ...(r.players.get(body.uid) || {}), ...body.data }); return {};
+    case 'players': return { players: r ? [...r.players].map(([uid, d]) => ({ uid, ...d })) : [] };
+    default: return { error: 'op' };
+  }
+}
+
 function serve() {
   const server = http.createServer((req, res) => {
+    if (req.url === '/__rooms' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (c) => { body += c; });
+      req.on('end', () => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(roomCall(JSON.parse(body)))); });
+      return;
+    }
     const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
     // Never post test scores to the real world boards: they're off unless a test supplies its own backend.
     if (rel === 'js/firebase-config.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end('window.BEAT_FRETS_FIREBASE = null;'); return; }
@@ -66,6 +87,30 @@ async function newPage(browser) {
   await page.addInitScript(FAKE_PAD);
   return { page, errors, context };
 }
+
+// A page's battle-room backend: the test server's rooms, followed by polling.
+const TEST_ROOMS = (uid) => {
+  const call = (op, body) => fetch('/__rooms', { method: 'POST', body: JSON.stringify({ op, ...body }) }).then((r) => r.json());
+  const follow = (op, code, pick, cb) => {
+    let last = null, stop = false;
+    const tick = async () => {
+      if (stop) return;
+      try { const v = pick(await call(op, { code })); const s = JSON.stringify(v); if (s !== last) { last = s; cb(v); } } catch (e) { /* try again */ }
+      setTimeout(tick, 120);
+    };
+    tick();
+    return () => { stop = true; };
+  };
+  window.BeatFretsRoomBackend = {
+    uid,
+    getRoom: (code) => call('get', { code }).then((r) => r.room),
+    createRoom: (code, data) => call('create', { code, data }),
+    updateRoom: (code, patch) => call('update', { code, patch }),
+    setPlayer: (code, u, data) => call('player', { code, uid: u, data }),
+    onRoom: (code, cb) => follow('get', code, (r) => r.room, cb),
+    onPlayers: (code, cb) => follow('players', code, (r) => r.players, cb),
+  };
+};
 
 // Tiles is switched off in the game (1.46); its tests turn it back on with its switch.
 const TILES_SWITCH = () => { try { localStorage.setItem('beatfrets.tiles', 'on'); } catch (e) { /* none */ } };
@@ -120,6 +165,121 @@ const BOSS_BOT = (fire) => {
   };
   loop();
 };
+
+// Battles: two devices in one room, one song, the same moment.
+async function battleTests(browser) {
+  const { synthSong } = require('./synth.js');
+  const dev = async (uid, ini) => {
+    const d = await newPage(browser);
+    await d.page.addInitScript(MEMORY_WORLD);
+    await d.page.addInitScript(TEST_ROOMS, uid);
+    await d.page.goto(url);
+    await screenIs(d.page, 'title');
+    await d.page.evaluate((i) => { BeatFrets.save.createProfile(i); document.querySelector('#btn-start').click(); }, ini);
+    await screenIs(d.page, 'main');
+    return d;
+  };
+  const a = await dev('devA', 'AAA');
+  const b = await dev('devB', 'BBB');
+  const A = a.page, B = b.page;
+  const btn = (p) => p.evaluate(() => ({ text: document.getElementById('btn-room-ready').textContent, disabled: document.getElementById('btn-room-ready').disabled }));
+  const waitBtn = (p, re, ms = 120000) => p.waitForFunction((src) => new RegExp(src).test(document.getElementById('btn-room-ready').textContent) && !document.getElementById('btn-room-ready').disabled, re.source, { timeout: ms });
+
+  // Home offers BATTLE next to Beat Frets; its screen says how it works in three steps.
+  check(await A.evaluate(() => !document.getElementById('btn-mode-battle').hidden && /BATTLE/.test(document.getElementById('btn-mode-battle').textContent)), 'home offers BATTLE next to Beat Frets');
+  await A.screenshot({ path: path.join(outDir, 'e2e-battle-main.png') });
+  await A.click('#btn-mode-battle');
+  await screenIs(A, 'battle');
+  check(await A.evaluate(() => document.querySelectorAll('.battle-how li').length === 3 && !document.getElementById('btn-room-create').disabled), 'the Battle screen explains it in three steps, with CREATE A ROOM and JOIN');
+  await A.waitForTimeout(500);
+  await A.screenshot({ path: path.join(outDir, 'e2e-battle-home.png') });
+  await A.click('#btn-room-create');
+  await screenIs(A, 'room');
+  await A.waitForFunction(() => /^[A-Z]{4}$/.test(document.getElementById('room-code').textContent), null, { timeout: 5000 });
+  const code = await A.textContent('#room-code');
+  const lonely = await A.evaluate(() => ({ opp: document.getElementById('room-opp').textContent, btn: document.getElementById('btn-room-ready').textContent }));
+  check(/WAITING FOR A FRIEND/.test(lonely.opp) && /PICK A SONG/.test(lonely.btn), `a new room shows its code, an empty rival slot, and PICK A SONG (${code} ${JSON.stringify(lonely)})`);
+
+  // B joins with the code (a wrong code says so).
+  await B.click('#btn-mode-battle');
+  await screenIs(B, 'battle');
+  await B.fill('#room-code-in', 'zzzz');
+  await B.click('#btn-room-join');
+  await B.waitForFunction(() => /no room/i.test(document.getElementById('battle-msg').textContent), null, { timeout: 5000 }).catch(() => {});
+  check(/no room ZZZZ/i.test(await B.textContent('#battle-msg')), 'a wrong code says there is no such room');
+  await B.fill('#room-code-in', code.toLowerCase());
+  await B.click('#btn-room-join');
+  await screenIs(B, 'room');
+  await A.waitForFunction(() => /BBB/.test(document.getElementById('room-opp').textContent), null, { timeout: 5000 }).catch(() => {});
+  const both = { a: await A.textContent('#room-opp'), b: await B.textContent('#room-opp'), bBtn: (await btn(B)).text };
+  check(/BBB/.test(both.a) && /AAA/.test(both.b) && /WAITING FOR AAA TO PICK A SONG/.test(both.bBtn), `both see each other; the guest waits for the host to pick (${JSON.stringify(both)})`);
+
+  // The host picks: Easy, Pixel Overture. Both get it ready, then READY.
+  await A.click('#btn-room-ready');
+  await A.waitForSelector('#room-pick', { state: 'visible' });
+  await A.click('[data-rp-diff="easy"]');
+  await A.screenshot({ path: path.join(outDir, 'e2e-battle-pick.png') });
+  await A.click('[data-rp-key="pack:pixel-overture"]');
+  await waitBtn(A, /^READY!$/);
+  await waitBtn(B, /^READY!$/);
+  const song = await B.evaluate(() => document.getElementById('room-song').textContent.replace(/\s+/g, ' '));
+  check(/PIXEL OVERTURE/.test(song) && /EASY/.test(song) && /READY ON YOUR KEYS/.test(song) && /% of a perfect run/.test(song), `the guest sees the song, the difficulty, that it's ready, and how a battle is won (${song.slice(0, 160)})`);
+  await A.screenshot({ path: path.join(outDir, 'e2e-battle-room.png') });
+  await A.click('#btn-room-ready');
+  await A.waitForFunction(() => /WAITING FOR BBB TO PRESS READY/.test(document.getElementById('btn-room-ready').textContent), null, { timeout: 5000 });
+  check(await B.waitForFunction(() => /READY/.test(document.getElementById('room-opp').textContent), null, { timeout: 5000 }).then(() => true).catch(() => false), 'the guest sees the host is ready');
+  await B.click('#btn-room-ready');
+  // GO: both play at once.
+  await Promise.all([A, B].map((p) => p.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game.battle, null, { timeout: 15000 })));
+  const started = await Promise.all([A, B].map((p) => p.evaluate(() => BeatFrets.game.now())));
+  check(Math.abs(started[0] - started[1]) < 1.0, `both songs start together (${started.map((x) => x.toFixed(2)).join(' / ')} s)`);
+  await A.evaluate(BOSS_BOT, false); // A hits everything
+  await B.evaluate(() => { window.__skipEvery = 2; }); // B misses every other note
+  await B.evaluate(LANE_BOT);
+  await A.waitForTimeout(15000);
+  const mid = await A.evaluate(() => { const g = BeatFrets.game; const v = g._view(g.now()); return { me: v.battle.me.pct, opp: v.battle.opp.pct, oppIni: v.battle.opp.initials, od: v.hud.noOd }; });
+  check(mid.me > 0 && mid.opp > 0 && mid.me > mid.opp && mid.oppIni === 'BBB' && mid.od, `mid-song, each sees the rival's live percentage (no overdrive) (${JSON.stringify(mid)})`);
+  await A.screenshot({ path: path.join(outDir, 'e2e-battle-play.png') });
+  await Promise.all([A, B].map((p) => p.waitForFunction(() => BeatFrets.screen === 'room' && !document.getElementById('room-result').hidden && !/STILL PLAYING/.test(document.getElementById('room-result').textContent), null, { timeout: 120000 })));
+  const res = { a: await A.textContent('#room-result'), b: await B.textContent('#room-result'), aBtn: (await btn(A)).text };
+  check(/YOU WIN!/.test(res.a) && /AAA WINS!/.test(res.b) && /%/.test(res.a), `afterwards both see who won, with both percentages (${res.a.replace(/\s+/g, ' ')} | ${res.b.replace(/\s+/g, ' ')})`);
+  await A.waitForFunction(() => /REMATCH/.test(document.getElementById('btn-room-ready').textContent), null, { timeout: 8000 }).catch(() => {});
+  check(/REMATCH: READY!/.test((await btn(A)).text), 'the room offers a rematch');
+  check(await A.evaluate(() => !BeatFrets.save.data.runs.length), 'a battle never goes on the leaderboards');
+  await A.screenshot({ path: path.join(outDir, 'e2e-battle-result.png') });
+
+  // Your own music: B finds their copy (another name, a longer intro) by itself.
+  const tune = synthSong({ bpm: 120, sr: 22050, sections: [['k', 4], ['khs', 6], ['h', 3], ['khs', 5]] });
+  const longer = new Float32Array(Math.round(5 * 22050) + tune.samples.length);
+  longer.set(tune.samples, Math.round(5 * 22050));
+  const imp = (p, samples, name) => p.evaluate(async ([bb, n]) => {
+    const bytes = Uint8Array.from(atob(bb), (ch) => ch.charCodeAt(0));
+    await BeatFrets.importFile(new File([bytes], n + '.wav', { type: 'audio/wav' }));
+  }, [wavBase64(samples, 22050), name]);
+  // Each imports from Your music while staying in the room (as a real player would leave and come back).
+  await imp(A, tune.samples, 'Beat Tune');
+  await A.evaluate(() => BeatFrets.showRoom());
+  await imp(B, longer, 'beat tune (my rip)');
+  await B.evaluate(() => BeatFrets.showRoom());
+  await A.click('[data-room-pick]');
+  await A.waitForSelector('#room-pick', { state: 'visible' });
+  check(await A.evaluate(() => /YOUR MUSIC/.test(document.getElementById('room-pick-list').textContent)), "the song picker includes the host's own music");
+  await A.click('[data-rp-diff="medium"]');
+  await A.click('#room-pick-list [data-rp-key^="mp3:"]');
+  await B.waitForFunction(() => /BEAT TUNE/.test(document.getElementById('room-song').textContent) && /READY!$/.test(document.getElementById('btn-room-ready').textContent) && !document.getElementById('btn-room-ready').disabled, null, { timeout: 60000 }).catch(() => {});
+  const own = await B.evaluate(() => ({ song: document.getElementById('room-song').textContent.replace(/\s+/g, ' '), btn: document.getElementById('btn-room-ready').textContent }));
+  check(/BEAT TUNE/.test(own.song) && /AAA'S MUSIC/.test(own.song) && /MATCHES \d+%/.test(own.song) && /READY!$/.test(own.btn), `a battle on the host's own song: the guest's copy is found and lined up (${own.song.slice(0, 200)})`);
+  await B.screenshot({ path: path.join(outDir, 'e2e-battle-own.png') });
+
+  // The host leaves: the guest is told and goes back to the Battle screen.
+  await A.click('#btn-room-leave');
+  await screenIs(A, 'battle');
+  await screenIs(B, 'battle');
+  check(/closed the room/.test(await B.textContent('#toast')), 'when the host leaves, the guest is told and goes back to Battle');
+  check(a.errors.length === 0 && b.errors.length === 0, 'no errors in a battle ' + [...a.errors, ...b.errors].join(' | '));
+  await a.context.close();
+  await b.context.close();
+}
 
 async function bossTests(browser) {
   const { page, errors } = await newPage(browser);
@@ -1537,6 +1697,14 @@ async function recordTests(browser) {
     console.log('\nPASS');
     return;
   }
+  if (process.env.E2E_ONLY === 'battle') {
+    await battleTests(browser);
+    await browser.close();
+    server.close();
+    if (failures.length) { console.error(`\n${failures.length} check(s) failed`); process.exit(1); }
+    console.log('\nPASS');
+    return;
+  }
   if (process.env.E2E_ONLY === 'boss') {
     await bossTests(browser);
     await browser.close();
@@ -1811,6 +1979,7 @@ async function recordTests(browser) {
   await outboxTests(browser);
   await recordTests(browser);
   await bossTests(browser);
+  await battleTests(browser);
 
   await browser.close();
   server.close();

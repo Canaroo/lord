@@ -39,6 +39,37 @@ service cloud.firestore {
       allow read: if true;
     }
 
+    // Battle rooms: two players, one song, played at the same moment. Anyone with the
+    // 4-letter code can read a room. The host runs it (song, rounds, start); a guest can
+    // only take the empty seat, or leave their own seat. Battles never touch the boards.
+    match /beatfrets_rooms/{code} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && code.matches('[A-Z]{4}')
+        && request.resource.data.host.uid == request.auth.uid
+        && request.resource.data.guest == null;
+      allow update: if request.auth != null && (
+        // The host: anything but who the host is.
+        (resource.data.host.uid == request.auth.uid
+          && request.resource.data.host == resource.data.host
+          && request.resource.data.code == resource.data.code)
+        // A guest taking the empty seat.
+        || (resource.data.guest == null && !resource.data.closed
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guest'])
+          && request.resource.data.guest.uid == request.auth.uid)
+        // A guest leaving.
+        || (resource.data.guest != null && resource.data.guest.uid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guest'])
+          && request.resource.data.guest == null));
+      allow delete: if false;
+
+      // Each player's own state in the room: ready, live % while playing, final result.
+      match /players/{uid} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
     match /beatfrets_boards/{boardId} {
       // The most a score can be. Beat Frets: a song has a fixed number of notes.
       // Tiles loops, and each lap's tiles are worth more (lap 1 x1, lap 2 x2, ...),

@@ -26,6 +26,7 @@
   const COLLECTION = 'beatfrets_boards';
   const SONGS = 'beatfrets_songs'; // a small listing of imported songs' boards (no charts), for browsing
   const NOTICES = 'beatfrets_notices'; // "ZED beat your score": read by the beaten player next time they play
+  const ROOMS = 'beatfrets_rooms'; // battle rooms: two players, one song, played at the same moment
   const MAX_ALIGN_SHIFT = 15; // seconds: different rips can start quite differently
   const GOOD_MATCH = 0.6;
 
@@ -228,6 +229,15 @@
           return lists.flat().slice(0, limit);
         }
       },
+      // ---- battle rooms ----
+      async getRoom(code) { const s = await fs.getDoc(fs.doc(db, ROOMS, code)); return s.exists() ? s.data() : null; },
+      async createRoom(code, data) { await fs.setDoc(fs.doc(db, ROOMS, code), { ...data, created: fs.serverTimestamp() }); },
+      async updateRoom(code, patch) { await fs.updateDoc(fs.doc(db, ROOMS, code), patch); },
+      async setPlayer(code, uid, data) { await fs.setDoc(fs.doc(db, ROOMS, code, 'players', uid), data, { merge: true }); },
+      onRoom(code, cb) { return fs.onSnapshot(fs.doc(db, ROOMS, code), (s) => cb(s.exists() ? s.data() : null), () => cb(undefined)); },
+      onPlayers(code, cb) {
+        return fs.onSnapshot(fs.collection(db, ROOMS, code, 'players'), (q) => cb(q.docs.map((d) => ({ uid: d.id, ...d.data() }))), () => {});
+      },
       async findBoards(difficulty, bpmKeys) {
         const q = fs.query(fs.collection(db, COLLECTION), fs.where('difficulty', '==', difficulty),
           fs.where('bpmKey', 'in', bpmKeys), fs.limit(30));
@@ -411,7 +421,48 @@
     if (b.deleteNotice) await b.deleteNotice(id);
   }
 
+  // ---- battle rooms ---------------------------------------------------------------------------
+  //
+  // A room is one document (beatfrets_rooms/{CODE}): who's in it (host and guest), the song
+  // the host picked, the round, and the "go" that starts a round. Each player also keeps a
+  // little document of their own (…/players/{uid}): ready or not, their live percentage
+  // during a song, and how they finished. Anyone with the 4-letter code can join.
+  const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O: they look like 1 and 0
+  const roomBackend = () => (root.BeatFretsRoomBackend ? Promise.resolve(root.BeatFretsRoomBackend) : backend());
+  const rooms = {
+    async uid() { return (await roomBackend()).uid; },
+    /** A new room with this player as host. Resolves to its code. */
+    async create(me) {
+      const b = await roomBackend();
+      for (let tries = 0; tries < 8; tries++) {
+        let code = '';
+        for (let i = 0; i < 4; i++) code += CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)];
+        if (await b.getRoom(code)) continue;
+        await b.createRoom(code, { code, v: 1, host: { uid: b.uid, ...me }, guest: null, song: null, round: 1, go: null, closed: false });
+        return code;
+      }
+      throw new Error("Couldn't make a room. Try again.");
+    },
+    /** Join a room as its guest (or come back to one you're already in). Resolves to the room. */
+    async join(code, me) {
+      const b = await roomBackend();
+      code = String(code || '').toUpperCase().replace(/[^A-Z]/g, '');
+      const room = await b.getRoom(code);
+      if (!room || room.closed) throw new Error(`There's no room ${code || 'with that code'}. Check the code with your friend.`);
+      if (room.host.uid === b.uid) return room;
+      if (room.guest && room.guest.uid !== b.uid) throw new Error(`Room ${code} is full: it already has two players.`);
+      if (!room.guest) await b.updateRoom(code, { guest: { uid: b.uid, ...me } });
+      return { ...room, guest: { uid: b.uid, ...me } };
+    },
+    async update(code, patch) { return (await roomBackend()).updateRoom(code, patch); },
+    async me(code, data) { const b = await roomBackend(); return b.setPlayer(code, b.uid, { ...data, at: Date.now() }); },
+    /** Follow a room: cb(room) on every change (null if it's gone). Resolves to a stop function. */
+    async watch(code, cb) { return (await roomBackend()).onRoom(code, cb); },
+    async watchPlayers(code, cb) { return (await roomBackend()).onPlayers(code, cb); },
+  };
+
   return {
+    rooms, ROOMS,
     available, peek, submit, top, board, versions, songs, tempoKeys, notify, inbox, dismiss, players, forgetPlayers,
     boardId, chartHash, packChart, unpackChart, alignShift, alignChart,
     GOOD_MATCH, COLLECTION,
