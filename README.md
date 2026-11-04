@@ -447,8 +447,10 @@ The world boards are fair because a score only ranks against people who played *
     *Megalovania (hard mode)*. The name helps but is never required.
 
   If nothing matches by itself, it asks **"Is it one of these?"** with your songs. Whichever copy
-  is used, their notes are then lined up with its beats, and the pop-up warns if they only match
-  part of it (*it may be a different version*).
+  is used, their notes are then lined up with its beats. If they only match part of it (under
+  60%), it's a different version of the song and the fight wouldn't be fair, so the pop-up says
+  so and offers, right there: **IMPORT THE RIGHT SONG** (back into the challenge as soon as it's
+  in), another of your songs if one might be it, or **PLAY ANYWAY** as practice, which isn't posted.
 - **Naming songs:** the first time an imported song goes on the world board, the game asks what
   it's called (the file name is suggested), because everyone will see that name.
 - **Challenge links:** a shared score links to its world board, so a friend who opens it goes
@@ -563,6 +565,8 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.57**: When your copy's beats don't line up with a challenge's notes, the pop-up offers IMPORT
+  THE RIGHT SONG straight away (and your other songs), or PLAY ANYWAY as unposted practice.
 - **1.56**: **Challenging a player's song finds your copy more easily:** the sound check allows a
   different intro or length, names match on the core title ("Megalovania" = "Megalovania (hard
   mode)"), a copy imported for a challenge is used straight away, and if nothing matches you can

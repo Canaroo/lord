@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.56';
+  const VERSION = '1.57';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -1695,6 +1695,8 @@
         wakeLock.release();
         Input.setGameplay(false);
         applyLayout();
+        // Their notes over a different version of the song: practice only, never posted.
+        if (playOpts.practiceOnly) res.practice = true;
         showResults(difficulty, res, chart);
       },
       onPauseChange: (paused) => {
@@ -2122,7 +2124,8 @@
     }
     if (res.boss && res.boss.defeated && res.practice) flag = 'BOSS DEFEATED (NO-FAIL PRACTICE: NOT ON LEADERBOARDS)';
     const target = res.practice ? null : playOpts.target;
-    if (playOpts.target && res.practice) flag = 'NO-FAIL PRACTICE: TURN IT OFF IN OPTIONS TO TAKE ON THE CHALLENGE';
+    if (playOpts.target && res.practice) flag = playOpts.practiceOnly ? 'PRACTICE: YOUR COPY IS A DIFFERENT VERSION OF THE SONG, SO THIS ISN\'T POSTED'
+      : 'NO-FAIL PRACTICE: TURN IT OFF IN OPTIONS TO TAKE ON THE CHALLENGE';
     if (target && !res.failed) {
       flag = res.score > target.score ? `YOU BEAT ${target.initials}!`
         : res.score === target.score ? `TIED WITH ${target.initials}!`
@@ -2870,6 +2873,9 @@
         const fit = World.alignChart(World.unpackChart(b.chart), chartFor(v.diff) || current.charts[ChartGen.ALL_IDS[0]]);
         v.match = fit;
         v.opts = { key: current.key, diff: v.diff, chart: fit.chart, boardId: v.id, target: v.target };
+        v.songTitle = b.title || boardState.title;
+        // A poor fit: it's probably a different version. Offer the player's other songs.
+        if (!fit.good) v.others = (await rankCopies(b.fp, v.songTitle, b.songKey || v.key)).filter((c) => c.key !== current.key).slice(0, 5);
       }
       v.loaded = true;
     } catch (e) {
@@ -2932,10 +2938,15 @@
     if (v.error) html = `<p class="vs-warn">${esc(v.error)}</p>`;
     else if (!v.loaded) html = `<p class="vs-wait">${esc(v.status)}</p>`;
     else if (!turned) html = `<div class="vs-turn"><div class="rotate-phone small" aria-hidden="true"><i></i></div><p>TURN YOUR PHONE ${v.want === 'landscape' ? 'SIDEWAYS' : 'UPRIGHT'}</p></div>`;
-    else {
-      html = v.match && !v.match.good ? `<p class="vs-warn">Their notes only match ${Math.round(v.match.match * 100)}% of your copy. It may be a different version.</p>` : '';
-      html += '<p class="vs-ready">READY? PRESS FIGHT!</p>';
-    }
+    else if (v.match && !v.match.good) {
+      // Not the same song (the beats don't line up): import the right one, pick another of
+      // your songs, or play anyway as practice (not posted: it wouldn't be a fair fight).
+      const others = v.others || [];
+      html = `<p class="vs-warn">Their notes only match ${Math.round(v.match.match * 100)}% of your copy of "${esc(current ? current.title : '')}": the beats don't line up, so it's a different version of the song. Import the version they played to make it a fair fight.</p>` +
+        (others.length ? `<p class="hint">Or is it one of these?</p><div class="vs-copies">${others.map((c) => `<button class="btn small" data-vs-copy="${esc(c.key)}">${esc(String(c.title).toUpperCase().slice(0, 36))}</button>`).join('')}</div>` : '') +
+        '<button class="btn small vs-anyway" data-vs-anyway>PLAY ANYWAY (PRACTICE, NOT POSTED)</button>';
+      fight.textContent = 'IMPORT THE RIGHT SONG';
+    } else html = '<p class="vs-ready">READY? PRESS FIGHT!</p>';
     $('#vs-status').innerHTML = html;
     const ok = v.loaded && turned && !v.error;
     $('#btn-vs-fight').disabled = !ok;
@@ -2955,10 +2966,15 @@
 
   // "Is it one of these?": the player says which of their songs the challenge is on.
   $('#vs-status').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-vs-copy]');
     const v = vs;
-    if (!b || !v || !v.needCopy) return;
+    if (!v) return;
+    if (e.target.closest('[data-vs-anyway]')) { startVersus(v, true); return; }
+    const b = e.target.closest('[data-vs-copy]');
+    if (!b || !(v.needCopy || (v.match && !v.match.good))) return;
     v.needCopy = null;
+    v.loaded = false;
+    v.match = null;
+    v.others = null;
     v.useKey = b.dataset.vsCopy;
     v.status = 'Opening your copy of the song…';
     updateVersus();
@@ -2970,14 +2986,29 @@
     const v = vs;
     if (v && v.needCopy) {
       // Off to Your music; once a copy is imported, straight back into this challenge.
-      closeVersus(true);
-      pendingRemote = { state: { ...boardState }, row: v.row };
-      songOrigin = 'import';
-      renderImport(`Import your copy of "${v.needCopy.title}" to challenge ${v.target ? v.target.initials : 'this board'}. Any version works: the game lines their notes up with it.`);
-      show('import');
+      importForVersus(v, `Import your copy of "${v.needCopy.title}" to challenge ${v.target ? v.target.initials : 'this board'}. Any version works: the game lines their notes up with it.`);
+      return;
+    }
+    if (v && v.loaded && v.match && !v.match.good) {
+      importForVersus(v, `Import the version of "${v.songTitle}" that ${v.target ? v.target.initials : 'they'} played: your copy's beats don't line up with their notes. Once it's in, it's straight back to the challenge.`);
       return;
     }
     if (!v || !v.loaded) return;
+    startVersus(v, false);
+  });
+
+  /** Off to Your music to import a copy; once it's in, straight back into this challenge with it. */
+  function importForVersus(v, note) {
+    closeVersus(true);
+    pendingRemote = { state: { ...boardState }, row: v.row };
+    songOrigin = 'import';
+    renderImport(note);
+    show('import');
+  }
+
+  /** FIGHT! (`practice`: their notes over a different version, so the run isn't posted.) */
+  function startVersus(v, practice) {
+    if (!v.loaded) return;
     closeVersus(false);
     if (v.tiles) {
       session.mode = 'tiles';
@@ -2992,8 +3023,8 @@
     }
     songOrigin = 'boards';
     lastDifficulty = v.diff;
-    play(v.diff, v.opts);
-  });
+    play(v.diff, { ...v.opts, practiceOnly: !!practice });
+  }
 
   // ---- challenges: how it ended --------------------------------------------------------------------------
 

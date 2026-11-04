@@ -1208,11 +1208,21 @@ async function worldTests(browser) {
     check(/one of these/.test(pick.text) && pick.choices.includes('MY BEAT'), `no match by itself: "Is it one of these?" lists your songs (${JSON.stringify(pick)})`);
     await d.page.screenshot({ path: path.join(outDir, 'e2e-pick-copy.png') });
     await d.page.click('[data-vs-copy]');
-    await d.page.waitForFunction(() => !document.querySelector('#btn-vs-fight').disabled && document.querySelector('#btn-vs-fight').textContent === 'FIGHT!', null, { timeout: 30000 });
-    check(/only match \d+%/.test(await d.page.textContent('#vs-status')), 'picking a song lines their notes up with it, warning when they don\'t fit');
-    await d.page.click('#btn-vs-cancel');
-    // Now the real song, named differently and longer: found by itself.
+    await d.page.waitForFunction(() => !document.querySelector('#btn-vs-fight').disabled && /only match/.test(document.getElementById('vs-status').textContent), null, { timeout: 30000 });
+    const wrong = await d.page.evaluate(() => ({ fight: document.querySelector('#btn-vs-fight').textContent, anyway: !!document.querySelector('[data-vs-anyway]'), status: document.getElementById('vs-status').textContent }));
+    check(wrong.fight === 'IMPORT THE RIGHT SONG' && wrong.anyway && /different version/.test(wrong.status), `a copy whose beats don't line up: import the right song, or play anyway as practice (${JSON.stringify(wrong).slice(0, 200)})`);
+    await d.page.screenshot({ path: path.join(outDir, 'e2e-wrong-copy.png') });
+    // Import the right one: straight back into the challenge with it, ready to FIGHT.
+    await d.page.click('#btn-vs-fight');
+    await screenIs(d.page, 'import');
+    check(/Import the version of "Drum Song Classic"/.test(await d.page.textContent('#screen-import')), 'Your music says to import the version they played');
     await importAs(wavBase64(longer, 22050), 'Drum');
+    await d.page.waitForFunction(() => !document.querySelector('#vs').hidden && !document.querySelector('#btn-vs-fight').disabled && document.querySelector('#btn-vs-fight').textContent === 'FIGHT!', null, { timeout: 30000 }).catch(() => {});
+    const fixed = await d.page.evaluate(() => ({ fight: document.querySelector('#btn-vs-fight').textContent, status: document.getElementById('vs-status').textContent, song: BeatFrets.current && BeatFrets.current.title }));
+    check(fixed.fight === 'FIGHT!' && fixed.song === 'Drum' && !/only match/.test(fixed.status), `after importing the right song, the challenge is ready with it (${JSON.stringify(fixed)})`);
+    await d.page.click('#btn-vs-cancel');
+    // Next time it's found by itself, under its other name and with its longer intro.
+    await d.page.evaluate(() => BeatFrets.loadPack('pixel-overture'));
     await screenIs(d.page, 'song');
     await challengeIt();
     await d.page.waitForFunction(() => !document.querySelector('#vs').hidden && !document.querySelector('#btn-vs-fight').disabled && document.querySelector('#btn-vs-fight').textContent === 'FIGHT!', null, { timeout: 30000 }).catch(() => {});

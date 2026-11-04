@@ -1456,3 +1456,4 @@ body.no-tiles:not(.touch) .lines-group { display: none; }
 /* "Is it one of these?": your songs to pick from for a challenge. */
 .vs-copies { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .vs-copies .btn { width: 100%; text-align: left; }
+.vs-anyway { display: block; margin: 8px auto 0; opacity: 0.85; }
