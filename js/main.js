@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.61';
+  const VERSION = '1.62';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -1059,7 +1059,7 @@
   }
 
   /** Decode, analyse (or reuse the cached analysis), chart, and open the song screen. */
-  async function loadBytes(name, bytes, { store }) {
+  async function loadBytes(name, bytes, { store, borrowed = false }) {
     const id = hashBytes(bytes);
     // decodeAudioData takes ownership of the buffer, so keep a copy to save.
     const keep = store ? bytes.slice(0) : null;
@@ -1079,6 +1079,13 @@
     for (const id of ChartGen.ALL_IDS) charts[id] = ChartGen.generateId(analysis, id);
     if (!charts.easy.notes.length) throw new Error('No beat could be found in this audio.');
     const fp = SaveData.fingerprint(analysis);
+    if (borrowed) {
+      // Lent for a battle: played from memory only. Never saved, never in your music or
+      // records, and dropped when you leave the room.
+      current = { key: 'lent:' + id, title: name, kind: 'mp3', buffer, analysis, charts, fp, borrowed: true, matchNote: null };
+      if (quietLoad) quietDone();
+      return;
+    }
     const reg = save.registerSong(name, fp);
     if (keep) {
       Library.put(reg.key, name, keep).catch(() => toast("Your browser's storage is full, so this song wasn't saved for next time."));
@@ -4049,6 +4056,9 @@
     renderRoom();
   }
   function stopRoom() {
+    closeLend();
+    // A lent song goes when the room does: it was only ever in memory.
+    if (current && current.borrowed && !game) current = null;
     battle.stops.forEach((f) => { try { f(); } catch (e) { /* already stopped */ } });
     battle.stops = [];
     clearInterval(battle.beat);
@@ -4076,7 +4086,7 @@
       return;
     }
     battle.room = room;
-    const sig = room.song ? `${room.song.key}|${room.song.base}|${room.song.n}` : '';
+    const sig = room.song ? `${room.song.key}|${room.song.base}|${room.song.n}|${room.song.lend ? 'lent' : ''}` : '';
     if (!battle.song || battle.song.sig !== sig) prepareBattleSong();
     if (room.go && room.go.round === room.round && battle.started !== room.round && !game && battle.song && battle.song.status === 'ready') startBattle();
     hostTick();
@@ -4092,6 +4102,7 @@
     }
     battle.players = list;
     if (game && game.battle) { game.battle.oppLive = oppLiveView(); takeAttacks(); }
+    lendTick();
     hostTick();
     renderRoom();
   }
@@ -4115,23 +4126,46 @@
   /** Get this device ready for the room's song: load it (or find this player's copy of theirs). */
   async function prepareBattleSong(useKey = null) {
     const s = battle.room && battle.room.song;
-    const st = battle.song = { sig: s ? `${s.key}|${s.base}|${s.n}` : '', status: s ? 'loading' : 'none', title: s ? s.title : '' };
+    const st = battle.song = { sig: s ? `${s.key}|${s.base}|${s.n}|${s.lend ? 'lent' : ''}` : '', status: s ? 'loading' : 'none', title: s ? s.title : '' };
+    closeLend();
     renderRoom();
     if (!s) return;
     try {
       if (s.kind !== 'mp3' || s.by === battle.uid) {
         if (!current || current.key !== s.key) await loadQuietly(s.key);
       } else {
-        // The other player's own music: find this player's copy (by sound and name), then
-        // line their notes up with it.
-        const copy = useKey ? { key: useKey } : await findCopy(s.fp, s.title, s.key);
+        // The other player's own music. Lent: it comes straight from their device. Otherwise
+        // find this player's copy (by sound and name), then line their notes up with it.
+        let copy = useKey ? { key: useKey } : null;
+        if (!copy && s.lend && !st.lendFailed) {
+          if (current && current.borrowed && current.fp === s.fp) copy = { key: current.key, lent: true };
+          else {
+            Object.assign(st, { status: 'borrow', got: 0 });
+            renderRoom();
+            try {
+              const bytes = await borrowSong(s, st);
+              if (battle.song !== st) return;
+              st.status = 'loading';
+              renderRoom();
+              await loadLent(s.title, bytes);
+              copy = { key: current.key, lent: true };
+            } catch (e) {
+              console.warn('borrow', e);
+              if (battle.song !== st) return;
+              st.lendFailed = true;
+              st.status = 'loading';
+            }
+          }
+          st.lent = !!copy;
+        }
+        if (!copy) copy = await findCopy(s.fp, s.title, s.key);
         if (!copy) {
           if (battle.song !== st) return;
           Object.assign(st, { status: 'need', choices: (await rankCopies(s.fp, s.title, s.key)).slice(0, 6) });
           renderRoom();
           return;
         }
-        if (!current || current.key !== copy.key) await loadQuietly(copy.key);
+        if (!copy.lent && (!current || current.key !== copy.key)) await loadQuietly(copy.key);
         st.copyKey = copy.key;
         const { fit } = battleChart();
         st.fit = fit;
@@ -4167,6 +4201,132 @@
     return s.kind !== 'mp3' || s.by === battle.uid ? current.key === s.key : current.key === st.copyKey;
   }
 
+  // ---- lending your own song (live battles only) ---------------------------------------------
+  // The host can lend a song they made (or may share): the guest's game asks for it and gets
+  // it straight from the host's device over a direct connection (WebRTC). It never goes to a
+  // server, isn't saved on the guest's device, and is dropped when they leave the room.
+  // The two devices find each other through their player documents in the room.
+  const RTC_CONFIG = () => window.BeatFretsRtcConfig || { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+  const LEND_CHUNK = 16384;
+  function closeLend() {
+    const l = battle.lend;
+    battle.lend = null;
+    if (l) { try { l.pc.close(); } catch (e) { /* closed */ } if (l.fail) l.fail(new Error('stopped')); }
+  }
+  /** All the ways to reach this device, gathered (or as many as there are after a few seconds). */
+  function gathered(pc) {
+    return new Promise((res) => {
+      if (pc.iceGatheringState === 'complete') { res(); return; }
+      const t = setTimeout(res, 4000);
+      pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
+    });
+  }
+  let lendPaint = 0;
+  /** Guest: ask the host's device for the song. Resolves to its bytes. */
+  function borrowSong(s, st) {
+    closeLend();
+    const pc = new RTCPeerConnection(RTC_CONFIG());
+    const id = Math.random().toString(36).slice(2, 10);
+    return new Promise((resolve, reject) => {
+      let idle = 0;
+      const fail = (e) => { clearTimeout(idle); if (battle.lend && battle.lend.pc === pc) battle.lend = null; try { pc.close(); } catch (er) { /* closed */ } reject(e); };
+      const wait = (ms) => { clearTimeout(idle); idle = setTimeout(() => fail(new Error('timed out')), ms); };
+      battle.lend = { pc, id, role: 'guest', fail: reject, answered: false,
+        answer: (sdp) => pc.setRemoteDescription({ type: 'answer', sdp }).catch(fail) };
+      wait(20000);
+      const ch = pc.createDataChannel('song', { ordered: true });
+      ch.binaryType = 'arraybuffer';
+      let buf = null, got = 0;
+      ch.onmessage = (e) => {
+        wait(10000);
+        if (typeof e.data === 'string') {
+          const h = JSON.parse(e.data);
+          if (h.error || !(h.size > 0)) { fail(new Error(h.error || 'nothing sent')); return; }
+          buf = new Uint8Array(h.size);
+          return;
+        }
+        if (!buf) return;
+        const part = new Uint8Array(e.data);
+        buf.set(part.subarray(0, buf.length - got), got);
+        got += part.length;
+        st.got = Math.min(1, got / buf.length);
+        if (performance.now() - lendPaint > 150) { lendPaint = performance.now(); renderRoom(); }
+        if (got >= buf.length) {
+          clearTimeout(idle);
+          battle.lend = null;
+          try { pc.close(); } catch (er) { /* closed */ }
+          World.rooms.me(battle.code, { rtc: null }).catch(() => {});
+          resolve(buf.buffer);
+        }
+      };
+      pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'failed') fail(new Error('no direct connection')); });
+      (async () => {
+        await pc.setLocalDescription(await pc.createOffer());
+        await gathered(pc);
+        await World.rooms.me(battle.code, { rtc: { id, fp: s.fp || null, offer: pc.localDescription.sdp } });
+      })().catch(fail);
+    });
+  }
+  /** Load lent bytes as this battle's song: from memory, nothing saved. */
+  function loadLent(title, bytes) {
+    return new Promise((resolve, reject) => {
+      quietLoad = { resolve, reject };
+      loadBytes(title, bytes, { store: false, borrowed: true }).catch((e) => quietDone(e));
+    });
+  }
+  /** Host: send the song to a guest who asked (only while it's lent). */
+  async function serveSong(req) {
+    battle.lendServed = req.id;
+    const s = battle.room && battle.room.song;
+    // The request must be for this very song (fingerprints are compared by content).
+    if (!s || !s.lend || s.by !== battle.uid || (req.fp && s.fp && JSON.stringify(req.fp) !== JSON.stringify(s.fp))) return;
+    closeLend();
+    const pc = new RTCPeerConnection(RTC_CONFIG());
+    battle.lend = { pc, role: 'host' };
+    const bytes = await Library.get(s.key).catch(() => null);
+    pc.ondatachannel = (e) => {
+      const ch = e.channel;
+      ch.binaryType = 'arraybuffer';
+      const go = () => sendBytes(ch, bytes).catch(() => {});
+      if (ch.readyState === 'open') go(); else ch.onopen = go;
+    };
+    pc.addEventListener('connectionstatechange', () => {
+      if (['failed', 'closed', 'disconnected'].includes(pc.connectionState) && battle.lend && battle.lend.pc === pc) closeLend();
+    });
+    await pc.setRemoteDescription({ type: 'offer', sdp: req.offer });
+    await pc.setLocalDescription(await pc.createAnswer());
+    await gathered(pc);
+    await World.rooms.me(battle.code, { rtc: { id: req.id, answer: pc.localDescription.sdp } });
+  }
+  async function sendBytes(ch, bytes) {
+    if (!bytes) { ch.send(JSON.stringify({ error: 'that song is no longer saved on their device' })); return; }
+    const u = new Uint8Array(bytes);
+    ch.send(JSON.stringify({ size: u.length }));
+    ch.bufferedAmountLowThreshold = 1 << 18;
+    for (let i = 0; i < u.length; i += LEND_CHUNK) {
+      if (ch.readyState !== 'open') return;
+      if (ch.bufferedAmount > 1 << 20) await new Promise((r) => { ch.onbufferedamountlow = () => { ch.onbufferedamountlow = null; r(); }; });
+      ch.send(u.slice(i, i + LEND_CHUNK));
+    }
+  }
+  /** Passes each side's half of the handshake on, as the player documents change. */
+  function lendTick() {
+    const o = oppDoc(), l = battle.lend;
+    if (!o || !o.rtc) return;
+    if (battle.role === 'guest' && l && l.role === 'guest' && !l.answered && o.rtc.id === l.id && o.rtc.answer) {
+      l.answered = true;
+      l.answer(o.rtc.answer);
+    } else if (battle.role === 'host' && o.rtc.offer && o.rtc.id !== battle.lendServed) {
+      serveSong(o.rtc).catch((e) => console.warn('lend', e));
+    }
+  }
+  /** Host: lend (or stop lending) the battle song. */
+  async function setLend(on) {
+    const r = battle.room;
+    if (!r || !r.song || battle.role !== 'host') return;
+    try { await World.rooms.update(battle.code, { song: { ...r.song, lend: !!on } }); } catch (e) { toast(e.message); }
+  }
+
   /** What the big button at the bottom of the room does now: the one next step, always. */
   function roomAction() {
     const r = battle.room, opp = oppInfo(), st = battle.song, me = meDoc();
@@ -4175,6 +4335,7 @@
     if (r.go && r.go.round === r.round && battle.started === r.round) return { label: `WAITING FOR ${oName} TO FINISH…`, disabled: true };
     if (!r.song) return battle.role === 'host' ? { label: 'PICK A SONG', go: openRoomPick } : { label: `WAITING FOR ${r.host.initials} TO PICK A SONG…`, disabled: true };
     if (!st || st.status === 'loading') return { label: 'GETTING THE SONG READY…', disabled: true };
+    if (st.status === 'borrow') return { label: `GETTING THE SONG FROM ${r.host.initials}… ${Math.round((st.got || 0) * 100)}%`, disabled: true };
     if (st.status === 'need') return { label: 'IMPORT YOUR COPY', go: importForBattle };
     if (st.status === 'wrong') return { label: 'IMPORT THE RIGHT SONG', go: importForBattle };
     if (st.status === 'error') return { label: 'TRY AGAIN', go: () => prepareBattleSong() };
@@ -4194,6 +4355,7 @@
     else if (doc && r && r.go && r.go.round === r.round && !(doc.final && doc.final.round === r.round)) { state = doc.live && doc.live.round === r.round ? `PLAYING · ${pctText(doc.live.pct)}` : 'PLAYING…'; cls = 'live'; }
     else if (doc && doc.ready && doc.round === (r && r.round)) { state = '✓ READY'; cls = 'ok'; }
     else if (doc && doc.songStatus === 'loading') state = 'GETTING THE SONG READY…';
+    else if (doc && doc.songStatus === 'borrow') state = mine ? 'GETTING THE SONG…' : 'GETTING YOUR SONG…';
     else if (doc && (doc.songStatus === 'need' || doc.songStatus === 'wrong')) state = 'FINDING THE SONG…';
     return `<b class="slot-ini" style="color:${esc(info.color || '#58f8f8')}">${esc(info.initials)}</b>` +
       `<small>${mine ? 'YOU' : 'RIVAL'}${doc && doc.family ? ' · ' + FAMILY_LABEL[doc.family] : ''}</small><span class="slot-state ${cls}">${state}</span>`;
@@ -4222,13 +4384,23 @@
       song = `<div class="rs-top"><span class="rs-label">THE SONG</span>${battle.role === 'host' && !(r.go && r.go.round === r.round) ? '<button class="btn small" data-room-pick>CHANGE</button>' : ''}</div>` +
         `<b class="rs-title">${esc(String(s.title).toUpperCase().slice(0, 40))}</b>` +
         `<span class="rs-how"><span class="board-now-tier" data-base="${esc(s.base)}">${BASE_LABEL(s.base)}</span> · ${from}</span>`;
+      const hostIni = esc((r.host || {}).initials || 'THE HOST');
+      if (s.kind === 'mp3' && s.by === battle.uid && battle.role === 'host') {
+        // Your own music: lend it, or your friend imports their own copy.
+        const playing = r.go && r.go.round === r.round;
+        song += `<label class="rs-lend"><input type="checkbox" data-room-lend${s.lend ? ' checked' : ''}${playing ? ' disabled' : ''} />` +
+          `<span><b>LEND IT TO ${esc(opp ? opp.initials : 'YOUR FRIEND')}</b> for this battle: their game gets it straight from yours, and forgets it when they leave. ` +
+          `<em>Only for songs you made or are allowed to share.</em>${s.lend ? '' : ' Otherwise they import their own copy.'}</span></label>`;
+      }
       if (st && st.status === 'ready') {
-        song += `<p class="rs-ok">✓ READY ON YOUR ${FAMILY_LABEL[layoutMode()]}${st.fit ? ` · YOUR COPY "${esc(current.title)}" MATCHES ${Math.round(st.fit.match * 100)}%` : ''}</p>`;
+        song += `<p class="rs-ok">✓ READY ON YOUR ${FAMILY_LABEL[layoutMode()]}${st.lent ? ` · LENT BY ${hostIni}, ONLY WHILE YOU'RE IN THIS ROOM` : st.fit ? ` · YOUR COPY "${esc(current.title)}" MATCHES ${Math.round(st.fit.match * 100)}%` : ''}</p>`;
+      } else if (st && st.status === 'borrow') {
+        song += `<p class="rs-wait">${hostIni} is lending you this song for the battle: ${Math.round((st.got || 0) * 100)}%. It plays from memory and isn't saved on your device.</p>`;
       } else if (st && st.status === 'loading') song += '<p class="rs-wait">Getting the song ready…</p>';
       else if (st && st.status === 'error') song += `<p class="rs-bad">${esc(st.note || 'Something went wrong.')}</p>`;
       else if (st && (st.status === 'need' || st.status === 'wrong')) {
         song += (st.status === 'need'
-          ? `<p class="rs-bad">This is ${esc((r.host || {}).initials)}'s own music. Find your copy of "${esc(s.title)}"${st.choices && st.choices.length ? ': is it one of these?' : ', or import it.'}</p>`
+          ? `<p class="rs-bad">${st.lendFailed ? `Couldn't get the song from ${hostIni} directly (some networks block that). ` : ''}This is ${hostIni}'s own music. Find your copy of "${esc(s.title)}"${st.choices && st.choices.length ? ': is it one of these?' : ', or import it.'}</p>`
           : `<p class="rs-bad">Your copy "${esc(current ? current.title : '')}" only matches ${Math.round((st.fit ? st.fit.match : 0) * 100)}% of their notes: the beats don't line up, so it's a different version. Import the version they have${st.choices && st.choices.length ? ', or is it one of these?' : '.'}</p>`) +
           (st.choices && st.choices.length ? `<div class="vs-copies">${st.choices.map((c) => `<button class="btn small" data-room-copy="${esc(c.key)}">${esc(String(c.title).toUpperCase().slice(0, 36))}</button>`).join('')}</div>` : '');
       }
@@ -4239,8 +4411,15 @@
     const btn = $('#btn-room-ready');
     btn.textContent = a.label;
     btn.disabled = !!a.disabled;
-    $('#room-msg').textContent = !opp ? `Your room code is ${battle.code}.` : '';
+    // The host's own song, and the rival can't find it: point at LEND IT.
+    const od = oppDoc();
+    const stuck = s && s.kind === 'mp3' && s.by === battle.uid && !s.lend && od && ['need', 'wrong'].includes(od.songStatus);
+    $('#room-msg').textContent = !opp ? `Your room code is ${battle.code}.` : stuck ? `${opp.initials} doesn't have this song. If you made it or may share it, tick LEND IT above.` : '';
   }
+  $('#room-song').addEventListener('change', (e) => {
+    const l = e.target.closest('[data-room-lend]');
+    if (l) setLend(l.checked);
+  });
   $('#room-song').addEventListener('click', (e) => {
     if (e.target.closest('[data-room-pick]')) { openRoomPick(); return; }
     const c = e.target.closest('[data-room-copy]');

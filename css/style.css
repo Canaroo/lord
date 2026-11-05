@@ -1552,3 +1552,8 @@ body.no-tiles:not(.touch) .lines-group { display: none; }
 @keyframes slot-blink { 50% { opacity: 0.35; } }
 @media (max-width: 520px) { .room-code b { font-size: 32px; } .slot-ini { font-size: 22px; } }
 .nowrap { white-space: nowrap; }
+/* Battle room: the host's choice to lend their own song. */
+.rs-lend { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 2px; padding: 8px 10px; border: 2px solid var(--line); border-radius: 10px; background: rgba(248, 88, 200, 0.08); font-size: 16px; line-height: 1.2; color: var(--text); cursor: pointer; }
+.rs-lend input { flex: none; width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--magenta, #f858c8); }
+.rs-lend b { color: var(--gold); font-weight: 400; font-family: var(--pixel); font-size: 10px; }
+.rs-lend em { font-style: normal; color: var(--muted); }

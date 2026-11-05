@@ -194,6 +194,18 @@ always shows the one next step (PICK A SONG, IMPORT YOUR COPY, READY!, REMATCH: 
 player leaves or drops out mid-song, the other wins. Battles are just between the two of you: they
 never go on the leaderboards or your records.
 
+### Lending your own song
+
+With your own music, the host can tick **LEND IT** in the room (only for songs they made or are
+allowed to share). The friend's game then gets the song **straight from the host's device** over a
+direct connection (WebRTC), so they don't need a copy and it's always exactly the right song. It
+never goes to a server: the two devices only use their room documents to find each other. On the
+friend's device it plays from memory: it isn't saved, isn't added to their music or records, and is
+gone when they leave the room. Lending works only while both are in the room (a live battle), not
+for challenges. If the direct connection can't be made (some networks block it), the friend is
+told and imports their own copy as before. When a friend can't find the host's song, the room
+reminds the host about LEND IT.
+
 ### Attacks
 
 In a battle the Overdrive meter becomes a pink **ATTACK** meter (ATK). Hits fill it (about 40);
@@ -602,6 +614,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.62**: **Lend your own song in a battle.** The host ticks LEND IT (for songs they made or may
+  share) and the friend's game gets it straight from the host's device: no copy needed, nothing
+  saved on their side or on any server, gone when they leave the room.
 - **1.61**: The BATTLE card reads properly on a phone held sideways (P1 / VS / P2 stack in its
   picture, and its "2 PLAYERS · LIVE" tag shows), and the Battle screen fits sideways with CREATE A
   ROOM and JOIN in view.

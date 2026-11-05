@@ -173,6 +173,9 @@ async function battleTests(browser) {
     const d = await newPage(browser);
     await d.page.addInitScript(MEMORY_WORLD);
     await d.page.addInitScript(TEST_ROOMS, uid);
+    // Lending a song: a real direct (WebRTC) connection between the two pages, without
+    // asking an outside server how to reach each other (they're on the same machine).
+    await d.page.addInitScript(() => { window.BeatFretsRtcConfig = { iceServers: [] }; });
     await d.page.goto(url);
     await screenIs(d.page, 'title');
     await d.page.evaluate((i) => { BeatFrets.save.createProfile(i); document.querySelector('#btn-start').click(); }, ini);
@@ -290,11 +293,39 @@ async function battleTests(browser) {
   check(/BEAT TUNE/.test(own.song) && /AAA'S MUSIC/.test(own.song) && /MATCHES \d+%/.test(own.song) && /READY!$/.test(own.btn), `a battle on the host's own song: the guest's copy is found and lined up (${own.song.slice(0, 200)})`);
   await B.screenshot({ path: path.join(outDir, 'e2e-battle-own.png') });
 
+  // Lending: the host ticks LEND IT, and the guest's game gets the song straight from the
+  // host's device (no copy needed), plays it from memory, and never saves it.
+  const libBefore = await B.evaluate(async () => ((await Library.list()).length) );
+  await A.waitForSelector('[data-room-lend]');
+  await A.$eval('[data-room-lend]', (el) => el.scrollIntoView({ block: 'center' }));
+  await A.screenshot({ path: path.join(outDir, 'e2e-battle-lend-host.png') });
+  await A.check('[data-room-lend]');
+  const lent = await B.waitForFunction(() => {
+    const t = document.getElementById('room-song').textContent.replace(/\s+/g, ' ');
+    return /LENT BY AAA/.test(t) && /READY!$/.test(document.getElementById('btn-room-ready').textContent) ? t : null;
+  }, null, { timeout: 60000, polling: 200 }).then((h) => h.jsonValue()).catch(() => null);
+  const lentState = await B.evaluate(async () => ({ borrowed: !!(BeatFrets.current && BeatFrets.current.borrowed), fp: BeatFrets.current && BeatFrets.current.fp, lib: (await Library.list()).length }));
+  const hostFp = await A.evaluate(() => BeatFrets.current && BeatFrets.current.fp);
+  check(lent && lentState.borrowed && JSON.stringify(lentState.fp) === JSON.stringify(hostFp) && lentState.lib === libBefore,
+    `a lent song comes straight from the host, is the exact same song, and isn't saved on the guest's device (${lent ? lent.slice(0, 160) : 'not lent'} ${JSON.stringify({ ...lentState, fp: !!lentState.fp, libBefore })})`);
+  await B.screenshot({ path: path.join(outDir, 'e2e-battle-lend.png') });
+  // ...and the round is played on it: both READY, both play, both see the result.
+  await A.click('#btn-room-ready');
+  await waitBtn(B, /READY!$/);
+  await B.click('#btn-room-ready');
+  await Promise.all([A, B].map((p) => p.waitForFunction(() => BeatFrets.game && BeatFrets.game.running && BeatFrets.game.battle, null, { timeout: 15000 })));
+  await A.evaluate(BOSS_BOT, false);
+  await B.evaluate(LANE_BOT);
+  await Promise.all([A, B].map((p) => p.waitForFunction(() => BeatFrets.screen === 'room' && !document.getElementById('room-result').hidden && !/STILL PLAYING/.test(document.getElementById('room-result').textContent), null, { timeout: 180000 })));
+  const lentRound = await B.evaluate(() => ({ res: document.getElementById('room-result').textContent.replace(/\s+/g, ' '), borrowed: !!(BeatFrets.current && BeatFrets.current.borrowed) }));
+  check(/WIN|TIE/.test(lentRound.res) && lentRound.borrowed, `a battle is played on the lent song, start to finish (${lentRound.res.slice(0, 80)})`);
+
   // The host leaves: the guest is told and goes back to the Battle screen.
   await A.click('#btn-room-leave');
   await screenIs(A, 'battle');
   await screenIs(B, 'battle');
   check(/closed the room/.test(await B.textContent('#toast')), 'when the host leaves, the guest is told and goes back to Battle');
+  check(await B.evaluate(() => !BeatFrets.current || !BeatFrets.current.borrowed), 'the lent song is gone from the guest once the room is');
   check(a.errors.length === 0 && b.errors.length === 0, 'no errors in a battle ' + [...a.errors, ...b.errors].join(' | '));
   await a.context.close();
   await b.context.close();
@@ -1706,7 +1737,8 @@ async function recordTests(browser) {
   url = `http://127.0.0.1:${server.address().port}/`;
   const browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--autoplay-policy=no-user-gesture-required'],
+    // Local addresses as they are (not hidden behind .local names), so two test pages can connect directly.
+    args: ['--autoplay-policy=no-user-gesture-required', '--disable-features=WebRtcHideLocalIpsWithMdns'],
   });
   if (process.env.E2E_ONLY === 'records') {
     await recordTests(browser);
