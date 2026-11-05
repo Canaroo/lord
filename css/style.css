@@ -519,6 +519,7 @@ body.nav button:focus, body:not(.touch) button:focus-visible, body:not(.touch) .
   border-radius: 8px;
   background: radial-gradient(ellipse at 50% 120%, rgba(248, 88, 200, 0.35), transparent 60%), #0a0618;
   box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.8);
+  overflow: hidden; /* a picture never spills onto the card's words */
 }
 .mode-card.tiles .mode-screen { background: radial-gradient(ellipse at 50% 120%, rgba(88, 248, 248, 0.3), transparent 60%), #0a0618; }
 .go {
@@ -1463,12 +1464,16 @@ body.no-tiles:not(.touch) .lines-group { display: none; }
 .mode-card.battle { --acc: var(--gold); }
 .mode-card.battle .mode-screen { background: radial-gradient(ellipse at 50% 120%, rgba(248, 216, 48, 0.3), transparent 60%), #0a0618; }
 .mode-card.battle .go { background: linear-gradient(180deg, #ffe680, #f0b020); color: var(--ink); text-shadow: none; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), 0 3px 0 #7a5208; }
-.mode-card.battle .mode-lanes b { color: var(--gold); }
 .battle-art { display: flex; align-items: center; gap: 12px; font: 400 18px var(--pixel); }
 .battle-art b { padding: 6px 8px; border: 3px solid var(--ink); border-radius: 6px; font-weight: 400; }
 .battle-art .p1 { background: var(--cyan); color: var(--ink); }
 .battle-art .p2 { background: var(--red); color: var(--ink); }
 .battle-art i { font-style: normal; color: var(--gold); text-shadow: 2px 2px 0 var(--ink); }
+/* Phones held sideways: the card's picture is a small square, so P1 / VS / P2 stack. */
+@media (max-height: 520px) {
+  .mode-card .battle-art { flex-direction: column; gap: 3px; font-size: 11px; }
+  .mode-card .battle-art b { padding: 3px 6px; border-width: 2px; border-radius: 4px; }
+}
 
 .battle-how { list-style: none; margin: 4px auto 16px; padding: 0; width: min(100%, 520px); display: flex; flex-direction: column; gap: 10px; text-align: left; }
 .battle-how li { display: flex; gap: 12px; align-items: flex-start; font: 400 19px/1.15 var(--body); color: var(--text); }
@@ -1478,6 +1483,18 @@ body.no-tiles:not(.touch) .lines-group { display: none; }
 .battle-go > .btn { width: 100%; }
 .battle-join { width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 2px solid var(--line); border-radius: 12px; background: var(--cab-2); }
 .battle-join label { font-size: 11px; color: var(--muted); text-align: center; }
+/* Phones held sideways: the four steps sit two by two, and CREATE / JOIN side by side, so
+   the buttons are on screen without scrolling. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .battle-how { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; width: min(100%, 900px); margin-bottom: 12px; }
+  .battle-how li { font-size: 15px; gap: 9px; }
+  .battle-how li b { width: 24px; height: 24px; border-width: 2px; font-size: 10px; }
+  .battle-go { flex-direction: row; align-items: stretch; width: min(100%, 760px); gap: 14px; }
+  .battle-go > .btn, .battle-join { flex: 1 1 0; min-width: 0; }
+  .battle-go > .btn { align-self: center; white-space: nowrap; }
+  .battle-join .code-in { min-width: 0; }
+  .battle-join { padding: 8px 10px; gap: 6px; }
+}
 .join-row { display: flex; gap: 8px; }
 /* 20px+ text: phones don't zoom in on it when the keyboard opens. */
 .code-in { flex: 1; min-width: 0; padding: 10px 12px; border: 3px solid var(--line); border-radius: 10px; background: var(--ink); color: var(--gold); font: 400 24px var(--pixel); letter-spacing: 0.3em; text-align: center; text-transform: uppercase; }
@@ -1534,3 +1551,4 @@ body.no-tiles:not(.touch) .lines-group { display: none; }
 .rp-cat { margin: 10px 0 6px; }
 @keyframes slot-blink { 50% { opacity: 0.35; } }
 @media (max-width: 520px) { .room-code b { font-size: 32px; } .slot-ini { font-size: 22px; } }
+.nowrap { white-space: nowrap; }

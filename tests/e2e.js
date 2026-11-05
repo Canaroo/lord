@@ -594,6 +594,15 @@ async function touchTests(browser) {
   const side = await page.evaluate(() => ({ tiles: !document.getElementById('btn-mode-tiles').hidden, hint: !document.getElementById('tiles-hint').hidden, frets: document.getElementById('frets-lanes').textContent }));
   await page.screenshot({ path: path.join(outDir, 'e2e-home-sideways.png') });
   check(!side.tiles && side.hint && /SIDEWAYS · 4 LANES/.test(side.frets), `sideways, home offers only Beat Frets on 4 lanes, with a note that Tiles is upright (${JSON.stringify(side)})`);
+  // Every card's picture stays inside its little screen, and every tag can be read (not gold on gold).
+  const cards = await page.evaluate(() => [...document.querySelectorAll('.mode-card')].filter((c) => c.offsetParent).map((c) => {
+    const scr = c.querySelector('.mode-screen'), art = scr && scr.firstElementChild, tag = c.querySelector('.mode-lanes b');
+    const s = scr.getBoundingClientRect(), r = art ? art.getBoundingClientRect() : s;
+    const inside = r.left >= s.left - 0.5 && r.right <= s.right + 0.5 && r.top >= s.top - 0.5 && r.bottom <= s.bottom + 0.5;
+    const readable = !tag || getComputedStyle(tag).color !== getComputedStyle(tag).backgroundColor;
+    return { id: c.id || c.className, inside, readable };
+  }));
+  check(cards.length >= 2 && cards.every((c) => c.inside && c.readable), `sideways, each home card's picture fits its screen and its tag is readable (${JSON.stringify(cards)})`);
 
   // Top-level screens are tabs along the bottom; every screen below them has a back
   // button in the top bar; and the phone's own Back steps back one screen.

@@ -602,6 +602,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.61**: The BATTLE card reads properly on a phone held sideways (P1 / VS / P2 stack in its
+  picture, and its "2 PLAYERS · LIVE" tag shows), and the Battle screen fits sideways with CREATE A
+  ROOM and JOIN in view.
 - **1.60**: **Battle attacks.** A pink ATTACK meter fills from hits; swipe up or press SPACE to hit
   your rival with a blackout, trap notes, a speed surge or a lane swap (after a warning), and every
   50-note streak sends one free. The results count the attacks each way.
