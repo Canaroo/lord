@@ -33,6 +33,10 @@ function roomCall(body) {
     case 'update': if (r) Object.assign(r.room, body.patch); return {};
     case 'player': if (r) r.players.set(body.uid, { ...(r.players.get(body.uid) || {}), ...body.data }); return {};
     case 'players': return { players: r ? [...r.players].map(([uid, d]) => ({ uid, ...d })) : [] };
+    case 'lendPut': if (r) { r.lend = r.lend || new Map(); r.lend.set(body.id, body.data); r.lendEver = (r.lendEver || 0) + 1; } return {};
+    case 'lendGet': return { doc: r && r.lend && r.lend.has(body.id) ? { ...r.lend.get(body.id) } : null };
+    case 'lendDelete': if (r && r.lend) r.lend.delete(body.id); return {};
+    case 'lendCount': return { n: r && r.lend ? r.lend.size : 0, ever: r ? r.lendEver || 0 : 0 };
     default: return { error: 'op' };
   }
 }
@@ -109,6 +113,18 @@ const TEST_ROOMS = (uid) => {
     setPlayer: (code, u, data) => call('player', { code, uid: u, data }),
     onRoom: (code, cb) => follow('get', code, (r) => r.room, cb),
     onPlayers: (code, cb) => follow('players', code, (r) => r.players, cb),
+    // Relay documents: bytes go as base64, as they would as Firestore Bytes.
+    lendPut: (code, id, data) => {
+      const d = { ...data };
+      if (d.bytes) { let bin = ''; for (let i = 0; i < d.bytes.length; i += 8192) bin += String.fromCharCode(...d.bytes.subarray(i, i + 8192)); d.bytes = btoa(bin); }
+      return call('lendPut', { code, id, data: d });
+    },
+    lendGet: (code, id) => call('lendGet', { code, id }).then((r) => {
+      const d = r.doc;
+      if (d && d.bytes) { const bin = atob(d.bytes); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); d.bytes = u; }
+      return d;
+    }),
+    lendDelete: (code, id) => call('lendDelete', { code, id }),
   };
 };
 
@@ -319,6 +335,24 @@ async function battleTests(browser) {
   await Promise.all([A, B].map((p) => p.waitForFunction(() => BeatFrets.screen === 'room' && !document.getElementById('room-result').hidden && !/STILL PLAYING/.test(document.getElementById('room-result').textContent), null, { timeout: 180000 })));
   const lentRound = await B.evaluate(() => ({ res: document.getElementById('room-result').textContent.replace(/\s+/g, ' '), borrowed: !!(BeatFrets.current && BeatFrets.current.borrowed) }));
   check(/WIN|TIE/.test(lentRound.res) && lentRound.borrowed, `a battle is played on the lent song, start to finish (${lentRound.res.slice(0, 80)})`);
+
+  // When the phones can't connect directly (two phones on one Wi-Fi often can't), the song comes
+  // through the room in pieces instead, and every piece is deleted once it's across.
+  const roomCode = (await A.textContent('#room-code')).trim();
+  await B.evaluate(() => { window.BeatFretsLendDirect = false; });
+  await A.uncheck('[data-room-lend]');
+  await B.waitForFunction(() => BeatFrets.current && !BeatFrets.current.borrowed && /MATCHES/.test(document.getElementById('room-song').textContent), null, { timeout: 60000 });
+  check(await B.evaluate(() => /my rip/.test(document.getElementById('room-song').textContent)), 'when lending stops, the guest goes back to their own copy (a lent song never counts as theirs)');
+  await A.check('[data-room-lend]');
+  const relayed = await B.waitForFunction(() => {
+    const t = document.getElementById('room-song').textContent.replace(/\s+/g, ' ');
+    return /LENT BY AAA/.test(t) && BeatFrets.battleSong && BeatFrets.battleSong.status === 'ready' ? { via: BeatFrets.battleSong.via, borrowed: !!BeatFrets.current.borrowed } : null;
+  }, null, { timeout: 90000, polling: 200 }).then((h) => h.jsonValue()).catch(() => null);
+  await B.waitForTimeout(1500);
+  const left = await B.evaluate((code) => fetch('/__rooms', { method: 'POST', body: JSON.stringify({ op: 'lendCount', code }) }).then((r) => r.json()), roomCode);
+  const libAfter = await B.evaluate(async () => (await Library.list()).length);
+  check(relayed && relayed.via === 'relay' && relayed.borrowed && left.ever > 1 && left.n === 0 && libAfter === libBefore,
+    `without a direct connection the song comes through the room, and every piece is deleted after (${JSON.stringify({ relayed, left, libAfter })})`);
 
   // The host leaves: the guest is told and goes back to the Battle screen.
   await A.click('#btn-room-leave');

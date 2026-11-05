@@ -238,6 +238,22 @@
       onPlayers(code, cb) {
         return fs.onSnapshot(fs.collection(db, ROOMS, code, 'players'), (q) => cb(q.docs.map((d) => ({ uid: d.id, ...d.data() }))), () => {});
       },
+      // A lent song relayed through the room when the phones can't connect directly: a few
+      // short-lived documents (beatfrets_rooms/{code}/lend/{id}), deleted once it's across.
+      async lendPut(code, id, data) {
+        const d = { ...data, expires: fs.Timestamp.fromMillis(Date.now() + 2 * 3600e3) };
+        if (d.bytes) d.bytes = fs.Bytes.fromUint8Array(d.bytes);
+        await fs.setDoc(fs.doc(db, ROOMS, code, 'lend', id), d);
+      },
+      async lendGet(code, id) {
+        const s = await fs.getDoc(fs.doc(db, ROOMS, code, 'lend', id));
+        if (!s.exists()) return null;
+        const d = s.data();
+        if (d.bytes && d.bytes.toUint8Array) d.bytes = d.bytes.toUint8Array();
+        delete d.expires;
+        return d;
+      },
+      async lendDelete(code, id) { await fs.deleteDoc(fs.doc(db, ROOMS, code, 'lend', id)); },
       async findBoards(difficulty, bpmKeys) {
         const q = fs.query(fs.collection(db, COLLECTION), fs.where('difficulty', '==', difficulty),
           fs.where('bpmKey', 'in', bpmKeys), fs.limit(30));
@@ -456,6 +472,9 @@
     },
     async update(code, patch) { return (await roomBackend()).updateRoom(code, patch); },
     async me(code, data) { const b = await roomBackend(); return b.setPlayer(code, b.uid, { ...data, at: Date.now() }); },
+    async lendPut(code, id, data) { return (await roomBackend()).lendPut(code, id, data); },
+    async lendGet(code, id) { return (await roomBackend()).lendGet(code, id); },
+    async lendDelete(code, id) { return (await roomBackend()).lendDelete(code, id); },
     /** Follow a room: cb(room) on every change (null if it's gone). Resolves to a stop function. */
     async watch(code, cb) { return (await roomBackend()).onRoom(code, cb); },
     async watchPlayers(code, cb) { return (await roomBackend()).onPlayers(code, cb); },

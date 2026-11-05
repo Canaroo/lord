@@ -198,13 +198,21 @@ never go on the leaderboards or your records.
 
 With your own music, the host can tick **LEND IT** in the room (only for songs they made or are
 allowed to share). The friend's game then gets the song **straight from the host's device** over a
-direct connection (WebRTC), so they don't need a copy and it's always exactly the right song. It
-never goes to a server: the two devices only use their room documents to find each other. On the
-friend's device it plays from memory: it isn't saved, isn't added to their music or records, and is
-gone when they leave the room. Lending works only while both are in the room (a live battle), not
-for challenges. If the direct connection can't be made (some networks block it), the friend is
-told and imports their own copy as before. When a friend can't find the host's song, the room
+direct connection (WebRTC) when one can be made, so they don't need a copy and it's always exactly
+the right song. Directly, it never touches a server: the two devices only use their room documents
+to find each other. On the friend's device it plays from memory: it isn't saved, isn't added to
+their music or records, and is gone when they leave the room. Lending works only while both are in
+the room (a live battle), not for challenges. When a friend can't find the host's song, the room
 reminds the host about LEND IT.
+
+Two phones on the same Wi-Fi (and many mobile networks) often can't connect directly. Then, after
+10 seconds, the song comes **through the room** instead: the host's game writes it in pieces of up
+to 700 KB (`beatfrets_rooms/{code}/lend/…`), the friend's game reads each piece and deletes it
+straight away, and anything left over is deleted when the host leaves or stops lending. Each piece
+has an `expires` time two hours ahead, for an optional Firestore TTL policy as a safety net. The
+host's screen stays on while it sends, and the room tells them to keep Beat Frets open. If even
+that fails, the friend is told why (the host's game didn't answer, or the connection dropped) and
+gets a TRY LENDING AGAIN button.
 
 ### Attacks
 
@@ -614,6 +622,10 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.63**: **Lending works on any network.** Two phones on one Wi-Fi often can't connect
+  directly, so after 10 seconds the song comes through the room in pieces instead, deleted as they
+  arrive. Clear reasons and TRY LENDING AGAIN if it still can't. Fixed: after lending stopped, the
+  friend's game could keep using the lent song as if it were their own copy.
 - **1.62**: **Lend your own song in a battle.** The host ticks LEND IT (for songs they made or may
   share) and the friend's game gets it straight from the host's device: no copy needed, nothing
   saved on their side or on any server, gone when they leave the room.

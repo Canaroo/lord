@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.62';
+  const VERSION = '1.63';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -4057,6 +4057,7 @@
   }
   function stopRoom() {
     closeLend();
+    clearRelay();
     // A lent song goes when the room does: it was only ever in memory.
     if (current && current.borrowed && !game) current = null;
     battle.stops.forEach((f) => { try { f(); } catch (e) { /* already stopped */ } });
@@ -4138,7 +4139,7 @@
         // find this player's copy (by sound and name), then line their notes up with it.
         let copy = useKey ? { key: useKey } : null;
         if (!copy && s.lend && !st.lendFailed) {
-          if (current && current.borrowed && current.fp === s.fp) copy = { key: current.key, lent: true };
+          if (current && current.borrowed && JSON.stringify(current.fp) === JSON.stringify(s.fp)) copy = { key: current.key, lent: true };
           else {
             Object.assign(st, { status: 'borrow', got: 0 });
             renderRoom();
@@ -4152,12 +4153,14 @@
             } catch (e) {
               console.warn('borrow', e);
               if (battle.song !== st) return;
-              st.lendFailed = true;
+              st.lendFailed = (e && e.why) || 'net';
               st.status = 'loading';
             }
           }
           st.lent = !!copy;
         }
+        // Not lent (any more): a lent song is never "your copy". It goes, and your own is used.
+        if (!s.lend && current && current.borrowed) current = null;
         if (!copy) copy = await findCopy(s.fp, s.title, s.key);
         if (!copy) {
           if (battle.song !== st) return;
@@ -4222,8 +4225,86 @@
     });
   }
   let lendPaint = 0;
-  /** Guest: ask the host's device for the song. Resolves to its bytes. */
-  function borrowSong(s, st) {
+  const LEND_DIRECT_MS = 10000; // a direct connection gets this long to start, then the relay takes over
+  const LEND_PART = 700000; // relay pieces: well under Firestore's 1 MB per document
+  const lendErr = (msg, why) => Object.assign(new Error(msg), { why });
+  /**
+   * Guest: get the lent song from the host's device. Directly if the two can connect; if not
+   * (two phones on one Wi-Fi often can't), through the room in pieces. Resolves to its bytes.
+   */
+  async function borrowSong(s, st) {
+    let heard = false;
+    if (window.BeatFretsLendDirect !== false) {
+      try {
+        const b = await borrowDirect(s, st);
+        st.via = 'direct';
+        return b;
+      } catch (e) { heard = !!e.heard; console.warn('direct lend:', e.message); }
+    }
+    Object.assign(st, { via: 'relay', got: 0 });
+    renderRoom();
+    try { return await borrowRelay(s, st); } catch (e) { if (heard && e.why === 'host') e.why = 'net'; throw e; }
+  }
+  /** Through the room: ask, then read the host's pieces one by one (deleting each once read). */
+  async function borrowRelay(s, st) {
+    const id = 'r' + Math.random().toString(36).slice(2, 10);
+    const code = battle.code;
+    await World.rooms.me(code, { rtc: { id, fp: s.fp || null, relay: true } });
+    const until = (ms) => Date.now() + ms;
+    let deadline = until(25000);
+    const poll = async (docId) => {
+      for (;;) {
+        if (battle.song !== st || battle.code !== code) throw lendErr('stopped', 'stopped');
+        const d = await World.rooms.lendGet(code, docId).catch(() => null);
+        if (d) return d;
+        if (Date.now() > deadline) throw lendErr('no reply from the host', st.got ? 'net' : 'host');
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    };
+    const meta = await poll(id + '-meta');
+    if (meta.error) throw lendErr(meta.error, 'gone');
+    const out = new Uint8Array(meta.size);
+    for (let i = 0, at = 0; i < meta.parts; i++) {
+      deadline = until(20000);
+      const part = await poll(`${id}-${i}`);
+      out.set(part.bytes, at);
+      at += part.bytes.length;
+      st.got = Math.min(1, at / meta.size);
+      renderRoom();
+      World.rooms.lendDelete(code, `${id}-${i}`).catch(() => {});
+    }
+    World.rooms.lendDelete(code, id + '-meta').catch(() => {});
+    World.rooms.me(code, { rtc: null }).catch(() => {});
+    return out.buffer;
+  }
+  /** Host: a guest asked for the relay. Put the song in the room in pieces. */
+  async function relaySong(req) {
+    battle.lendRelayed = req.id;
+    const s = battle.room && battle.room.song, code = battle.code;
+    if (!s || !s.lend || s.by !== battle.uid || (req.fp && s.fp && JSON.stringify(req.fp) !== JSON.stringify(s.fp))) return;
+    const bytes = await Library.get(s.key).catch(() => null);
+    if (!bytes) { await World.rooms.lendPut(code, req.id + '-meta', { error: 'that song is no longer saved on their device' }); return; }
+    const u = new Uint8Array(bytes);
+    const parts = Math.ceil(u.length / LEND_PART);
+    battle.relayDocs = [req.id + '-meta'];
+    wakeLock.acquire(); // the screen stays on while the song goes across
+    try {
+      await World.rooms.lendPut(code, req.id + '-meta', { size: u.length, parts });
+      for (let i = 0; i < parts; i++) {
+        if (battle.code !== code || battle.lendRelayed !== req.id) return;
+        await World.rooms.lendPut(code, `${req.id}-${i}`, { i, bytes: u.subarray(i * LEND_PART, (i + 1) * LEND_PART) });
+        battle.relayDocs.push(`${req.id}-${i}`);
+      }
+    } finally { if (!game) wakeLock.release(); }
+  }
+  /** Host: tidy up relay pieces a guest never collected (leaving, or lending stopped). */
+  function clearRelay() {
+    const code = battle.code, docs = battle.relayDocs || [];
+    battle.relayDocs = [];
+    if (code) for (const d of docs) World.rooms.lendDelete(code, d).catch(() => {});
+  }
+  /** Guest, directly: ask the host's device for the song over WebRTC. Resolves to its bytes. */
+  function borrowDirect(s, st) {
     closeLend();
     const pc = new RTCPeerConnection(RTC_CONFIG());
     const id = Math.random().toString(36).slice(2, 10);
@@ -4232,8 +4313,11 @@
       const fail = (e) => { clearTimeout(idle); if (battle.lend && battle.lend.pc === pc) battle.lend = null; try { pc.close(); } catch (er) { /* closed */ } reject(e); };
       const wait = (ms) => { clearTimeout(idle); idle = setTimeout(() => fail(new Error('timed out')), ms); };
       battle.lend = { pc, id, role: 'guest', fail: reject, answered: false,
-        answer: (sdp) => pc.setRemoteDescription({ type: 'answer', sdp }).catch(fail) };
-      wait(20000);
+        answer: (sdp) => { heard = true; pc.setRemoteDescription({ type: 'answer', sdp }).catch(fail); } };
+      let heard = false; // the host's game answered (so it's the network, if this fails)
+      const failNet = (msg) => fail(Object.assign(new Error(msg), { heard }));
+      clearTimeout(idle);
+      idle = setTimeout(() => failNet('no direct connection in time'), LEND_DIRECT_MS);
       const ch = pc.createDataChannel('song', { ordered: true });
       ch.binaryType = 'arraybuffer';
       let buf = null, got = 0;
@@ -4259,7 +4343,7 @@
           resolve(buf.buffer);
         }
       };
-      pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'failed') fail(new Error('no direct connection')); });
+      pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'failed') failNet('no direct connection'); });
       (async () => {
         await pc.setLocalDescription(await pc.createOffer());
         await gathered(pc);
@@ -4316,6 +4400,8 @@
     if (battle.role === 'guest' && l && l.role === 'guest' && !l.answered && o.rtc.id === l.id && o.rtc.answer) {
       l.answered = true;
       l.answer(o.rtc.answer);
+    } else if (battle.role === 'host' && o.rtc.relay && o.rtc.id !== battle.lendRelayed) {
+      relaySong(o.rtc).catch((e) => console.warn('lend relay', e));
     } else if (battle.role === 'host' && o.rtc.offer && o.rtc.id !== battle.lendServed) {
       serveSong(o.rtc).catch((e) => console.warn('lend', e));
     }
@@ -4324,6 +4410,7 @@
   async function setLend(on) {
     const r = battle.room;
     if (!r || !r.song || battle.role !== 'host') return;
+    if (!on) clearRelay();
     try { await World.rooms.update(battle.code, { song: { ...r.song, lend: !!on } }); } catch (e) { toast(e.message); }
   }
 
@@ -4389,7 +4476,7 @@
         // Your own music: lend it, or your friend imports their own copy.
         const playing = r.go && r.go.round === r.round;
         song += `<label class="rs-lend"><input type="checkbox" data-room-lend${s.lend ? ' checked' : ''}${playing ? ' disabled' : ''} />` +
-          `<span><b>LEND IT TO ${esc(opp ? opp.initials : 'YOUR FRIEND')}</b> for this battle: their game gets it straight from yours, and forgets it when they leave. ` +
+          `<span><b>LEND IT TO ${esc(opp ? opp.initials : 'YOUR FRIEND')}</b> for this battle: their game gets it from yours (directly, or through the room for a moment if your networks won't connect) and forgets it when they leave. ` +
           `<em>Only for songs you made or are allowed to share.</em>${s.lend ? '' : ' Otherwise they import their own copy.'}</span></label>`;
       }
       if (st && st.status === 'ready') {
@@ -4400,7 +4487,10 @@
       else if (st && st.status === 'error') song += `<p class="rs-bad">${esc(st.note || 'Something went wrong.')}</p>`;
       else if (st && (st.status === 'need' || st.status === 'wrong')) {
         song += (st.status === 'need'
-          ? `<p class="rs-bad">${st.lendFailed ? `Couldn't get the song from ${hostIni} directly (some networks block that). ` : ''}This is ${hostIni}'s own music. Find your copy of "${esc(s.title)}"${st.choices && st.choices.length ? ': is it one of these?' : ', or import it.'}</p>`
+          ? `<p class="rs-bad">${st.lendFailed ? ({
+            host: `${hostIni}'s game didn't answer, so the song couldn't be lent. Ask ${hostIni} to keep Beat Frets open in this room, then <button class="btn small" data-room-relend>TRY LENDING AGAIN</button> `,
+            gone: `${hostIni}'s copy of the song isn't on their device any more. `,
+          }[st.lendFailed] || `The song couldn't come across from ${hostIni}: the connection dropped. <button class="btn small" data-room-relend>TRY LENDING AGAIN</button> `) : ''}This is ${hostIni}'s own music. Find your copy of "${esc(s.title)}"${st.choices && st.choices.length ? ': is it one of these?' : ', or import it.'}</p>`
           : `<p class="rs-bad">Your copy "${esc(current ? current.title : '')}" only matches ${Math.round((st.fit ? st.fit.match : 0) * 100)}% of their notes: the beats don't line up, so it's a different version. Import the version they have${st.choices && st.choices.length ? ', or is it one of these?' : '.'}</p>`) +
           (st.choices && st.choices.length ? `<div class="vs-copies">${st.choices.map((c) => `<button class="btn small" data-room-copy="${esc(c.key)}">${esc(String(c.title).toUpperCase().slice(0, 36))}</button>`).join('')}</div>` : '');
       }
@@ -4414,7 +4504,10 @@
     // The host's own song, and the rival can't find it: point at LEND IT.
     const od = oppDoc();
     const stuck = s && s.kind === 'mp3' && s.by === battle.uid && !s.lend && od && ['need', 'wrong'].includes(od.songStatus);
-    $('#room-msg').textContent = !opp ? `Your room code is ${battle.code}.` : stuck ? `${opp.initials} doesn't have this song. If you made it or may share it, tick LEND IT above.` : '';
+    const lending = s && s.lend && s.by === battle.uid && od && od.songStatus === 'borrow';
+    $('#room-msg').textContent = !opp ? `Your room code is ${battle.code}.`
+      : lending ? `Keep Beat Frets open: ${opp.initials} is getting your song.`
+      : stuck ? `${opp.initials} doesn't have this song. If you made it or may share it, tick LEND IT above.` : '';
   }
   $('#room-song').addEventListener('change', (e) => {
     const l = e.target.closest('[data-room-lend]');
@@ -4424,6 +4517,7 @@
     if (e.target.closest('[data-room-pick]')) { openRoomPick(); return; }
     const c = e.target.closest('[data-room-copy]');
     if (c) prepareBattleSong(c.dataset.roomCopy);
+    if (e.target.closest('[data-room-relend]')) { battle.song = null; prepareBattleSong(); }
   });
 
   /** After a battle: who won, both percentages, or that the rival is still playing. */
@@ -4808,6 +4902,7 @@
     get game() { return game; },
     get current() { return current; },
     get screen() { return screen; },
+    get battleSong() { return battle.song; },
     stage,
     Input,
     layoutMode,
