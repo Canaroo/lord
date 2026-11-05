@@ -97,3 +97,21 @@ test('the boss attacks: all four hazards, spaced out, the same every time, over 
     }
   }
 });
+
+test('battle SKULLS: every attack on Hard gets at least three skulls, even on two lanes, clear of the real notes', () => {
+  for (const id of Object.keys(Boss.BATTLES)) {
+    const def = SongPack.SONGS.find((s) => s.id === id);
+    const analysis = SongPack.toAnalysis(SongPack.build(def));
+    for (const tier of ['hard', 'touch4:hard', 'touch2:hard', 'touch2:medium']) {
+      const chart = ChartGen.generateId(analysis, tier);
+      const end = chart.notes[chart.notes.length - 1].t;
+      for (let t0 = 8; t0 + 4 < end - 3; t0 += 6) {
+        const traps = Boss.battleTraps(chart.notes, { kind: 'trap', t0, t1: t0 + 4 }, chart.lanes, 0.5);
+        assert.ok(traps.length >= 3, `${id} ${tier} at ${t0}s: ${traps.length} skulls`);
+        for (const tr of traps) {
+          assert.ok(!chart.notes.some((n) => n.lane === tr.lane && Math.abs(n.t - tr.t) < 0.12), `${id} ${tier}: skull at ${tr.t} too close to a note`);
+        }
+      }
+    }
+  }
+});

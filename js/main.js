@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.64';
+  const VERSION = '1.65';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -4544,7 +4544,10 @@
     const col = (who, f, live) => `<div class="rr-col"><small>${esc(who)}</small><b>${f ? pctText(f.pct) : live ? pctText(live.pct) : '–'}</b>` +
       `<span>${f ? `${Number(f.score).toLocaleString('en-US')} · ${esc(f.grade)}${f.quit ? ' · QUIT' : f.failed ? ' · FAILED' : ''}` : live ? 'PLAYING…' : ''}</span></div>`;
     box.className = 'room-result ' + cls;
-    const atk = mine.sent || mine.taken ? `<p class="rr-atk">⚔ You sent ${mine.sent || 0} attack${mine.sent === 1 ? '' : 's'} · ${oi.initials} sent you ${mine.taken || 0}</p>` : '';
+    // Attacks each way, by type (BLACKOUT, VANISH, SKULLS).
+    const kinds = (k) => (k ? Game.ATTACK_CYCLE.filter((x) => k[x]).map((x) => `${k[x]} ${Game.attackName(x)}`).join(' · ') : '');
+    const atkLine = (who, n, k) => `${who} ${n || 0}${n ? `: ${kinds(k)}` : ''}`;
+    const atk = mine.sent || mine.taken ? `<p class="rr-atk">⚔ ${atkLine('You sent', mine.sent, mine.sentKinds)}<br>⚔ ${atkLine(`${oi.initials} sent you`, mine.taken, mine.takenKinds)}</p>` : '';
     box.innerHTML = `<p class="rr-head">${head}</p><div class="rr-cols">${col('YOU', mine)}<span class="rr-vs">VS</span>${col(oi.initials, theirs, o && o.live && o.live.round === round ? o.live : null)}</div>${atk}`;
     if (theirs && !battle.cheered) { battle.cheered = round; if (cls === 'won') Sfx.record(); }
   }
@@ -4636,6 +4639,7 @@
     battle.lastRound = r.round;
     battle.cheered = 0;
     battle.gotAtk = 0; // the rival's attacks this round that have already landed here
+    battle.sentKinds = [];
     const { id, chart } = battleChart();
     const o = oppInfo() || { initials: '???', color: '#f84848' };
     songOrigin = 'room';
@@ -4648,16 +4652,18 @@
     if (!battleOn() || !game || !game.battle) return;
     World.rooms.me(battle.code, { live: { round: game.battle.round, pct: game.battlePct(), score: Math.round(game.score), combo: game.combo } }).catch(() => {});
   }
-  /** This device launched its nth attack this round: the room passes it on straight away. */
-  function sendAttack(n) {
+  /** This device launched its nth attack this round (which one): the room passes it on straight away. */
+  function sendAttack(n, kind) {
     if (!battleOn() || !game || !game.battle) return;
-    World.rooms.me(battle.code, { atk: { round: game.battle.round, n } }).catch(() => {});
+    battle.sentKinds = (battle.sentKinds || []).slice(0, n - 1);
+    battle.sentKinds[n - 1] = kind;
+    World.rooms.me(battle.code, { atk: { round: game.battle.round, n, kinds: battle.sentKinds.slice() } }).catch(() => {});
   }
-  /** New attacks from the rival this round land in the game (each one once). */
+  /** New attacks from the rival this round land in the game (each one once, as the kind they sent). */
   function takeAttacks() {
     const o = oppDoc();
     if (!game || !game.battle || !o || !o.atk || o.atk.round !== game.battle.round) return;
-    while (battle.gotAtk < o.atk.n) { battle.gotAtk++; game.incomingAttack(); }
+    while (battle.gotAtk < o.atk.n) { game.incomingAttack((o.atk.kinds || [])[battle.gotAtk]); battle.gotAtk++; }
   }
   /** The rival as the game's HUD shows them. */
   function oppLiveView() {
@@ -4675,7 +4681,8 @@
     const round = playOpts.battle ? playOpts.battle.round : battle.lastRound;
     const pct = res && res.maxScore ? Math.min(100, Math.round((1000 * res.score) / res.maxScore) / 10) : 0; // never above a perfect run
     const fin = { round, pct, score: res ? Math.round(res.score) : 0, grade: res ? res.grade : 'F', accuracy: res ? res.accuracy : 0, failed: !!(res && res.failed), quit,
-      sent: res && res.battle ? res.battle.sent : 0, taken: res && res.battle ? res.battle.taken : 0 };
+      sent: res && res.battle ? res.battle.sent : 0, taken: res && res.battle ? res.battle.taken : 0,
+      sentKinds: res && res.battle ? res.battle.sentKinds : null, takenKinds: res && res.battle ? res.battle.takenKinds : null };
     battle.finals[round] = fin;
     playOpts = {};
     if (!battleOn()) { openBattle(); return; }

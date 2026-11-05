@@ -114,7 +114,7 @@
    * Trap notes for the trap attacks: one on about every beat of the attack, in a lane
    * with no real note close by (so a press for a real note never lands on a trap).
    */
-  function traps(notes, attackList, lanes, beat = 0.5) {
+  function traps(notes, attackList, lanes, beat = 0.5, clear = CLEAR) {
     const out = [];
     for (const a of attackList) {
       if (a.kind !== 'trap') continue;
@@ -123,11 +123,33 @@
       for (let t = a.t0 + step / 2; t < a.t1; t += step, k++) {
         // A press for a real note always takes the real note first (it's nearer), so a
         // quarter of a second clear is enough.
-        const near = notes.filter((n) => Math.abs(n.t - t) < CLEAR || (n.len && t > n.t - CLEAR && t < n.t + n.len + CLEAR));
+        const near = notes.filter((n) => Math.abs(n.t - t) < clear || (n.len && t > n.t - clear && t < n.t + n.len + clear));
         const free = [];
         for (let l = 0; l < lanes; l++) if (!near.some((n) => n.lane === l)) free.push(l);
         if (free.length) out.push({ t: +t.toFixed(4), lane: free[(k * 3) % free.length], trap: true, hit: false });
       }
+    }
+    return out;
+  }
+
+  /**
+   * A battle's SKULLS attack: the usual trap notes, and if a busy chart leaves room for fewer
+   * than three, a finer search for any free moment (closer to the real notes, never on them).
+   */
+  function battleTraps(notes, attack, lanes, beat = 0.5) {
+    const few = lanes < 3;
+    let out = traps(notes, [attack], lanes, few ? beat / 2 : beat, few ? 0.16 : CLEAR);
+    for (const clear of [0.16, 0.12]) {
+      if (out.length >= 3) break;
+      const picked = out.slice();
+      for (let t = attack.t0 + 0.1; t < attack.t1 - 0.05; t += 0.04) {
+        if (picked.some((p) => Math.abs(p.t - t) < 0.3)) continue;
+        const near = notes.filter((n) => Math.abs(n.t - t) < clear || (n.len && t > n.t - clear && t < n.t + n.len + clear));
+        const free = [];
+        for (let l = 0; l < lanes; l++) if (!near.some((n) => n.lane === l)) free.push(l);
+        if (free.length) picked.push({ t: +t.toFixed(4), lane: free[picked.length % free.length], trap: true, hit: false });
+      }
+      out = picked.sort((x, y) => x.t - y.t);
     }
     return out;
   }
@@ -388,7 +410,7 @@
   };
 
   return {
-    BATTLES, SPRITES, HP, POWER_PER_FIREBALL, FIREBALLS, FIREBALL_DAMAGE, JUDGE_DAMAGE, ATTACK_NAMES, WARN,
+    BATTLES, SPRITES, HP, POWER_PER_FIREBALL, FIREBALLS, FIREBALL_DAMAGE, JUDGE_DAMAGE, ATTACK_NAMES, WARN, battleTraps,
     powerNotes, tuning, attacks, traps, scrambleLanes, battleFor: (songId) => BATTLES[songId] || null,
   };
 });

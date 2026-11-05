@@ -30,11 +30,14 @@
   const ATK_PER_HIT = 1 / 40;
   const ATK_LEN = 4;
   const ATK_STREAK = 50;
+  // Three attacks, the same on every device and difficulty, sent in this order and round again,
+  // so a player always knows what's coming: the far end goes dark, the near end goes dark, skulls.
+  const ATTACK_CYCLE = ['blackout', 'vanish', 'trap'];
+  const ATTACK_NAME = { blackout: 'BLACKOUT', vanish: 'VANISH', trap: 'SKULLS' };
   const BATTLE_ATTACKS = {
     blackout: ['BLACKOUT!', 'NOTES APPEAR LATE'],
-    trap: ['TRAP NOTES!', "DON'T HIT THE SKULLS"],
-    surge: ['SPEED SURGE!', 'NOTES RUSH IN'],
-    scramble: ['LANE SWAP!', 'TWO LANES SWAPPED'],
+    vanish: ['VANISH!', 'NOTES FADE BEFORE THE FRETS'],
+    trap: ['SKULLS!', "DON'T HIT THE SKULLS"],
   };
 
   /** Highest score a chart allows without overdrive: every note perfect, every tail held. */
@@ -168,16 +171,13 @@
       this.endingAt = 0; // the boss laughs for a moment before the results
       // A battle room: { round, me: {initials, color}, opp: {initials, color} }; the room
       // keeps oppLive ({ pct, status }) up to date. No overdrive: scores have to compare.
-      this.battle = o.battle ? { ...o.battle, oppLive: { pct: 0, status: 'live' }, meter: 0, sent: 0, taken: 0, readyAt: 0, announced: false } : null;
+      this.battle = o.battle ? { ...o.battle, oppLive: { pct: 0, status: 'live' }, meter: 0, sent: 0, taken: 0, readyAt: 0, announced: false,
+        sentKinds: { blackout: 0, vanish: 0, trap: 0 }, takenKinds: { blackout: 0, vanish: 0, trap: 0 } } : null;
       if (this.battle) {
-        // Attacks from the rival land here. What each one is gets picked on this device, to
-        // suit how it's played: no lane swap on a touch screen or on Easy, and no trap
-        // notes on two lanes (there's no free lane to put them in).
+        // Attacks from the rival land here (which one is the sender's: see ATTACK_CYCLE).
         this.attacks = [];
         this.traps = [];
         this.scrambled = Boss.scrambleLanes(this.lanes);
-        this.battle.kinds = ['blackout', 'trap', 'surge', 'scramble']
-          .filter((k) => !(k === 'scramble' && (o.touch || this.battle.gentle)) && !(k === 'trap' && this.lanes < 3));
         const gaps = this.beats.slice(1).map((b, i) => b - this.beats[i]).sort((a, b) => a - b);
         this.battle.beat = gaps[gaps.length >> 1] || 0.5;
       }
@@ -185,6 +185,10 @@
     }
 
     static stars(score, max) { return starsFor(score, max); }
+
+    /** A battle attack's name, as players see it (BLACKOUT, VANISH, SKULLS). */
+    static attackName(kind) { return ATTACK_NAME[kind] || String(kind).toUpperCase(); }
+    static get ATTACK_CYCLE() { return ATTACK_CYCLE.slice(); }
 
     /** Multiplier from the streak alone (1–4), before overdrive. */
     get level() { return Math.min(4, 1 + Math.floor(this.combo / 10)); }
@@ -296,7 +300,8 @@
         timingSamples: this.offsets.length,
         graph: this.graph.map((b) => ({ acc: b.max ? b.earned / b.max : null, miss: b.miss })),
         timeline: this.timeline.slice(),
-        battle: this.battle ? { sent: this.battle.sent, taken: this.battle.taken, trapsHit: (this.traps || []).filter((x) => x.hit).length } : null,
+        battle: this.battle ? { sent: this.battle.sent, taken: this.battle.taken, sentKinds: { ...this.battle.sentKinds }, takenKinds: { ...this.battle.takenKinds },
+          trapsHit: (this.traps || []).filter((x) => x.hit).length } : null,
         boss: this.boss ? {
           id: this.boss.id, name: this.boss.name, color: this.boss.color, defeated: this.boss.hp <= 0, hp: Math.ceil(this.boss.hp), bossWon,
           trapsHit: this.boss.trapsHit, trapsTotal: (this.traps || []).length, launched: this.boss.launched,
@@ -370,36 +375,38 @@
         b.announced = false;
         this.banners = this.banners.filter((x) => x.text !== 'ATTACK READY!');
       }
+      const kind = this.nextAttack;
       b.sent++;
+      b.sentKinds[kind]++;
       Sfx.overdrive();
       this.stage.flashScreen(0.4);
       this.stage.kick(3);
       this._buzz([20, 30, 20]);
-      this._banner(auto ? 'AUTO ATTACK!' : 'ATTACK SENT!', '#f858c8', auto ? `${this.combo} NOTE STREAK · AT ${b.opp.initials}` : `AT ${b.opp.initials}`);
-      if (b.onAttack) b.onAttack(b.sent);
+      this._banner(`${ATTACK_NAME[kind]} SENT!`, '#f858c8', `${auto ? `${this.combo} NOTE STREAK · ` : ''}AT ${b.opp.initials} · NEXT: ${ATTACK_NAME[this.nextAttack]}`);
+      if (b.onAttack) b.onAttack(b.sent, kind);
     }
+
+    /** What this player sends next: the cycle goes round, the same for everyone. */
+    get nextAttack() { return ATTACK_CYCLE[(this.battle ? this.battle.sent : 0) % ATTACK_CYCLE.length]; }
 
     /**
      * The rival sent an attack: it lands after a warning (Boss.WARN), after any attack
      * already coming, and not in the last moments of the song.
      */
-    incomingAttack() {
+    incomingAttack(kind) {
       const b = this.battle;
+      if (!ATTACK_CYCLE.includes(kind)) kind = ATTACK_CYCLE[b.taken % ATTACK_CYCLE.length];
       if (!b || !this.running || this.failed) return null;
       const now = Math.max(0, this.now());
       const last = this.attacks.length ? this.attacks[this.attacks.length - 1].t1 : -Infinity;
       const t0 = Math.max(now + Boss.WARN, last + 1);
       if (t0 + ATK_LEN > this.lastNoteT) return null;
-      // Each kind once before any repeats, never the same twice running.
-      const left = b.kinds.filter((k) => !(b.used || []).includes(k));
-      const pool = left.length ? left : b.kinds.filter((k) => k !== b.lastKind);
-      const kind = pool[Math.floor(Math.random() * pool.length)] || b.kinds[0];
-      b.used = left.length ? [...(b.used || []), kind] : [kind];
-      b.lastKind = kind;
       const a = { kind, t0, t1: t0 + ATK_LEN, warned: false };
       this.attacks.push(a);
-      if (kind === 'trap') this.traps.push(...Boss.traps(this.notes, [a], this.lanes, b.beat));
+      // Skulls: at least three, even on a busy two-lane chart (Boss.battleTraps).
+      if (kind === 'trap') this.traps.push(...Boss.battleTraps(this.notes, a, this.lanes, b.beat));
       b.taken++;
+      b.takenKinds[kind]++;
       return kind;
     }
 
@@ -579,7 +586,7 @@
           b.announced = true;
           b.readyAt = performance.now();
           Sfx.overdriveReady();
-          this._banner('ATTACK READY!', '#f858c8', this.stage.layout !== 'keys' ? 'SWIPE UP TO LAUNCH' : `PRESS ${Input.glyph('overdrive')}`);
+          this._banner('ATTACK READY!', '#f858c8', `${ATTACK_NAME[this.nextAttack]} · ${this.stage.layout !== 'keys' ? 'SWIPE UP TO LAUNCH' : `PRESS ${Input.glyph('overdrive')}`}`);
         }
       } else if (!this.odActive) this.od = Math.min(1, this.od + OD_PER_HIT);
       this.judgement = { kind, at: performance.now(), early: best.t > t };
@@ -861,7 +868,7 @@
         failed: this.failed,
         restart: this.restartProgress,
         hazard: this._hazardView(t),
-        battle: this.battle ? { me: { ...this.battle.me, pct: this.battlePct() }, opp: { ...this.battle.opp, ...this.battle.oppLive } } : null,
+        battle: this.battle ? { me: { ...this.battle.me, pct: this.battlePct(), next: ATTACK_NAME[this.nextAttack] }, opp: { ...this.battle.opp, ...this.battle.oppLive } } : null,
         traps: this.traps || null,
         boss: this.boss ? {
           id: this.boss.id, name: this.boss.name, color: this.boss.color, attackAt: this.boss.attackAt || 0,
@@ -878,6 +885,7 @@
           // ...and a battle's Attack meter (ATK).
           fire: !!this.boss,
           atk: !!this.battle,
+          atkNext: this.battle ? ATTACK_NAME[this.nextAttack] : null,
           od: this.boss ? this.boss.fb : this.battle ? this.battle.meter : this.od,
           odReady: this.boss ? this.boss.fb >= 1 && this.bossAlive : this.battle ? this.battle.meter >= 1 : this.od >= 0.5,
           odReadyAt: this.boss ? this.boss.readyAt || 0 : this.battle ? this.battle.readyAt : this.odReadyAt || 0,

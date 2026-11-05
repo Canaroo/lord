@@ -297,6 +297,7 @@
       this.drawNotes(v, geo);
       if (v.traps) this.drawTraps(v, geo);
       if (hz && hz.kind === 'blackout') this.drawBlackout(v, geo, hz, nowMs);
+      if (hz && hz.kind === 'vanish') this.drawVanish(v, geo, hz, nowMs);
       if (hz && hz.kind === 'surge') this.drawSurge(v, geo, hz, nowMs);
       this.drawFlames(v, geo, nowMs, energy);
       if (v.fingers) this.drawGrabs(v, geo, nowMs);
@@ -985,7 +986,13 @@
       }
 
       this.drawSideHud(v, geo, nowMs);
-      if (ready && glow > 0.3) this.text(h.fire ? 'SWIPE UP: FIREBALL' : h.atk ? 'SWIPE UP: ATTACK' : 'SWIPE UP', geo.cx, Math.min(H - 10, HIT_Y + 22), odc, 8, 'center');
+      if (ready && glow > 0.3) this.text(h.fire ? 'SWIPE UP: FIREBALL' : h.atk ? `SWIPE UP: ${h.atkNext || 'ATTACK'}` : 'SWIPE UP', geo.cx, Math.min(H - 10, HIT_Y + 22), odc, 8, 'center');
+      else if (!ready && h.atk && h.atkNext) {
+        // Battles: what the meter sends next, always in view under the frets.
+        this.g.globalAlpha = 0.75;
+        this.text(`NEXT: ${h.atkNext}`, geo.cx, Math.min(H - 10, HIT_Y + 22), odc, 8, 'center');
+        this.g.globalAlpha = 1;
+      }
     }
 
     /**
@@ -1156,7 +1163,8 @@
           const y = my + (segs - 1 - i) * segH;
           this.rect(mx, y, 8, segH - 1, filled ? (v.odActive || odBlink ? PAL.white : odc) : '#101838');
         }
-        if (h.odReady && !v.odActive) this.text(h.odKey, mx + 4, my + segs * segH + 9, odBlink ? PAL.white : odc, 8, 'center');
+        if (h.atk && h.atkNext) this.text(h.atkNext, mx + 4, my + segs * segH + 9, odc, 8, 'center'); // what the meter sends next
+        if (h.odReady && !v.odActive) this.text(h.odKey, mx + 4, my + segs * segH + (h.atk ? 21 : 9), odBlink ? PAL.white : odc, 8, 'center');
       }
       this.text('RK', rx + 4, my - 13, PAL.grey, 8, 'center');
       const danger = h.rock < 0.25;
@@ -1484,6 +1492,32 @@
         }
         g.globalAlpha = 1;
       }
+    }
+
+    /**
+     * Vanish (battles): the near end of the highway is veiled, so notes fade out just before
+     * the frets and have to be played from memory. The strike line and frets stay in view.
+     */
+    drawVanish(v, geo, hz, nowMs) {
+      const top = Math.round(geo.yAt(0.42)), solid = Math.round(geo.yAt(0.3)), bottom = Math.round(geo.yAt(0.07));
+      const g = this.g;
+      for (let y = top; y < bottom; y++) {
+        // Fades in from the top, solid through the middle, and thins just above the frets.
+        const k = y < solid ? (y - top) / Math.max(1, solid - top) : y > bottom - 5 ? (bottom - y) / 5 : 1;
+        const half = geo.halfW * Math.max(0, (y - HORIZON) / (HIT_Y - HORIZON)) + 6;
+        g.fillStyle = `rgba(30,8,44,${(0.98 * k * hz.k).toFixed(3)})`;
+        g.fillRect(Math.round(geo.cx - half), y, Math.round(half * 2), 1);
+      }
+      // Pink glints drift in the veil, so it reads as an attack rather than a glitch.
+      const r = seeded(53);
+      g.globalAlpha = 0.7 * hz.k;
+      for (let i = 0; i < 16; i++) {
+        const sy = solid + r() * (bottom - 6 - solid);
+        const half = geo.halfW * Math.max(0, (sy - HORIZON) / (HIT_Y - HORIZON));
+        const sx = geo.cx - half + ((r() * 2 * half + nowMs * (0.015 + r() * 0.03)) % (2 * half));
+        if (Math.sin(nowMs / 160 + i * 1.7) > -0.2) this.rect(sx, sy, i % 3 ? 1 : 2, 1, i % 2 ? PAL.magenta : '#a878f8');
+      }
+      g.globalAlpha = 1;
     }
 
     /** Speed surge: streaks rush down beside the highway. */

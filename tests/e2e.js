@@ -266,21 +266,27 @@ async function battleTests(browser) {
   await A.keyboard.press(' ');
   await A.waitForTimeout(300);
   const fired = await A.evaluate(() => { const g = BeatFrets.game; return { meter: g.battle.meter, sent: g.battle.sent, banners: g.banners.map((b) => b.text) }; });
-  check(ready.ready && fired.sent === ready.sent + 1 && fired.meter < 0.2 && fired.banners.includes('ATTACK SENT!'), `a full Attack meter launches with SPACE (${JSON.stringify({ ready, fired })})`);
+  check(ready.ready && fired.sent === ready.sent + 1 && fired.meter < 0.2 && fired.banners.includes('BLACKOUT SENT!'), `a full Attack meter launches with SPACE, and the first attack is BLACKOUT (${JSON.stringify({ ready, fired })})`);
   const landed = await B.waitForFunction((n) => {
     const g = BeatFrets.game;
     return g && g.battle.taken >= n && g._attackAt(g.now()) ? { taken: g.battle.taken, kinds: g.attacks.map((a) => a.kind), banners: g.banners.map((b) => `${b.text} ${b.sub || ''}`) } : null;
   }, fired.sent, { timeout: 8000, polling: 50 }).then((h) => h.jsonValue()).catch(() => null);
-  check(landed && landed.taken === fired.sent && landed.kinds.length === fired.sent && landed.kinds.every((k) => ['blackout', 'trap', 'surge'].includes(k)),
-    `it lands on the rival, gently on Easy (no lane swap) (${JSON.stringify(landed)})`);
+  check(landed && landed.taken === fired.sent && landed.kinds.join() === ['blackout', 'vanish', 'trap'].slice(0, fired.sent).join() && /BLACKOUT! FROM AAA/.test(landed.banners.join()),
+    `it lands on the rival as the attack that was sent, with a warning naming it (${JSON.stringify(landed)})`);
   await B.waitForTimeout(900); // well into the attack
   await B.screenshot({ path: path.join(outDir, 'e2e-battle-attack.png') });
+  // The next one (sent free by A's 50-note streak) is VANISH: the near end of the highway is veiled.
+  const vanish = await B.waitForFunction(() => { const g = BeatFrets.game; const a = g && g._attackAt(g.now()); return a && a.kind === 'vanish' && a.k > 0.9 ? g.battle.takenKinds : null; }, null, { timeout: 60000, polling: 50 })
+    .then((h) => h.jsonValue()).catch(() => null);
+  if (vanish) await B.screenshot({ path: path.join(outDir, 'e2e-battle-vanish.png') });
+  check(vanish && vanish.blackout === 1 && vanish.vanish === 1, `the attacks come round in order: BLACKOUT, then VANISH (${JSON.stringify(vanish)})`);
   await Promise.all([A, B].map((p) => p.waitForFunction(() => BeatFrets.screen === 'room' && !document.getElementById('room-result').hidden && !/STILL PLAYING/.test(document.getElementById('room-result').textContent), null, { timeout: 120000 })));
   const res = { a: await A.textContent('#room-result'), b: await B.textContent('#room-result'), aBtn: (await btn(A)).text };
   check(/YOU WIN!/.test(res.a) && /AAA WINS!/.test(res.b) && /%/.test(res.a), `afterwards both see who won, with both percentages (${res.a.replace(/\s+/g, ' ')} | ${res.b.replace(/\s+/g, ' ')})`);
   const tally = await Promise.all([A, B].map((p) => p.evaluate(() => document.getElementById('room-result').textContent.replace(/\s+/g, ' '))));
   const sentA = Number((/You sent (\d+)/.exec(tally[0]) || [])[1]), gotB = Number((/AAA sent you (\d+)/.exec(tally[1]) || [])[1]);
-  check(sentA >= 2 && gotB >= 1 && gotB <= sentA, `long streaks send attacks on their own, and the results count them (${tally[0].slice(-60)} | ${tally[1].slice(-60)})`);
+  check(sentA >= 2 && gotB >= 1 && gotB <= sentA && /1 BLACKOUT · 1 VANISH/.test(tally[0]) && /AAA sent you \d+: 1 BLACKOUT · 1 VANISH/.test(tally[1]),
+    `long streaks send attacks on their own, and the results count each kind (${tally[0].slice(-90)} | ${tally[1].slice(-90)})`);
   await A.waitForFunction(() => /REMATCH/.test(document.getElementById('btn-room-ready').textContent), null, { timeout: 8000 }).catch(() => {});
   check(/REMATCH: READY!/.test((await btn(A)).text), 'the room offers a rematch');
   check(await A.evaluate(() => !BeatFrets.save.data.runs.length), 'a battle never goes on the leaderboards');

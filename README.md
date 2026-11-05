@@ -218,13 +218,22 @@ gets a TRY LENDING AGAIN button.
 
 In a battle the Overdrive meter becomes a pink **ATTACK** meter (ATK). Hits fill it (about 40);
 when it's full, **swipe up** (or press **SPACE**) to send an attack at your rival. Every
-**50-note streak** sends one free, all by itself.
+**50-note streak** sends the next one free, all by itself.
 
-An attack lands on the rival after a 1.5-second warning ("BLACKOUT! FROM AAA") and lasts 4 seconds:
-a **blackout** (notes appear late), **trap notes** (skulls: don't hit them), a **speed surge** (notes
-rush in) or a **lane swap**. The receiving device picks which, to suit how it's played: no lane swap
-on a touch screen or on Easy, and no trap notes on two lanes. Attacks queue up rather than stack,
-and none land in the last moments of the song. The results card counts the attacks each way.
+There are three attacks, and they always come in the same order, the same on every device and
+difficulty: **BLACKOUT → VANISH → SKULLS**, then round again (each player has their own cycle).
+What your meter sends next is always shown: under the frets on a phone (NEXT: VANISH, then SWIPE
+UP: VANISH when it's full), under the meter on a keyboard, and in the ATTACK READY banner.
+
+| Attack | What the rival sees |
+| --- | --- |
+| BLACKOUT | The far end of the highway goes dark: notes appear late. |
+| VANISH | The near end is veiled: notes fade out just before the frets and have to be played from memory. |
+| SKULLS | Trap notes: hitting one breaks the streak and costs rock. At least three per attack, even on a busy two-lane chart, always clear of the real notes. |
+
+Each lands after a 1.5-second warning naming it ("VANISH! FROM AAA") and lasts 4 seconds. Attacks
+queue up rather than stack, and none land in the last moments of the song. The results card counts
+them each way, by type ("You sent 3: 1 BLACKOUT · 1 VANISH · 1 SKULLS").
 
 Coming next: battle wins on your license.
 
@@ -622,6 +631,10 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.65**: **Battle attacks rotate: BLACKOUT → VANISH → SKULLS.** The same three on every device
+  (blackout came up far more often on phones before), always in that order, with the next one shown.
+  New VANISH veils the near end of the highway; the speed surge (too easy to miss) and lane swap are
+  gone from battles. SKULLS always brings at least three, even on two lanes. Results count each kind.
 - **1.64**: Lending: a request that arrives just as the host ticks LEND IT is answered (it could be
   missed before).
 - **1.63**: **Lending works on any network.** Two phones on one Wi-Fi often can't connect
