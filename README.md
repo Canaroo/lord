@@ -622,6 +622,8 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.64**: Lending: a request that arrives just as the host ticks LEND IT is answered (it could be
+  missed before).
 - **1.63**: **Lending works on any network.** Two phones on one Wi-Fi often can't connect
   directly, so after 10 seconds the song comes through the room in pieces instead, deleted as they
   arrive. Clear reasons and TRY LENDING AGAIN if it still can't. Fixed: after lending stopped, the
