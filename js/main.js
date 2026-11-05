@@ -4090,6 +4090,7 @@
     const sig = room.song ? `${room.song.key}|${room.song.base}|${room.song.n}|${room.song.lend ? 'lent' : ''}` : '';
     if (!battle.song || battle.song.sig !== sig) prepareBattleSong();
     if (room.go && room.go.round === room.round && battle.started !== room.round && !game && battle.song && battle.song.status === 'ready') startBattle();
+    lendTick();
     hostTick();
     renderRoom();
   }
@@ -4279,9 +4280,11 @@
   }
   /** Host: a guest asked for the relay. Put the song in the room in pieces. */
   async function relaySong(req) {
-    battle.lendRelayed = req.id;
     const s = battle.room && battle.room.song, code = battle.code;
-    if (!s || !s.lend || s.by !== battle.uid || (req.fp && s.fp && JSON.stringify(req.fp) !== JSON.stringify(s.fp))) return;
+    // Lending switched on a moment ago may not have reached this device yet: answer on a later tick.
+    if (!s || !s.lend || s.by !== battle.uid) return;
+    battle.lendRelayed = req.id;
+    if (req.fp && s.fp && JSON.stringify(req.fp) !== JSON.stringify(s.fp)) return;
     const bytes = await Library.get(s.key).catch(() => null);
     if (!bytes) { await World.rooms.lendPut(code, req.id + '-meta', { error: 'that song is no longer saved on their device' }); return; }
     const u = new Uint8Array(bytes);
@@ -4360,10 +4363,11 @@
   }
   /** Host: send the song to a guest who asked (only while it's lent). */
   async function serveSong(req) {
-    battle.lendServed = req.id;
     const s = battle.room && battle.room.song;
+    if (!s || !s.lend || s.by !== battle.uid) return; // not lending yet here: answer on a later tick
+    battle.lendServed = req.id;
     // The request must be for this very song (fingerprints are compared by content).
-    if (!s || !s.lend || s.by !== battle.uid || (req.fp && s.fp && JSON.stringify(req.fp) !== JSON.stringify(s.fp))) return;
+    if (req.fp && s.fp && JSON.stringify(req.fp) !== JSON.stringify(s.fp)) return;
     closeLend();
     const pc = new RTCPeerConnection(RTC_CONFIG());
     battle.lend = { pc, role: 'host' };
