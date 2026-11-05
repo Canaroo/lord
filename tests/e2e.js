@@ -190,7 +190,7 @@ async function battleTests(browser) {
   await A.screenshot({ path: path.join(outDir, 'e2e-battle-main.png') });
   await A.click('#btn-mode-battle');
   await screenIs(A, 'battle');
-  check(await A.evaluate(() => document.querySelectorAll('.battle-how li').length === 3 && !document.getElementById('btn-room-create').disabled), 'the Battle screen explains it in three steps, with CREATE A ROOM and JOIN');
+  check(await A.evaluate(() => document.querySelectorAll('.battle-how li').length === 4 && !document.getElementById('btn-room-create').disabled), 'the Battle screen explains it in four steps (attacks included), with CREATE A ROOM and JOIN');
   await A.waitForTimeout(500);
   await A.screenshot({ path: path.join(outDir, 'e2e-battle-home.png') });
   await A.click('#btn-room-create');
@@ -234,15 +234,34 @@ async function battleTests(browser) {
   const started = await Promise.all([A, B].map((p) => p.evaluate(() => BeatFrets.game.now())));
   check(Math.abs(started[0] - started[1]) < 1.0, `both songs start together (${started.map((x) => x.toFixed(2)).join(' / ')} s)`);
   await A.evaluate(BOSS_BOT, false); // A hits everything
-  await B.evaluate(() => { window.__skipEvery = 2; }); // B misses every other note
+  await B.evaluate(() => { window.__skipEvery = 5; }); // B misses every fifth note (and keeps going, to take attacks)
   await B.evaluate(LANE_BOT);
   await A.waitForTimeout(15000);
-  const mid = await A.evaluate(() => { const g = BeatFrets.game; const v = g._view(g.now()); return { me: v.battle.me.pct, opp: v.battle.opp.pct, oppIni: v.battle.opp.initials, od: v.hud.noOd }; });
-  check(mid.me > 0 && mid.opp > 0 && mid.me > mid.opp && mid.oppIni === 'BBB' && mid.od, `mid-song, each sees the rival's live percentage (no overdrive) (${JSON.stringify(mid)})`);
+  const mid = await A.evaluate(() => { const g = BeatFrets.game; const v = g._view(g.now()); return { me: v.battle.me.pct, opp: v.battle.opp.pct, oppIni: v.battle.opp.initials, atk: v.hud.atk, od: g.od }; });
+  check(mid.me > 0 && mid.opp > 0 && mid.me > mid.opp && mid.oppIni === 'BBB' && mid.atk && mid.od === 0, `mid-song, each sees the rival's live percentage, and an Attack meter in place of Overdrive (${JSON.stringify(mid)})`);
+
+  // Attacks: A's meter fills from hits; SPACE launches it, and it lands on B after a warning.
+  await A.waitForFunction(() => BeatFrets.game && BeatFrets.game.battle.meter >= 1, null, { timeout: 30000 }).catch(() => {});
+  const ready = await A.evaluate(() => { const g = BeatFrets.game; return { meter: g.battle.meter, sent: g.battle.sent, ready: g._view(g.now()).hud.odReady }; });
   await A.screenshot({ path: path.join(outDir, 'e2e-battle-play.png') });
+  await A.keyboard.press(' ');
+  await A.waitForTimeout(300);
+  const fired = await A.evaluate(() => { const g = BeatFrets.game; return { meter: g.battle.meter, sent: g.battle.sent, banners: g.banners.map((b) => b.text) }; });
+  check(ready.ready && fired.sent === ready.sent + 1 && fired.meter < 0.2 && fired.banners.includes('ATTACK SENT!'), `a full Attack meter launches with SPACE (${JSON.stringify({ ready, fired })})`);
+  const landed = await B.waitForFunction((n) => {
+    const g = BeatFrets.game;
+    return g && g.battle.taken >= n && g._attackAt(g.now()) ? { taken: g.battle.taken, kinds: g.attacks.map((a) => a.kind), banners: g.banners.map((b) => `${b.text} ${b.sub || ''}`) } : null;
+  }, fired.sent, { timeout: 8000, polling: 50 }).then((h) => h.jsonValue()).catch(() => null);
+  check(landed && landed.taken === fired.sent && landed.kinds.length === fired.sent && landed.kinds.every((k) => ['blackout', 'trap', 'surge'].includes(k)),
+    `it lands on the rival, gently on Easy (no lane swap) (${JSON.stringify(landed)})`);
+  await B.waitForTimeout(900); // well into the attack
+  await B.screenshot({ path: path.join(outDir, 'e2e-battle-attack.png') });
   await Promise.all([A, B].map((p) => p.waitForFunction(() => BeatFrets.screen === 'room' && !document.getElementById('room-result').hidden && !/STILL PLAYING/.test(document.getElementById('room-result').textContent), null, { timeout: 120000 })));
   const res = { a: await A.textContent('#room-result'), b: await B.textContent('#room-result'), aBtn: (await btn(A)).text };
   check(/YOU WIN!/.test(res.a) && /AAA WINS!/.test(res.b) && /%/.test(res.a), `afterwards both see who won, with both percentages (${res.a.replace(/\s+/g, ' ')} | ${res.b.replace(/\s+/g, ' ')})`);
+  const tally = await Promise.all([A, B].map((p) => p.evaluate(() => document.getElementById('room-result').textContent.replace(/\s+/g, ' '))));
+  const sentA = Number((/You sent (\d+)/.exec(tally[0]) || [])[1]), gotB = Number((/AAA sent you (\d+)/.exec(tally[1]) || [])[1]);
+  check(sentA >= 2 && gotB >= 1 && gotB <= sentA, `long streaks send attacks on their own, and the results count them (${tally[0].slice(-60)} | ${tally[1].slice(-60)})`);
   await A.waitForFunction(() => /REMATCH/.test(document.getElementById('btn-room-ready').textContent), null, { timeout: 8000 }).catch(() => {});
   check(/REMATCH: READY!/.test((await btn(A)).text), 'the room offers a rematch');
   check(await A.evaluate(() => !BeatFrets.save.data.runs.length), 'a battle never goes on the leaderboards');

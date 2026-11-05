@@ -194,8 +194,19 @@ always shows the one next step (PICK A SONG, IMPORT YOUR COPY, READY!, REMATCH: 
 player leaves or drops out mid-song, the other wins. Battles are just between the two of you: they
 never go on the leaderboards or your records.
 
-Coming next: attacks you launch at your rival (and that fire on their own on long streaks), and
-battle wins on your license.
+### Attacks
+
+In a battle the Overdrive meter becomes a pink **ATTACK** meter (ATK). Hits fill it (about 40);
+when it's full, **swipe up** (or press **SPACE**) to send an attack at your rival. Every
+**50-note streak** sends one free, all by itself.
+
+An attack lands on the rival after a 1.5-second warning ("BLACKOUT! FROM AAA") and lasts 4 seconds:
+a **blackout** (notes appear late), **trap notes** (skulls: don't hit them), a **speed surge** (notes
+rush in) or a **lane swap**. The receiving device picks which, to suit how it's played: no lane swap
+on a touch screen or on Easy, and no trap notes on two lanes. Attacks queue up rather than stack,
+and none land in the last moments of the song. The results card counts the attacks each way.
+
+Coming next: battle wins on your license.
 
 ## Getting around
 
@@ -591,6 +602,9 @@ which build a phone is running. When publishing an update, bump the version in a
 `package.json` (`npm test` fails if they don't match). The `?v=` keeps an update loading as one
 matching set of files, even on a slow connection.
 
+- **1.60**: **Battle attacks.** A pink ATTACK meter fills from hits; swipe up or press SPACE to hit
+  your rival with a blackout, trap notes, a speed surge or a lane swap (after a warning), and every
+  50-note streak sends one free. The results count the attacks each way.
 - **1.59**: **BATTLE: live two-player rooms.** Make a room, share its 4-letter code, pick any
   song (your own music too: your friend's copy is matched to yours), press READY together and race
   for the best % of a perfect run, with a live tug-of-war bar. Rematch as often as you like.

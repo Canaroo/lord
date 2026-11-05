@@ -25,6 +25,17 @@
   const PACE_STEP = 2; // seconds between pace samples
   const GRAPH_BUCKETS = 48;
   const FIREBALL_FLIGHT = 380; // ms from launch to hitting the boss
+  // Battle attacks: hits fill the attack meter (about 40 to fill it); every 50-note streak
+  // also sends one free. An attack lands on the rival after a warning and lasts a few seconds.
+  const ATK_PER_HIT = 1 / 40;
+  const ATK_LEN = 4;
+  const ATK_STREAK = 50;
+  const BATTLE_ATTACKS = {
+    blackout: ['BLACKOUT!', 'NOTES APPEAR LATE'],
+    trap: ['TRAP NOTES!', "DON'T HIT THE SKULLS"],
+    surge: ['SPEED SURGE!', 'NOTES RUSH IN'],
+    scramble: ['LANE SWAP!', 'TWO LANES SWAPPED'],
+  };
 
   /** Highest score a chart allows without overdrive: every note perfect, every tail held. */
   function maxScore(notes) {
@@ -157,7 +168,19 @@
       this.endingAt = 0; // the boss laughs for a moment before the results
       // A battle room: { round, me: {initials, color}, opp: {initials, color} }; the room
       // keeps oppLive ({ pct, status }) up to date. No overdrive: scores have to compare.
-      this.battle = o.battle ? { ...o.battle, oppLive: { pct: 0, status: 'live' } } : null;
+      this.battle = o.battle ? { ...o.battle, oppLive: { pct: 0, status: 'live' }, meter: 0, sent: 0, taken: 0, readyAt: 0, announced: false } : null;
+      if (this.battle) {
+        // Attacks from the rival land here. What each one is gets picked on this device, to
+        // suit how it's played: no lane swap on a touch screen or on Easy, and no trap
+        // notes on two lanes (there's no free lane to put them in).
+        this.attacks = [];
+        this.traps = [];
+        this.scrambled = Boss.scrambleLanes(this.lanes);
+        this.battle.kinds = ['blackout', 'trap', 'surge', 'scramble']
+          .filter((k) => !(k === 'scramble' && (o.touch || this.battle.gentle)) && !(k === 'trap' && this.lanes < 3));
+        const gaps = this.beats.slice(1).map((b, i) => b - this.beats[i]).sort((a, b) => a - b);
+        this.battle.beat = gaps[gaps.length >> 1] || 0.5;
+      }
       this._frame = this._frame.bind(this);
     }
 
@@ -273,6 +296,7 @@
         timingSamples: this.offsets.length,
         graph: this.graph.map((b) => ({ acc: b.max ? b.earned / b.max : null, miss: b.miss })),
         timeline: this.timeline.slice(),
+        battle: this.battle ? { sent: this.battle.sent, taken: this.battle.taken, trapsHit: (this.traps || []).filter((x) => x.hit).length } : null,
         boss: this.boss ? {
           id: this.boss.id, name: this.boss.name, color: this.boss.color, defeated: this.boss.hp <= 0, hp: Math.ceil(this.boss.hp), bossWon,
           trapsHit: this.boss.trapsHit, trapsTotal: (this.traps || []).length, launched: this.boss.launched,
@@ -323,7 +347,7 @@
 
     activateOverdrive() {
       if (this.boss) { this._launchFireball(); return; }
-      if (this.battle) return;
+      if (this.battle) { this._launchAttack(false); return; }
       if (!this.running || this.paused || this.failed || this.odActive || this.od < 0.5) return;
       this.odActive = true;
       Sfx.overdrive();
@@ -332,6 +356,51 @@
       this.stage.kick(3);
       this.banners = this.banners.filter((b) => b.text !== 'SWIPE UP!');
       this._banner('OVERDRIVE!', '#58f8f8');
+    }
+
+    // ---- battle attacks --------------------------------------------------------------
+
+    /** Send an attack at the rival: from a full meter, or free on a long streak (auto). */
+    _launchAttack(auto) {
+      const b = this.battle;
+      if (!this.running || this.paused || this.failed || this.now() < 0) return;
+      if (!auto) {
+        if (b.meter < 1) return;
+        b.meter = 0;
+        b.announced = false;
+        this.banners = this.banners.filter((x) => x.text !== 'ATTACK READY!');
+      }
+      b.sent++;
+      Sfx.overdrive();
+      this.stage.flashScreen(0.4);
+      this.stage.kick(3);
+      this._buzz([20, 30, 20]);
+      this._banner(auto ? 'AUTO ATTACK!' : 'ATTACK SENT!', '#f858c8', auto ? `${this.combo} NOTE STREAK · AT ${b.opp.initials}` : `AT ${b.opp.initials}`);
+      if (b.onAttack) b.onAttack(b.sent);
+    }
+
+    /**
+     * The rival sent an attack: it lands after a warning (Boss.WARN), after any attack
+     * already coming, and not in the last moments of the song.
+     */
+    incomingAttack() {
+      const b = this.battle;
+      if (!b || !this.running || this.failed) return null;
+      const now = Math.max(0, this.now());
+      const last = this.attacks.length ? this.attacks[this.attacks.length - 1].t1 : -Infinity;
+      const t0 = Math.max(now + Boss.WARN, last + 1);
+      if (t0 + ATK_LEN > this.lastNoteT) return null;
+      // Each kind once before any repeats, never the same twice running.
+      const left = b.kinds.filter((k) => !(b.used || []).includes(k));
+      const pool = left.length ? left : b.kinds.filter((k) => k !== b.lastKind);
+      const kind = pool[Math.floor(Math.random() * pool.length)] || b.kinds[0];
+      b.used = left.length ? [...(b.used || []), kind] : [kind];
+      b.lastKind = kind;
+      const a = { kind, t0, t1: t0 + ATK_LEN, warned: false };
+      this.attacks.push(a);
+      if (kind === 'trap') this.traps.push(...Boss.traps(this.notes, [a], this.lanes, b.beat));
+      b.taken++;
+      return kind;
     }
 
     // ---- boss battles ----------------------------------------------------------------
@@ -418,7 +487,7 @@
       // A press with no note nearby does nothing: stray presses never cost you.
       if (best) { this._hit(best, bestD, t); return; }
       // ...except on a boss's trap note.
-      if (this.traps && this.bossAlive) {
+      if (this.traps && (this.bossAlive || this.battle)) {
         const trap = this.traps.find((x) => !x.hit && x.lane === lane && Math.abs(x.t - t) <= this.win.ok);
         if (trap) this._hitTrap(trap);
       }
@@ -428,15 +497,17 @@
     _hitTrap(trap) {
       const b = this.boss;
       trap.hit = true;
-      b.trapsHit++;
-      this._heal(b.tune.trapHeal);
-      b.healAt = performance.now();
+      if (b) {
+        b.trapsHit++;
+        this._heal(b.tune.trapHeal);
+        b.healAt = performance.now();
+      }
       this.combo = 0;
       this.judgement = { kind: 'trap', at: performance.now() };
       const was = this.rock;
-      this.rock = Math.max(0, this.rock - b.tune.trapRock);
+      this.rock = Math.max(0, this.rock - (b ? b.tune.trapRock : 0.08));
       Sfx.miss();
-      Sfx.bossHeal();
+      if (b) Sfx.bossHeal();
       this._buzz([40, 30, 40]);
       this.stage.kick(3);
       const pos = this.stage.fretPos(this.lanes, trap.lane);
@@ -447,7 +518,7 @@
 
     /** The boss's attack under way at song time t (only while it's still standing), and how far in (0–1 ramps). */
     _attackAt(t) {
-      if (!this.attacks || !this.bossAlive) return null;
+      if (!this.attacks || (this.boss && !this.bossAlive)) return null;
       const a = this.attacks.find((x) => t >= x.t0 && t < x.t1);
       if (!a) return null;
       const ramp = 0.4;
@@ -501,7 +572,16 @@
             this._banner('FIREBALL READY!', '#f88820', this.stage.layout !== 'keys' ? 'SWIPE UP TO LAUNCH' : `PRESS ${Input.glyph('overdrive')}`);
           }
         }
-      } else if (!this.odActive && !this.battle) this.od = Math.min(1, this.od + OD_PER_HIT);
+      } else if (this.battle) {
+        const b = this.battle;
+        b.meter = Math.min(1, b.meter + ATK_PER_HIT);
+        if (b.meter >= 1 && !b.announced) {
+          b.announced = true;
+          b.readyAt = performance.now();
+          Sfx.overdriveReady();
+          this._banner('ATTACK READY!', '#f858c8', this.stage.layout !== 'keys' ? 'SWIPE UP TO LAUNCH' : `PRESS ${Input.glyph('overdrive')}`);
+        }
+      } else if (!this.odActive) this.od = Math.min(1, this.od + OD_PER_HIT);
       this.judgement = { kind, at: performance.now(), early: best.t > t };
       if (this.hitSounds) Sfx.hitTick();
 
@@ -514,7 +594,11 @@
         Sfx.levelUp(this.level);
         this._buzz(12);
       }
-      if (this.combo % 50 === 0) {
+      if (this.battle && this.combo % ATK_STREAK === 0) {
+        // A long streak in a battle fires an attack all by itself.
+        Sfx.streak(this.combo);
+        this._launchAttack(true);
+      } else if (this.combo % 50 === 0) {
         this._banner(`${this.combo} NOTE STREAK!`, '#f8d830');
         Sfx.streak(this.combo);
         this._buzz([15, 40, 15]);
@@ -668,7 +752,7 @@
     _hazardView(t) {
       const a = this._attackAt(t);
       if (!a) return null;
-      return { kind: a.kind, k: a.k, lanes: this.scrambled, boss: this.boss.id, until: a.t1 - t };
+      return { kind: a.kind, k: a.k, lanes: this.scrambled, boss: this.boss ? this.boss.id : null, until: a.t1 - t };
     }
 
     // ---- loop ------------------------------------------------------------------------
@@ -683,15 +767,21 @@
           const from = Math.max(this.lastT, this.highT);
           this._updateHolds(from, t);
           if (this.boss) this._landFireballs();
-          if (this.attacks && this.bossAlive) {
-            // The boss's attacks are announced just before they start.
+          if (this.attacks && (this.bossAlive || this.battle)) {
+            // Attacks (the boss's, or the rival's) are announced just before they start.
             for (const a of this.attacks) {
               if (a.warned || t < a.t0 - Boss.WARN) continue;
               a.warned = true;
-              const [title, sub] = (Boss.ATTACK_NAMES[this.boss.id] || Boss.ATTACK_NAMES.count)[a.kind];
-              this._banner(title, '#f84848', sub);
+              if (this.battle) {
+                const [title, sub] = BATTLE_ATTACKS[a.kind];
+                this._banner(title, '#f84848', `FROM ${this.battle.opp.initials} · ${sub}`);
+                this.battle.hitAt = performance.now();
+              } else {
+                const [title, sub] = (Boss.ATTACK_NAMES[this.boss.id] || Boss.ATTACK_NAMES.count)[a.kind];
+                this._banner(title, '#f84848', sub);
+                this.boss.attackAt = performance.now();
+              }
               Sfx.bossAttack();
-              this.boss.attackAt = performance.now();
             }
           }
           if (this.odActive) {
@@ -785,11 +875,12 @@
           pips: this.level >= 4 ? 10 : this.combo % 10,
           rock: this.rock,
           // Boss battles: the Fireball meter takes the Overdrive meter's place; a battle room has none.
+          // ...and a battle's Attack meter (ATK).
           fire: !!this.boss,
-          noOd: !!this.battle,
-          od: this.boss ? this.boss.fb : this.od,
-          odReady: this.boss ? this.boss.fb >= 1 && this.bossAlive : this.od >= 0.5,
-          odReadyAt: this.boss ? this.boss.readyAt || 0 : this.odReadyAt || 0,
+          atk: !!this.battle,
+          od: this.boss ? this.boss.fb : this.battle ? this.battle.meter : this.od,
+          odReady: this.boss ? this.boss.fb >= 1 && this.bossAlive : this.battle ? this.battle.meter >= 1 : this.od >= 0.5,
+          odReadyAt: this.boss ? this.boss.readyAt || 0 : this.battle ? this.battle.readyAt : this.odReadyAt || 0,
           odKey: Input.glyph('overdrive'),
           progress: Math.max(0, Math.min(1, t / this.duration)),
           intro: t < 1.5 && !this.resumeAt ? this.intro : null,

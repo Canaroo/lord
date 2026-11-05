@@ -498,7 +498,7 @@
           const w = geo.laneW * sc;
           const k = (y - hy) / (H - hy); // 0 at the line, 1 at the bottom
           g.globalAlpha = down ? 0.6 - 0.25 * k : 0.34 - 0.16 * k;
-          g.fillStyle = down ? LANES_LIGHT[l] : ready && (y >> 2) % 2 ? (v.hud.fire ? PAL.orange : PAL.cyan) : LANES_DARK[l];
+          g.fillStyle = down ? LANES_LIGHT[l] : ready && (y >> 2) % 2 ? (v.hud.fire ? PAL.orange : v.hud.atk ? PAL.magenta : PAL.cyan) : LANES_DARK[l];
           g.fillRect(Math.round(x0 + 2 * sc), y, Math.round(w - 4 * sc), 1);
           // Pad edges.
           g.globalAlpha = down ? 0.9 : 0.45;
@@ -929,8 +929,8 @@
       const danger = h.rock < 0.25 && Math.floor(nowMs / 180) % 2 === 0;
       const climb = Math.floor(nowMs / 28);
       const glow = ready ? 0.5 + 0.5 * Math.sin(nowMs / 110) : 0;
-      // Boss battles: the meter charges a Fireball, in fire colours.
-      const odc = h.fire ? PAL.orange : PAL.cyan;
+      // Boss battles: the meter charges a Fireball, in fire colours; a battle's Attack meter is pink.
+      const odc = h.fire ? PAL.orange : h.atk ? PAL.magenta : PAL.cyan;
 
       // Overdrive ready: a cyan wash rising from the frets.
       if (ready) {
@@ -953,7 +953,7 @@
         const gap = d % 6 === 5;
         const xl = Math.round(geo.cx - half) - 4 - w;
         const xr = Math.round(geo.cx + half) + 4;
-        if (!h.noOd) this.rect(xl - 1, y, w + 2, 1, PAL.ink);
+        this.rect(xl - 1, y, w + 2, 1, PAL.ink);
         this.rect(xr - 1, y, w + 2, 1, PAL.ink);
         if (gap) continue;
         let c = '#141c44';
@@ -962,7 +962,7 @@
           else if (ready) c = ((d - climb) % 14 + 14) % 14 < 5 ? PAL.white : odc;
           else c = odc;
         }
-        if (!h.noOd) this.rect(xl, y, w, 1, c);
+        this.rect(xl, y, w, 1, c);
         c = '#141c44';
         if (k <= h.rock) c = danger ? PAL.white : k < 0.25 ? PAL.red : k < 0.6 ? PAL.gold : PAL.green;
         this.rect(xr, y, w, 1, c);
@@ -970,7 +970,7 @@
       const sTop = (yTop - HORIZON) / (HIT_Y - HORIZON);
       const lx = geo.cx - geo.halfW * sTop - 6;
       const rx = geo.cx + geo.halfW * sTop + 6;
-      if (!h.noOd) this.text(h.fire ? 'FB' : 'OD', lx, yTop - 11, ready && glow > 0.5 ? PAL.white : odc, 8, 'center');
+      this.text(h.fire ? 'FB' : h.atk ? 'ATK' : 'OD', lx, yTop - 11, ready && glow > 0.5 ? PAL.white : odc, 8, 'center');
       this.text('ROCK', rx, yTop - 11, h.rock < 0.25 ? PAL.red : PAL.grey, 8, 'center');
 
       if (ready) this.drawSwipeArrows(geo, nowMs, odc);
@@ -985,7 +985,7 @@
       }
 
       this.drawSideHud(v, geo, nowMs);
-      if (ready && glow > 0.3) this.text(h.fire ? 'SWIPE UP: FIREBALL' : 'SWIPE UP', geo.cx, Math.min(H - 10, HIT_Y + 22), odc, 8, 'center');
+      if (ready && glow > 0.3) this.text(h.fire ? 'SWIPE UP: FIREBALL' : h.atk ? 'SWIPE UP: ATTACK' : 'SWIPE UP', geo.cx, Math.min(H - 10, HIT_Y + 22), odc, 8, 'center');
     }
 
     /**
@@ -1146,10 +1146,10 @@
       const segs = 12;
       const mx = 64, rx = W - 72, my = 74, segH = 6;
       this.window(rx - 5, my - 18, 18, segs * segH + 24);
-      if (!h.noOd) {
+      {
         this.window(mx - 5, my - 18, 18, segs * segH + 24);
-        const odc = h.fire ? PAL.orange : PAL.cyan; // boss battles: the Fireball meter
-        this.text(h.fire ? 'FB' : 'OD', mx + 4, my - 13, odc, 8, 'center');
+        const odc = h.fire ? PAL.orange : h.atk ? PAL.magenta : PAL.cyan; // boss battles: the Fireball meter; battles: Attack
+        this.text(h.fire ? 'FB' : h.atk ? 'AT' : 'OD', mx + 4, my - 13, odc, 8, 'center');
         const odBlink = h.odReady && !v.odActive && Math.floor(nowMs / 250) % 2 === 0;
         for (let i = 0; i < segs; i++) {
           const filled = h.od * segs > i + 1e-6;

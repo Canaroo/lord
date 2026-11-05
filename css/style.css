@@ -1517,6 +1517,7 @@ body.no-tiles:not(.touch) .lines-group { display: none; }
 .rr-head { margin: 0 0 8px; font: 400 20px var(--pixel); color: var(--gold); text-shadow: 3px 3px 0 var(--ink); }
 .room-result.lost .rr-head { color: var(--red); }
 .room-result.wait .rr-head { color: var(--muted); font-size: 13px; }
+.rr-atk { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
 .rr-cols { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
 .rr-col { display: flex; flex-direction: column; gap: 4px; }
 .rr-col small { font: 400 10px var(--pixel); color: var(--muted); }

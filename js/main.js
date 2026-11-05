@@ -8,7 +8,7 @@
   // The version shown on the title screen and in Options. Bump it with every
   // update you publish (and the cache name in sw.js) so you can tell which one
   // a phone is running.
-  const VERSION = '1.59';
+  const VERSION = '1.60';
   // A page and code from different versions (an update half-loaded on a slow
   // connection) can break in odd ways, so reload once to get a matching set.
   if (document.documentElement.dataset.v && document.documentElement.dataset.v !== VERSION) {
@@ -1695,7 +1695,8 @@
       best: !playOpts.chart && !vsRoom && save.active ? save.pace(save.active.id, current.key, difficulty) : null,
       rival: playOpts.target ? { initials: playOpts.target.initials, score: playOpts.target.score, timeline: playOpts.target.timeline || null } : null,
       boss: bossFight,
-      battle: vsRoom,
+      // Attacks: what this device sends goes to the room; Easy gets gentler attacks.
+      battle: vsRoom ? { ...vsRoom, gentle: tier.difficulty === 'easy', onAttack: sendAttack } : null,
       touch: !!tier.touch,
       intro: { title: current.title.toUpperCase().slice(0, 40), sub: vsRoom ? `BATTLE VS ${vsRoom.opp.initials} · ${LABEL(difficulty)}`
         : (playOpts.target ? `BEAT ${playOpts.target.initials}: ${playOpts.target.score.toLocaleString('en-US')}` : bossFight ? 'BOSS BATTLE: ' + bossFight.name : LABEL(difficulty)) + (settings.noFail ? ' · NO-FAIL PRACTICE' : '') },
@@ -4090,7 +4091,7 @@
       if (battle.seenJson[p.uid] !== j) { battle.seenJson[p.uid] = j; battle.seen[p.uid] = now; }
     }
     battle.players = list;
-    if (game && game.battle) game.battle.oppLive = oppLiveView();
+    if (game && game.battle) { game.battle.oppLive = oppLiveView(); takeAttacks(); }
     hostTick();
     renderRoom();
   }
@@ -4266,7 +4267,8 @@
     const col = (who, f, live) => `<div class="rr-col"><small>${esc(who)}</small><b>${f ? pctText(f.pct) : live ? pctText(live.pct) : '–'}</b>` +
       `<span>${f ? `${Number(f.score).toLocaleString('en-US')} · ${esc(f.grade)}${f.quit ? ' · QUIT' : f.failed ? ' · FAILED' : ''}` : live ? 'PLAYING…' : ''}</span></div>`;
     box.className = 'room-result ' + cls;
-    box.innerHTML = `<p class="rr-head">${head}</p><div class="rr-cols">${col('YOU', mine)}<span class="rr-vs">VS</span>${col(oi.initials, theirs, o && o.live && o.live.round === round ? o.live : null)}</div>`;
+    const atk = mine.sent || mine.taken ? `<p class="rr-atk">⚔ You sent ${mine.sent || 0} attack${mine.sent === 1 ? '' : 's'} · ${oi.initials} sent you ${mine.taken || 0}</p>` : '';
+    box.innerHTML = `<p class="rr-head">${head}</p><div class="rr-cols">${col('YOU', mine)}<span class="rr-vs">VS</span>${col(oi.initials, theirs, o && o.live && o.live.round === round ? o.live : null)}</div>${atk}`;
     if (theirs && !battle.cheered) { battle.cheered = round; if (cls === 'won') Sfx.record(); }
   }
 
@@ -4356,6 +4358,7 @@
     battle.started = r.round;
     battle.lastRound = r.round;
     battle.cheered = 0;
+    battle.gotAtk = 0; // the rival's attacks this round that have already landed here
     const { id, chart } = battleChart();
     const o = oppInfo() || { initials: '???', color: '#f84848' };
     songOrigin = 'room';
@@ -4367,6 +4370,17 @@
   function sendLive() {
     if (!battleOn() || !game || !game.battle) return;
     World.rooms.me(battle.code, { live: { round: game.battle.round, pct: game.battlePct(), score: Math.round(game.score), combo: game.combo } }).catch(() => {});
+  }
+  /** This device launched its nth attack this round: the room passes it on straight away. */
+  function sendAttack(n) {
+    if (!battleOn() || !game || !game.battle) return;
+    World.rooms.me(battle.code, { atk: { round: game.battle.round, n } }).catch(() => {});
+  }
+  /** New attacks from the rival this round land in the game (each one once). */
+  function takeAttacks() {
+    const o = oppDoc();
+    if (!game || !game.battle || !o || !o.atk || o.atk.round !== game.battle.round) return;
+    while (battle.gotAtk < o.atk.n) { battle.gotAtk++; game.incomingAttack(); }
   }
   /** The rival as the game's HUD shows them. */
   function oppLiveView() {
@@ -4383,7 +4397,8 @@
     clearInterval(battle.live);
     const round = playOpts.battle ? playOpts.battle.round : battle.lastRound;
     const pct = res && res.maxScore ? Math.min(100, Math.round((1000 * res.score) / res.maxScore) / 10) : 0; // never above a perfect run
-    const fin = { round, pct, score: res ? Math.round(res.score) : 0, grade: res ? res.grade : 'F', accuracy: res ? res.accuracy : 0, failed: !!(res && res.failed), quit };
+    const fin = { round, pct, score: res ? Math.round(res.score) : 0, grade: res ? res.grade : 'F', accuracy: res ? res.accuracy : 0, failed: !!(res && res.failed), quit,
+      sent: res && res.battle ? res.battle.sent : 0, taken: res && res.battle ? res.battle.taken : 0 };
     battle.finals[round] = fin;
     playOpts = {};
     if (!battleOn()) { openBattle(); return; }
